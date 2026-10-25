@@ -171,7 +171,9 @@
  *  van a su personaje. Opciones, Salir y Guardar quedan solo para P1.
  *
  *  REPARTO: en el menu de P1, "Co-op" permite elegir quien controla en combate a
- *  los personajes extra del grupo (P1..P4 o IA). El principal de cada jugador es fijo.
+ *  los personajes extra del grupo (P1..P4 o IA). En el principal de P2-P4, OK marca al
+ *  jugador como ausente: la IA lucha por el y en el mapa sigue a P1. Tambien pasa solo si
+ *  su mando se desconecta; vuelve en cuanto pulsa cualquier tecla o boton suyo.
  *
  *  DIALOGOS: si P2/P3/P4 habla con alguien, las opciones de respuesta las
  *  elige ese jugador (solo responden sus teclas).
@@ -276,7 +278,8 @@
         restore: null,      // jugadores a volver a unir tras cargar partida (ver AUTO_REJOIN)
         starting: 0,        // jugador que esta activando un evento en este momento
         menuOwner: 0,       // jugador que abrio el menu (solo responden sus teclas)
-        parked: {}          // jugador -> { actorId }: sin personaje por ahora, vuelve solo
+        parked: {},         // jugador -> { actorId }: sin personaje por ahora, vuelve solo
+        away: {}            // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
     };
 
     function newPlayerKeys() {
@@ -443,7 +446,24 @@
         return (idx % playerCount()) + 1;
     }
 
+    // Jugador ausente: su personaje lucha con la IA y en el mapa sigue a P1.
+    // Se activa si su mando se desconecta o desde el menu "Co-op"; se quita con cualquier tecla suya.
+    function setPlayerAway(n, on) {
+        const p = coopPlayer(n);
+        if (n < 2 || !p || !!CoopState.away[n] === on) return;
+        if (on) {
+            CoopState.away[n] = true;
+            const actor = p.actor();
+            CoopUI.banner('Player ' + n + ' is away', 'AI plays ' + (actor ? actor.name() : 'the character') + '  -  any button to come back', colorOf(n), 200);
+        } else {
+            delete CoopState.away[n];
+            CoopUI.banner('Player ' + n + ' is back', '', colorOf(n), 110);
+        }
+    }
+
     function isAiControlled(actor) {
+        const main = mainOwnerOf(actor);
+        if (main >= 2) return !!$gamePlayer2 && !!CoopState.away[main];
         return !!$gamePlayer2 && !mainOwnerOf(actor) && assignedOwnerOf(actor) === 0;
     }
 
@@ -716,6 +736,7 @@
 
         const k = coopKeyOf(e);
         if (!k) return;
+        if (CoopState.away[k.player]) setPlayerAway(k.player, false);
         const keys = playerInput[k.player];
         if (k.action === 'ok') {
             if (onMap) {
@@ -765,9 +786,18 @@
     const padPressed = {};     // indice del mando -> { player, actions } ya enviadas como teclas
     const padButtonsLast = {}; // indice del mando -> { camera, start } del cuadro anterior
     const padWanted = {};      // jugador -> true: volvio al cargar partida pero su mando no estaba
+    const padSeen = {};        // indice del mando -> true: se ha visto conectado
 
     function fakeKeyEvent(code) {
         return { code: code, keyCode: 0, key: '', location: 0, repeat: false, preventDefault: function() {} };
+    }
+
+    // el mando con ese indice (no la posicion en la lista)
+    function findPad(pads, index) {
+        for (let i = 0; i < pads.length; i++) {
+            if (pads[i] && pads[i].index === index) return pads[i];
+        }
+        return null;
     }
 
     function padList(nav) {
@@ -896,7 +926,14 @@
                 unbindPad(index);
                 continue;
             }
-            if (!pads[index] || !pads[index].connected) releasePad(Input, index);
+            const pad = findPad(pads, index);
+            if (!pad || !pad.connected) {
+                releasePad(Input, index);
+                if (padSeen[index]) {
+                    padSeen[index] = false;
+                    setPlayerAway(n, true);
+                }
+            }
         }
     }
 
@@ -908,6 +945,7 @@
         }
 
         const index = gamepad.index;
+        padSeen[index] = true;
         const now = readPad(gamepad);
         const lastButtons = padButtonsLast[index] || {};
         padButtonsLast[index] = { camera: !!now.camera, start: !!now.start };
@@ -1544,7 +1582,9 @@
         Game_Character.prototype.update.call(this);
 
         if (!this.isMoving()) {
-            if (this.canMoveCoop()) {
+            if (CoopState.away[this._coopIndex]) {
+                this.followLeader();
+            } else if (this.canMoveCoop()) {
                 this._through = false;
                 this.updateMoveCoop();
             } else {
@@ -1552,7 +1592,17 @@
             }
         }
 
-        this.triggerInteractionCoop();
+        if (!CoopState.away[this._coopIndex]) this.triggerInteractionCoop();
+    };
+
+    // Va detras de P1 (P2 a 1 casilla, P3 a 2...), atravesando todo para no quedarse atascado
+    Game_CoopPlayer.prototype.followLeader = function() {
+        const gap = this._coopIndex - 1;
+        const dx = Math.abs($gameMap.deltaX(this.x, $gamePlayer.x));
+        const dy = Math.abs($gameMap.deltaY(this.y, $gamePlayer.y));
+        if (Math.max(dx, dy) <= gap) return;
+        this._through = true;
+        this.moveTowardCharacter($gamePlayer);
     };
 
     // Cuando una escena mueve al protagonista (ruta de movimiento), P2-P4 lo siguen como
@@ -1562,12 +1612,7 @@
             this._through = false;
             return;
         }
-        const gap = this._coopIndex - 1; // P2 a 1 casilla, P3 a 2...
-        const dx = Math.abs($gameMap.deltaX(this.x, $gamePlayer.x));
-        const dy = Math.abs($gameMap.deltaY(this.y, $gamePlayer.y));
-        if (Math.max(dx, dy) <= gap) return;
-        this._through = true;
-        this.moveTowardCharacter($gamePlayer);
+        this.followLeader();
     };
 
     Game_CoopPlayer.prototype.updateMoveCoop = function() {
@@ -2694,6 +2739,7 @@
         }
         if (isPlayerCamera(cameraMode) && cameraPlayerIndex(cameraMode) === n) cameraMode = CAM_AUTO;
         Object.assign(playerInput[n], newPlayerKeys());
+        delete CoopState.away[n];
         if (keepPads) {
             padsOf(n).forEach(index => releasePad(Input, index));
         } else {
@@ -2830,7 +2876,7 @@
             joined.push(n);
             const index = saved.pads ? saved.pads[n] : undefined;
             if (GAMEPADS && index !== undefined) {
-                const pad = pads[index];
+                const pad = findPad(pads, index);
                 if (pad && pad.connected && !padOwner[index]) bindPad(index, n);
                 else padWanted[n] = true;
             }
@@ -2875,6 +2921,7 @@
         CoopState.restore = null;
         CoopState.menuOwner = 0;
         CoopState.parked = {};
+        CoopState.away = {};
     }
 
     const _DataManager_setupNewGame = DataManager.setupNewGame;
@@ -3005,6 +3052,16 @@
     // =========================================================================
 
     // IA: RPG Maker elige la accion del personaje y no se le pide nada a nadie
+    const _Scene_Battle_update = Scene_Battle.prototype.update;
+    Scene_Battle.prototype.update = function() {
+        const actor = $gamePlayer2 && BattleManager.isInputting() ? BattleManager.actor() : null;
+        if (actor && isAiControlled(actor)) {
+            actor.makeAutoBattleActions();
+            BattleManager.selectNextCommand();
+        }
+        _Scene_Battle_update.call(this);
+    };
+
     const _Game_Actor_isAutoBattle = Game_Actor.prototype.isAutoBattle;
     Game_Actor.prototype.isAutoBattle = function() {
         if (isAiControlled(this)) return true;
@@ -3025,7 +3082,7 @@
         this.drawText('Who controls each character in combat', 0, 0, cw, 'center');
         this.contents.fontSize = 18;
         this.changeTextColor('#cfcfcf');
-        this.drawText('Left / Right or OK: change    Cancel: back    (main characters are fixed)', 0, 36, cw, 'center');
+        this.drawText('Left / Right or OK: change    Cancel: back    (main character: player away / back)', 0, 36, cw, 'center');
         this.resetTextColor();
     };
 
@@ -3066,13 +3123,14 @@
         const pad = this.itemPadding ? this.itemPadding() : this.textPadding();
         const y = rect.y + Math.floor((rect.height - this.lineHeight()) / 2);
         const main = mainOwnerOf(actor);
-        const owner = main || (isAiControlled(actor) ? 0 : battleOwnerOf(actor));
+        const away = main >= 2 && !!CoopState.away[main];
+        const owner = isAiControlled(actor) ? 0 : (main || battleOwnerOf(actor));
         this.changeTextColor(owner === 0 ? '#bbbbbb' : colorOf(owner));
-        this.drawText(main ? ownerLabel(owner) : '< ' + ownerLabel(owner) + ' >', rect.x + pad, y, 90, 'center');
+        this.drawText(main === 1 ? ownerLabel(owner) : '< ' + ownerLabel(owner) + ' >', rect.x + pad, y, 90, 'center');
         this.resetTextColor();
         this.drawText(actor.name(), rect.x + pad + 110, y, rect.width - pad * 2 - 330, 'left');
         this.changeTextColor('#9a9a9a');
-        const note = main ? (main === 1 ? 'leader (P1)' : 'main character of P' + main) : 'extra character';
+        const note = main === 1 ? 'leader (P1)' : (main ? (away ? 'P' + main + ' away - AI plays' : 'main character of P' + main) : 'extra character');
         this.drawText(note, rect.x + rect.width - pad - 220, y, 220, 'right');
         this.resetTextColor();
     };
@@ -3087,8 +3145,15 @@
 
     Window_CoopAssign.prototype.changeOwner = function(step) {
         const actor = this.actorAt(this.index());
-        if (!actor || mainOwnerOf(actor)) {
+        const main = actor ? mainOwnerOf(actor) : 0;
+        if (!actor || main === 1) {
             SoundManager.playBuzzer();
+            return;
+        }
+        if (main >= 2) {
+            setPlayerAway(main, !CoopState.away[main]);
+            SoundManager.playCursor();
+            this.redrawItem(this.index());
             return;
         }
         const choices = ownerChoices();

@@ -479,4 +479,44 @@ try {
 }
 try { Scene_Map.prototype.start.call(scene); } catch (e) { /* graficos */ }
 
+// --- T23: jugador ausente (mando desconectado / desde el menu Co-op) ---
+SceneManager._scene = scene; SceneManager._nextScene = null;
+$gameMap._interpreter.clear();
+var padC = makePad(3);
+__pads = [padC];
+padBtn(padC, 9, true); frame(); padBtn(padC, 9, false); frame(); frame();
+check('T23 P3 joins with a new gamepad', !!$gamePlayer3);
+var p3main = $gameActors.actor($gamePlayer3._coopActorId);
+padC.connected = false; __pads = [];
+frame();
+check('T23b gamepad unplugged -> P3 away, AI plays its character', p3main.isAutoBattle() && !p3main.canInput());
+$gamePlayer.locate(px, py); $gamePlayer3.locate(px + 7, py);
+for (f = 0; f < 90; f++) frame();
+var dAway = Math.abs($gamePlayer3.x - $gamePlayer.x) + Math.abs($gamePlayer3.y - $gamePlayer.y);
+check('T23c away P3 follows P1 on the map', dAway <= 3, dAway);
+padC.connected = true; __pads = [padC];
+padBtn(padC, 0, true); frame(); padBtn(padC, 0, false); frame();
+check('T23d any button -> P3 back', !p3main.isAutoBattle());
+// combate: si se va justo en su turno, la IA elige por el y el turno pasa al siguiente
+padC.connected = false; __pads = [];
+frame();
+SceneManager._scene = Object.create(Scene_Battle.prototype);
+BattleManager._phase = 'input';
+BattleManager._actorIndex = $gameParty.members().indexOf(p3main);
+var idxBefore = BattleManager._actorIndex;
+try { Scene_Battle.prototype.update.call(SceneManager._scene); } catch (e) { /* graficos del combate */ }
+check('T23e away during own battle turn -> turn passes on', BattleManager._actorIndex !== idxBefore, idxBefore + ' -> ' + BattleManager._actorIndex);
+BattleManager._phase = '';
+SceneManager._scene = scene;
+padC.connected = true; __pads = [padC];
+padBtn(padC, 0, true); frame(); padBtn(padC, 0, false); frame();
+// desde el menu Co-op: OK en el principal de P2 = ausente / de vuelta
+var p2actor = $gameActors.actor($gamePlayer2._coopActorId);
+var sc2 = new Scene_CoopAssign(); sc2.create();
+sc2._coopList.select($gameParty.members().indexOf(p2actor));
+sc2._coopList.processOk();
+check('T23f Co-op menu: P2 marked away', p2actor.isAutoBattle());
+sc2._coopList.processOk();
+check('T23g Co-op menu: P2 back', !p2actor.isAutoBattle());
+
 __results.join('\n') + '\n--log--\n' + __log.join('\n');
