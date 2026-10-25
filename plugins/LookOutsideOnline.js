@@ -97,6 +97,8 @@
  * @option 15
  * @option 20
  * @option 30
+ * @option 40
+ * @option 45
  * @option 60
  * @default 30
  *
@@ -248,8 +250,8 @@
     let SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
     let SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
     const SPLIT_ZOOM_STEPS = 4;
-    const WINDOW_FPS_STEP = { 15: 4, 20: 3, 30: 2, 60: 1 };
-    let WINDOW_FRAME_STEP = WINDOW_FPS_STEP[String(params.WindowFps)] || 2;
+    const WINDOW_FPS_VALUES = [15, 20, 30, 40, 45, 60];
+    let WINDOW_FPS = WINDOW_FPS_VALUES.indexOf(Number(params.WindowFps)) >= 0 ? Number(params.WindowFps) : 30;
     const SPLIT_ZOOM_STEP = { far: 0, medium: 2, near: 4 };
     const SPLIT_ZOOM_START = SPLIT_ZOOM_STEP[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
@@ -2785,8 +2787,12 @@
     window.addEventListener('beforeunload', closeAllCoopWindows);
 
     // Las ventanas se actualizan por turnos (WindowFps): en cada cuadro le toca a la mitad
+    // (el juego va a 60: con 30 se actualiza un cuadro si y otro no, con 45 tres de cada cuatro...;
+    // cada jugador va desfasado para que no se dibujen todas las ventanas en el mismo cuadro)
     function coopWindowDue(n) {
-        return (Graphics.frameCount + n) % WINDOW_FRAME_STEP === 0;
+        const rate = WINDOW_FPS / 60;
+        const f = Graphics.frameCount + n * 7;
+        return Math.floor(f * rate) !== Math.floor((f - 1) * rate);
     }
 
     // Se copia al tamano del juego (o a la mitad con F9 windows "Half": la escena se dibuja
@@ -3560,7 +3566,7 @@
             help: 'Keys P3 can use on the keyboard.' },
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
             help: 'On: players that were playing come back by themselves when a save is loaded.' },
-        { key: 'windowFps', name: 'F9 player windows', values: [30, 20, 15, 60], labels: ['30 FPS', '20 FPS', '15 FPS', '60 FPS'],
+        { key: 'windowFps', name: 'F9 player windows', values: [30, 40, 45, 60, 15, 20], labels: ['30 FPS', '40 FPS', '45 FPS', '60 FPS (may stall)', '15 FPS', '20 FPS'],
             help: 'How often each player window (F9) updates. Lower = less work for the PC.' },
         { key: 'windowRes', name: 'F9 window resolution', values: ['full', 'half'], labels: ['Full', 'Half (faster)'],
             help: 'Half: the player windows are drawn at half size and scaled up (softer picture, much less work). F10 shows timings.' }
@@ -3578,7 +3584,7 @@
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
         autoRejoin: AUTO_REJOIN,
-        windowFps: ({ 4: 15, 3: 20, 2: 30, 1: 60 })[WINDOW_FRAME_STEP],
+        windowFps: WINDOW_FPS,
         windowRes: String(params.WindowResolution) === 'half' ? 'half' : 'full'
     };
 
@@ -3587,7 +3593,7 @@
         SPLIT_VERTICAL = st.splitDirection !== 'horizontal';
         SPLIT3_LAYOUT = st.split3Layout;
         AUTO_REJOIN = !!st.autoRejoin;
-        WINDOW_FRAME_STEP = WINDOW_FPS_STEP[st.windowFps] || 2;
+        WINDOW_FPS = WINDOW_FPS_VALUES.indexOf(st.windowFps) >= 0 ? st.windowFps : 30;
         if (GAMEPADS !== !!st.gamepads || P3_KEY_SET !== st.p3Keys) {
             GAMEPADS = !!st.gamepads;
             P3_KEY_SET = st.p3Keys;
