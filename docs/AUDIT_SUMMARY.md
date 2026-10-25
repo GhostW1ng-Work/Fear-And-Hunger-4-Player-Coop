@@ -12,15 +12,15 @@
 | **Player transparency** (1511 commands in 111 places: cutscenes hide the protagonist). | P2-P4 stayed visible in the middle of the scene. | P2-P4 are hidden / shown together with P1. |
 | **Move routes on the player** (7261 commands in 158 places). | P2-P4 stood still while the cutscene walked P1 away. | While a scene moves P1, P2-P4 follow (passing through everything, so they never block the scene). |
 | **Scroll map** in cutscenes (37 commands, e.g. Church statue, Moon tower, intro). | The co-op camera re-centred on the players right after the pan, and split screen ignored it. | While a scene scrolls the camera, the mod leaves it alone and uses the shared view until the scene ends. |
+| **Player-centric checks** in events: conditions on the player's facing (717 in 78 places), variables from the player's position (15376), move routes / animations / balloons on the player. | Events started by P2-P4 (puzzles, examining, traps, items) checked and moved P1 instead. | An event "sees" the player who started it as the protagonist: `Game_Interpreter.character(-1)` returns that player (also for common events launched by an item from their menu). Parallel / autorun events still see P1. |
+| **P2-P4 interaction rules** (mod bug). | The action button started any event under or in front of P2-P4, ignoring priority and counters. | Same rules as the player: own tile = below/above events, front = same-level events, through counters, touch on bump. |
 
-Covered by tests T16-T21 in `tests/tests.js`.
+Covered by tests T16-T21 and T27 in `tests/tests.js`.
 
 ## Known limitations (not fixed)
 
 | Finding | Impact | Advice |
 |---|---|---|
-| **Conditions on the player's facing** (717 in 78 places, e.g. `fall_scene`, `School`, `Fortress`, `tunnels`). | Puzzles / interactions check P1's direction and position even when P2-P4 pressed the button. | Let **P1** do puzzles and "examine" interactions in those maps. |
-| **Animations / balloons on the player** (2317). | Always shown on P1, even if P2 triggered the event. | Cosmetic. |
 | **`run_double_tap`** (common events 577 / 578) read P1's arrow keys. | The double-tap sprint is P1 only. | P2-P4 have their own sprint key. |
 | **Main character death** (`main_character_dead?`, `DEATH_MAIN_CHARACTER`). | The mod's rule is game over when any player's character dies in battle, stricter than Termina. | By design (see README); a "ghost mode" is on the roadmap. |
 
@@ -31,4 +31,4 @@ Use the quick save plugin (`F6` / `F7`) before:
 1. Recruiting a companion (party rearrange) and losing one.
 2. A solo part of the story and the moment the companions come back.
 3. Cutscenes in Church / Moon tower / Fortress / School (camera pans, hidden or walking protagonist).
-4. Puzzles that need facing a specific direction (do them with P1).
+4. Puzzles that need facing a specific direction, done by P2-P4.

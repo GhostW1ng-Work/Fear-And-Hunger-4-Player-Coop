@@ -176,7 +176,10 @@
  *  su mando se desconecta; vuelve en cuanto pulsa cualquier tecla o boton suyo.
  *
  *  DIALOGOS: si P2/P3/P4 habla con alguien, las opciones de respuesta las
- *  elige ese jugador (solo responden sus teclas).
+ *  elige ese jugador (solo responden sus teclas). Ademas el evento "ve" a ese
+ *  jugador como protagonista: su posicion, hacia donde mira, las rutas de
+ *  movimiento y animaciones sobre el jugador (puzles, examinar, trampas...).
+ *  Lo mismo con objetos usados desde su menu que lanzan eventos comunes.
  *
  *  CAMARA:
  *    G                   = Auto -> Compartida -> Pantalla dividida -> Solo P1 -> ... -> Solo P4
@@ -515,10 +518,62 @@
     function choiceOwner() {
         if (!coopOn() || !inScene(Scene_Map) || !$gameMap.isEventRunning()) return 0;
         if (!messageInputActive()) return 0;
-        const event = $gameMap.event($gameMap._interpreter.eventId());
-        const n = event ? event._coopStarter : 0;
+        const n = $gameMap._interpreter._coopStarter || 0;
         return (n >= 2 && coopPlayer(n)) ? n : 0;
     }
+
+    // ---- EL EVENTO "VE" AL JUGADOR QUE LO ACTIVO ----------------------------------
+    // En los eventos, "el jugador" (personaje -1) pasa por Game_Interpreter.character: leer su
+    // posicion o direccion, condiciones de hacia donde mira, rutas de movimiento, animaciones
+    // y globos. Si el evento lo activo P2-P4, ese personaje es el suyo. El interprete recuerda
+    // quien lo activo al empezar (eventos paralelos y automaticos: P1).
+
+    const _Game_Interpreter_clear = Game_Interpreter.prototype.clear;
+    Game_Interpreter.prototype.clear = function() {
+        _Game_Interpreter_clear.call(this);
+        this._coopStarter = 0;
+    };
+
+    const _Game_Interpreter_setupChild = Game_Interpreter.prototype.setupChild;
+    Game_Interpreter.prototype.setupChild = function(list, eventId) {
+        _Game_Interpreter_setupChild.call(this, list, eventId);
+        if (this._childInterpreter) this._childInterpreter._coopStarter = this._coopStarter;
+    };
+
+    const _Game_Map_setupStartingMapEvent = Game_Map.prototype.setupStartingMapEvent;
+    Game_Map.prototype.setupStartingMapEvent = function() {
+        const event = this.events().find(ev => ev.isStarting());
+        const started = _Game_Map_setupStartingMapEvent.call(this);
+        if (started && event) this._interpreter._coopStarter = event._coopStarter || 1;
+        return started;
+    };
+
+    // Eventos comunes que lanza un objeto usado desde el menu de P2-P4
+    const _Game_Temp_reserveCommonEvent = Game_Temp.prototype.reserveCommonEvent;
+    Game_Temp.prototype.reserveCommonEvent = function(commonEventId) {
+        _Game_Temp_reserveCommonEvent.call(this, commonEventId);
+        this._coopReservedBy = CoopState.menuOwner >= 2 ? CoopState.menuOwner : 0;
+    };
+
+    const _Game_Interpreter_setupReservedCommonEvent = Game_Interpreter.prototype.setupReservedCommonEvent;
+    Game_Interpreter.prototype.setupReservedCommonEvent = function() {
+        const by = $gameTemp._coopReservedBy || 0;
+        const started = _Game_Interpreter_setupReservedCommonEvent.call(this);
+        if (started) {
+            this._coopStarter = by;
+            $gameTemp._coopReservedBy = 0;
+        }
+        return started;
+    };
+
+    const _Game_Interpreter_character = Game_Interpreter.prototype.character;
+    Game_Interpreter.prototype.character = function(param) {
+        if (param < 0 && this._coopStarter >= 2 && !$gameParty.inBattle()) {
+            const p = coopPlayer(this._coopStarter);
+            if (p) return p;
+        }
+        return _Game_Interpreter_character.call(this, param);
+    };
 
     // Quien tiene el control del teclado en este momento: 0 = nadie en particular
     function coopInputOwner() {
@@ -1601,7 +1656,7 @@
         if (this.isTransparent() !== $gamePlayer.isTransparent()) this.setTransparent($gamePlayer.isTransparent());
         Game_Character.prototype.update.call(this);
 
-        if (!this.isMoving()) {
+        if (!this.isMoving() && !this.isMoveRouteForcing()) {
             if (CoopState.away[this._coopIndex]) {
                 this.followLeader();
             } else if (this.canMoveCoop()) {
@@ -1668,31 +1723,35 @@
         }
     };
 
-    Game_CoopPlayer.prototype.checkEventTriggerHere = function(triggers) {
+    // Igual que Game_Player.startMapEvent: en su propia casilla solo cuentan los eventos por
+    // debajo / por encima del personaje, y delante solo los que estan a su mismo nivel
+    Game_CoopPlayer.prototype.startMapEventCoop = function(x, y, triggers, normal) {
         if ($gameMap.isEventRunning()) return;
-
-        const events = $gameMap.eventsXy(this.x, this.y);
-        for (const event of events) {
-            if (event.isTriggerIn(triggers)) {
+        for (const event of $gameMap.eventsXy(x, y)) {
+            if (event.isTriggerIn(triggers) && event.isNormalPriority() === normal) {
                 startEventAs(this._coopIndex, event);
-                break;
             }
         }
     };
 
+    Game_CoopPlayer.prototype.checkEventTriggerHere = function(triggers) {
+        this.startMapEventCoop(this.x, this.y, triggers, false);
+    };
+
+    // delante; a traves de un mostrador, la casilla siguiente (como Game_Player)
     Game_CoopPlayer.prototype.checkEventTriggerThere = function(triggers) {
-        if ($gameMap.isEventRunning()) return;
-
-        const x = $gameMap.roundXWithDirection(this.x, this.direction());
-        const y = $gameMap.roundYWithDirection(this.y, this.direction());
-
-        const events = $gameMap.eventsXy(x, y);
-        for (const event of events) {
-            if (event.isTriggerIn(triggers)) {
-                startEventAs(this._coopIndex, event);
-                break;
-            }
+        const d = this.direction();
+        const x2 = $gameMap.roundXWithDirection(this.x, d);
+        const y2 = $gameMap.roundYWithDirection(this.y, d);
+        this.startMapEventCoop(x2, y2, triggers, true);
+        if (!$gameMap.isAnyEventStarting() && $gameMap.isCounter(x2, y2)) {
+            this.startMapEventCoop($gameMap.roundXWithDirection(x2, d), $gameMap.roundYWithDirection(y2, d), triggers, true);
         }
+    };
+
+    // chocar contra un evento "al tocar" lo activa (como Game_Player)
+    Game_CoopPlayer.prototype.checkEventTriggerTouch = function(x, y) {
+        this.startMapEventCoop(x, y, [1, 2], true);
     };
 
     Game_CoopPlayer.prototype.triggerInteractionCoop = function() {
@@ -1702,9 +1761,9 @@
         keys.ok = false;
         if (!this.canMoveCoop()) return;
 
-        this.checkEventTriggerHere([0, 1, 2]);
+        this.checkEventTriggerHere([0]);
 
-        if (!$gameMap.isEventRunning()) {
+        if (!$gameMap.isAnyEventStarting()) {
             this.checkEventTriggerThere([0, 1, 2]);
         }
     };

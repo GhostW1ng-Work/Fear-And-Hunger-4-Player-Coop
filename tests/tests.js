@@ -130,6 +130,7 @@ if (target) {
     $gamePlayer3.checkEventTriggerThere([0, 1, 2]);
     check('T6b event remembers P3 started it', target._coopStarter === 3, target._coopStarter);
     $gameMap._interpreter.setup(target.list(), target.eventId());
+    $gameMap._interpreter._coopStarter = target._coopStarter; // lo que hace el juego al empezar el evento
     scene._messageWindow = { _choiceWindow: { active: true } };
     frame();
     down('KeyZ', 90); frame();
@@ -145,6 +146,7 @@ if (target) {
     target._coopStarter = 0;
     $gamePlayer.locate(target.x - 1, target.y); $gamePlayer.setDirection(6);
     target.start();
+    $gameMap._interpreter._coopStarter = target._coopStarter;
     check('T6g P1-started event -> starter 1', target._coopStarter === 1, target._coopStarter);
     frame();
     down('KeyZ', 90); frame();
@@ -579,5 +581,50 @@ frame();
 // P2 vuelve con su Enter (con co-op en marcha)
 tap('Enter', 13);
 check('T26c P2 rejoins with Enter and gets its character back', $gamePlayer2 && $gamePlayer2._coopActorId === p2a.actorId(), $gamePlayer2 && $gamePlayer2._coopActorId);
+
+// --- T27: el evento "ve" al jugador que lo activo (posicion, direccion, rutas) ---
+var probe = [
+    { code: 122, indent: 0, parameters: [1, 1, 0, 3, 5, -1, 0] },   // var1 = x del jugador
+    { code: 122, indent: 0, parameters: [2, 2, 0, 3, 5, -1, 2] },   // var2 = direccion del jugador
+    { code: 205, indent: 0, parameters: [-1, { list: [{ code: 15, parameters: [30] }, { code: 0 }], repeat: false, skippable: true, wait: false }] },
+    { code: 0, indent: 0, parameters: [] }
+];
+var savedList = target.page().list;
+target.page().list = probe;
+$gameMap._interpreter.clear();
+$gameMessage.clear();
+$gamePlayer.locate(target.x - 6, target.y + 3);
+$gamePlayer2.locate(target.x - 1, target.y); $gamePlayer2.setDirection(6);
+frame();
+tap('Enter', 13);
+frame();
+check('T27 P2-started event reads P2 position', $gameVariables.value(1) === $gamePlayer2.x, $gameVariables.value(1) + ' vs P2 ' + $gamePlayer2.x + ' / P1 ' + $gamePlayer.x);
+check('T27b ... and P2 direction', $gameVariables.value(2) === 6, $gameVariables.value(2));
+check('T27c move route on "the player" moves P2, not P1', $gamePlayer2.isMoveRouteForcing() && !$gamePlayer.isMoveRouteForcing());
+for (f = 0; f < 40; f++) frame();
+$gamePlayer2._moveRouteForcing = false;
+// P1 activa el mismo evento: el jugador es P1
+$gameMap._interpreter.clear();
+$gamePlayer2.locate(target.x - 6, target.y + 3);
+$gamePlayer.locate(target.x - 1, target.y); $gamePlayer.setDirection(6);
+frame();
+$gamePlayer.checkEventTriggerThere([0, 1, 2]);
+frame();
+check('T27d P1-started event reads P1 position', $gameVariables.value(1) === $gamePlayer.x, $gameVariables.value(1) + ' vs P1 ' + $gamePlayer.x);
+for (f = 0; f < 40; f++) frame();
+$gamePlayer._moveRouteForcing = false;
+target.page().list = savedList;
+// objeto usado desde el menu de P2 que lanza un evento comun
+$gameMap._interpreter.clear();
+$dataCommonEvents.push({ id: $dataCommonEvents.length, name: 'coop_probe', trigger: 0, switchId: 1,
+    list: [{ code: 122, indent: 0, parameters: [3, 3, 0, 3, 5, -1, 0] }, { code: 0, indent: 0, parameters: [] }] });
+$gamePlayer2.locate(px + 4, py);
+scene.coopCallMenuFor(2);
+$gameTemp.reserveCommonEvent($dataCommonEvents.length - 1);
+SceneManager._nextScene = null;
+try { Scene_Map.prototype.start.call(scene); } catch (e) { /* graficos */ }
+SceneManager._scene = scene;
+frame();
+check('T27e item common event from P2 menu reads P2 position', $gameVariables.value(3) === $gamePlayer2.x, $gameVariables.value(3) + ' vs P2 ' + $gamePlayer2.x + ' / P1 ' + $gamePlayer.x);
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');
