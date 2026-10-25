@@ -26,12 +26,29 @@ $src = Join-Path $PSScriptRoot 'plugins'
 # pagina de las ventanas por jugador (F9): va junto a index.html
 $viewPage = Join-Path (Split-Path $jsDir -Parent) 'coop_view.html'
 
+# Version del mod y comprobaciones del juego (solo avisos: el mod puede funcionar igual)
+$modVersion = [regex]::Match([IO.File]::ReadAllText((Join-Path $src 'LookOutsideOnline.js')), "COOP_VERSION = '([^']+)'").Groups[1].Value
+Write-Host "Termina Local Co-op v$modVersion"
+$testedVersionId = 41801202   # data/System.json versionId de la version de Termina con la que se probo
+$title = ''
+$versionId = ''
+$dataDir = @("$GamePath\data", "$GamePath\www\data") | Where-Object { Test-Path "$_\System.json" } | Select-Object -First 1
+if ($dataDir) {
+    $system = [IO.File]::ReadAllText("$dataDir\System.json")
+    $title = [regex]::Match($system, '"gameTitle"\s*:\s*"([^"]*)"').Groups[1].Value
+    $versionId = [regex]::Match($system, '"versionId"\s*:\s*(\d+)').Groups[1].Value
+}
+$coreFile = Join-Path $jsDir 'rpg_core.js'
+if (Test-Path $coreFile) {
+    $engine = [regex]::Match([IO.File]::ReadAllText($coreFile), 'RPGMAKER_VERSION = "([^"]+)"').Groups[1].Value
+    if ($engine -and -not $engine.StartsWith('1.6')) { Write-Warning "RPG Maker MV $engine`: el mod se probo con MV 1.6." }
+}
+if ($title -match 'termina' -and $versionId -and [int64]$versionId -ne $testedVersionId) {
+    Write-Warning "Esta version de Termina ($versionId) no es la probada ($testedVersionId). Deberia funcionar; si algo falla, avisa."
+}
+
 # Perfil: el plugin de disparo previo al combate solo va en juegos que lo tienen (Fear & Hunger 2)
 if ($Profile -eq 'auto') {
-    $title = ''
-    foreach ($d in @("$GamePath\data", "$GamePath\www\data")) {
-        if (Test-Path "$d\System.json") { $title = [regex]::Match([IO.File]::ReadAllText("$d\System.json"), '"gameTitle"\s*:\s*"([^"]*)"').Groups[1].Value; break }
-    }
     if ($title -match 'look\s*outside') { $Profile = 'lookoutside' }
     elseif ($title -match 'fear|hunger|termina') { $Profile = 'fearhunger' }
     else { $Profile = 'generic' }

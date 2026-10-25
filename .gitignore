@@ -12,3 +12,6 @@ www/
 data/
 img/
 audio/
+
+# release builds
+dist/

@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
+ * @plugindesc v1.0.0 Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
  * @author TheTiranix
  *
  * @param MaxPlayers
@@ -221,23 +221,28 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
+    const COOP_VERSION = '1.0.0';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
     const MAX_PLAYERS = Math.max(2, Math.min(4, Number(params.MaxPlayers || 4) || 4));
-    const P3_KEY_SET = ['numpad', 'ijkl'].indexOf(String(params.P3Keys)) >= 0 ? String(params.P3Keys) : 'all';
-    const GAMEPADS = String(params.Gamepads) !== 'false';
-    const AUTO_REJOIN = String(params.AutoRejoin) !== 'false';
+    // Estos ajustes empiezan con los parametros del plugin y se pueden cambiar en el juego
+    // (Opciones > Co-op); se guardan con la configuracion (config.rpgsave). Ver applyCoopSettings.
+    let P3_KEY_SET = ['numpad', 'ijkl'].indexOf(String(params.P3Keys)) >= 0 ? String(params.P3Keys) : 'all';
+    let GAMEPADS = String(params.Gamepads) !== 'false';
+    let AUTO_REJOIN = String(params.AutoRejoin) !== 'false';
     const P2_ACTOR_MODE = String(params.P2ActorMode || 'auto');
     const P2_ACTOR_CHOICES = String(params.P2ActorChoices || '')
         .split(',').map(s => Number(s.trim())).filter(n => n > 0);
     const LIGHT_NAMES = String(params.LightPictureNames || 'Darkness')
         .split(',').map(s => s.trim()).filter(s => s.length > 0);
-    const SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
-    const SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
+    let SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
+    let SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
     const SPLIT_ZOOM_STEPS = 4;
-    const WINDOW_FRAME_STEP = { 15: 4, 20: 3, 30: 2, 60: 1 }[String(params.WindowFps)] || 2;
-    const SPLIT_ZOOM_START = { far: 0, medium: 2, near: 4 }[String(params.SplitZoom || 'far')];
+    const WINDOW_FPS_STEP = { 15: 4, 20: 3, 30: 2, 60: 1 };
+    let WINDOW_FRAME_STEP = WINDOW_FPS_STEP[String(params.WindowFps)] || 2;
+    const SPLIT_ZOOM_STEP = { far: 0, medium: 2, near: 4 };
+    const SPLIT_ZOOM_START = SPLIT_ZOOM_STEP[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
     const PLAYER_ONLY_EVENTS = String(params.PlayerOnlyEvents === undefined
         ? 'arrow_check,arrow_player,backstab_check,backstab,bleeding,blood' : params.PlayerOnlyEvents)
@@ -617,7 +622,6 @@
 
     function padKeys(n) {
         const out = {};
-        if (!GAMEPADS) return out;
         for (const action of Object.keys(PAD_NAMES)) out[action] = [padCode(n, action)];
         return out;
     }
@@ -630,56 +634,60 @@
         return out;
     }
 
-    const PLAYER_KEYS = {
-        2: joinKeySets([{
-            up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],
-            ok: ['Enter'], cancel: ['Backspace'], shift: ['ShiftRight']
-        }, padKeys(2)]),
-        3: joinKeySets([
-            P3_KEY_SET !== 'ijkl' ? P3_NUMPAD : {},
-            P3_KEY_SET !== 'numpad' ? P3_IJKL : {},
-            padKeys(3)
-        ]),
-        4: padKeys(4) // P4 solo con mando
-    };
-
-    const P3_HELP_PARTS = [];
-    if (P3_KEY_SET !== 'ijkl') P3_HELP_PARTS.push(['Num 8/5', 'Num 0', 'Num .']);
-    if (P3_KEY_SET !== 'numpad') P3_HELP_PARTS.push(['I/K', 'U', 'O']);
-    if (GAMEPADS) P3_HELP_PARTS.push(['pad', 'A', 'B']);
-    const p3Help = i => P3_HELP_PARTS.map(p => p[i]).join(', ');
-
-    const KEY_HELP = {
-        2: 'Arrows' + (GAMEPADS ? '/pad' : '') + ': move    Enter' + (GAMEPADS ? '/A' : '') +
-            ': select    Backspace' + (GAMEPADS ? '/B' : '') + ': cancel',
-        3: 'Move: ' + p3Help(0) + '   OK: ' + p3Help(1) + '   Back: ' + p3Help(2),
-        4: 'Gamepad: move    A: select    B: cancel'
-    };
-    const PAD_JOIN = GAMEPADS ? ' / Start on a gamepad' : '';
-    const JOIN_KEY_NAME = {
-        2: 'X / Enter' + PAD_JOIN,
-        3: P3_KEY_SET === 'ijkl' ? 'U' + PAD_JOIN : (P3_KEY_SET === 'numpad' ? 'Numpad 0' + PAD_JOIN : 'U / Numpad 0' + PAD_JOIN),
-        4: 'Start on a gamepad'
-    };
-
     // Mientras hay co-op, las teclas de P2..P4 llegan a RPG Maker con un keyCode "virtual"
     // propio de cada jugador, asi nunca se confunden con las de P1 ni entre ellas.
     const KEY_ACTIONS = ['up', 'down', 'left', 'right', 'ok', 'cancel', 'shift'];
     const ACTION_BUTTON = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'ok', cancel: 'escape' };
+    const PLAYER_KEYS = {};
     const CODE_TO_KEY = {};
     const PLAYER_KEY_MAP = { 2: {}, 3: {}, 4: {} };
     const VIRTUAL_OK = [];
+    const KEY_HELP = {};
+    const JOIN_KEY_NAME = {};
 
-    for (let n = 2; n <= MAX_PLAYERS; n++) {
-        KEY_ACTIONS.forEach((action, i) => {
-            const vk = 1000 + n * 10 + i;
-            for (const code of (PLAYER_KEYS[n][action] || [])) {
-                CODE_TO_KEY[code] = { player: n, action: action, vk: vk };
-            }
-            if (ACTION_BUTTON[action]) PLAYER_KEY_MAP[n][vk] = ACTION_BUTTON[action];
-            if (action === 'ok') VIRTUAL_OK.push(vk);
-        });
+    // (re)hace las tablas segun P3_KEY_SET y GAMEPADS (los objetos se vacian y se rellenan,
+    // asi quien los tenga guardados ve siempre los valores actuales)
+    function rebuildKeyTables() {
+        PLAYER_KEYS[2] = joinKeySets([{
+            up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],
+            ok: ['Enter'], cancel: ['Backspace'], shift: ['ShiftRight']
+        }, padKeys(2)]);
+        PLAYER_KEYS[3] = joinKeySets([
+            P3_KEY_SET !== 'ijkl' ? P3_NUMPAD : {},
+            P3_KEY_SET !== 'numpad' ? P3_IJKL : {},
+            padKeys(3)
+        ]);
+        PLAYER_KEYS[4] = padKeys(4); // P4 solo con mando
+
+        Object.keys(CODE_TO_KEY).forEach(code => delete CODE_TO_KEY[code]);
+        VIRTUAL_OK.length = 0;
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            PLAYER_KEY_MAP[n] = {};
+            KEY_ACTIONS.forEach((action, i) => {
+                const vk = 1000 + n * 10 + i;
+                for (const code of (PLAYER_KEYS[n][action] || [])) {
+                    CODE_TO_KEY[code] = { player: n, action: action, vk: vk };
+                }
+                if (ACTION_BUTTON[action]) PLAYER_KEY_MAP[n][vk] = ACTION_BUTTON[action];
+                if (action === 'ok') VIRTUAL_OK.push(vk);
+            });
+        }
+
+        const parts = [];
+        if (P3_KEY_SET !== 'ijkl') parts.push(['Num 8/5', 'Num 0', 'Num .']);
+        if (P3_KEY_SET !== 'numpad') parts.push(['I/K', 'U', 'O']);
+        if (GAMEPADS) parts.push(['pad', 'A', 'B']);
+        const p3Help = i => parts.map(p => p[i]).join(', ');
+        KEY_HELP[2] = 'Arrows' + (GAMEPADS ? '/pad' : '') + ': move    Enter' + (GAMEPADS ? '/A' : '') +
+            ': select    Backspace' + (GAMEPADS ? '/B' : '') + ': cancel';
+        KEY_HELP[3] = 'Move: ' + p3Help(0) + '   OK: ' + p3Help(1) + '   Back: ' + p3Help(2);
+        KEY_HELP[4] = 'Gamepad: move    A: select    B: cancel';
+        const padJoin = GAMEPADS ? ' / Start on a gamepad' : '';
+        JOIN_KEY_NAME[2] = 'X / Enter' + padJoin;
+        JOIN_KEY_NAME[3] = P3_KEY_SET === 'ijkl' ? 'U' + padJoin : (P3_KEY_SET === 'numpad' ? 'Numpad 0' + padJoin : 'U / Numpad 0' + padJoin);
+        JOIN_KEY_NAME[4] = 'Start on a gamepad';
     }
+    rebuildKeyTables();
 
     function codeOf(e) {
         if (e.code) return e.code;
@@ -2013,6 +2021,7 @@
         hooks: coopHooks,
         maxPlayers: MAX_PLAYERS,
         player(n) { return coopPlayer(n); },
+        version: COOP_VERSION,
         isOn() { return coopOn(); },
         player2() { return $gamePlayer2; },
         players() { return extraPlayers(); },
@@ -3306,6 +3315,254 @@
     };
 
     window.Scene_CoopAssign = Scene_CoopAssign;
+
+    // =========================================================================
+    // AJUSTES DEL CO-OP (Opciones > Co-op)
+    // Cambian en el juego lo que antes solo se podia tocar en plugins.js. Se guardan con
+    // la configuracion del juego (como el volumen) y valen para todas las partidas.
+    // =========================================================================
+
+    const SETTINGS_ROWS = [
+        { key: 'camera', name: 'Camera', values: ['auto', 'shared', 'split'], labels: ['Auto', 'Shared', 'Split screen'],
+            help: 'Auto: shared while everyone is close, split screen when someone walks away. G changes it while playing.' },
+        { key: 'splitZoom', name: 'Split screen view', values: ['far', 'medium', 'near'], labels: ['Far (full view)', 'Medium', 'Close'],
+            help: 'How far each split view is zoomed out. - and = change it while playing.' },
+        { key: 'splitDirection', name: 'Split with 2 players', values: ['vertical', 'horizontal'], labels: ['Side by side', 'Stacked'],
+            help: 'With 2 players: one view on each side, or one above the other.' },
+        { key: 'split3Layout', name: 'Split with 3 players', values: ['triangle', 'grid', 'big'], labels: ['2 + 1', '2x2 + party panel', 'P1 half screen'],
+            help: '2 + 1: three equal views. 2x2: the fourth corner shows the party HP/MP.' },
+        { key: 'gamepads', name: 'Gamepads for P2-P4', values: [true, false], labels: ['On (Start joins)', 'Off (P1 only)'],
+            help: 'On: Start on a free gamepad joins the next player. Off: gamepads always control P1.' },
+        { key: 'p3Keys', name: 'P3 keyboard', values: ['all', 'numpad', 'ijkl'], labels: ['Numpad + IJKL', 'Numpad', 'IJKL'],
+            help: 'Keys P3 can use on the keyboard.' },
+        { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
+            help: 'On: players that were playing come back by themselves when a save is loaded.' },
+        { key: 'windowFps', name: 'F9 player windows', values: [30, 20, 15, 60], labels: ['30 FPS', '20 FPS', '15 FPS', '60 FPS'],
+            help: 'How often each player window (F9) updates. Lower = less work for the PC.' }
+    ];
+
+    function cameraSettingName() {
+        return ['shared', 'split'].indexOf(String(params.DefaultCameraMode)) >= 0 ? String(params.DefaultCameraMode) : 'auto';
+    }
+
+    const coopSettings = {
+        camera: cameraSettingName(),
+        splitZoom: ['medium', 'near'].indexOf(String(params.SplitZoom)) >= 0 ? String(params.SplitZoom) : 'far',
+        splitDirection: SPLIT_VERTICAL ? 'vertical' : 'horizontal',
+        split3Layout: SPLIT3_LAYOUT,
+        gamepads: GAMEPADS,
+        p3Keys: P3_KEY_SET,
+        autoRejoin: AUTO_REJOIN,
+        windowFps: ({ 4: 15, 3: 20, 2: 30, 1: 60 })[WINDOW_FRAME_STEP]
+    };
+
+    function applyCoopSettings(changedKey) {
+        const st = coopSettings;
+        SPLIT_VERTICAL = st.splitDirection !== 'horizontal';
+        SPLIT3_LAYOUT = st.split3Layout;
+        AUTO_REJOIN = !!st.autoRejoin;
+        WINDOW_FRAME_STEP = WINDOW_FPS_STEP[st.windowFps] || 2;
+        if (GAMEPADS !== !!st.gamepads || P3_KEY_SET !== st.p3Keys) {
+            GAMEPADS = !!st.gamepads;
+            P3_KEY_SET = st.p3Keys;
+            if (!GAMEPADS) Object.keys(padOwner).forEach(index => unbindPad(Number(index)));
+            rebuildKeyTables();
+            Input.clear();
+        }
+        if (!changedKey || changedKey === 'splitZoom') splitZoomStep = SPLIT_ZOOM_STEP[st.splitZoom] || 0;
+        if (!changedKey || changedKey === 'camera') {
+            if (!changedKey && isPlayerCamera(cameraMode)) return;
+            cameraMode = CAM_BY_NAME[st.camera];
+            resetAutoCamera();
+        }
+    }
+
+    const _ConfigManager_makeData = ConfigManager.makeData;
+    ConfigManager.makeData = function() {
+        const config = _ConfigManager_makeData.call(this);
+        config.coopSettings = Object.assign({}, coopSettings);
+        return config;
+    };
+
+    const _ConfigManager_applyData = ConfigManager.applyData;
+    ConfigManager.applyData = function(config) {
+        _ConfigManager_applyData.call(this, config);
+        const saved = config && config.coopSettings;
+        if (!saved) return;
+        for (const row of SETTINGS_ROWS) {
+            if (row.values.indexOf(saved[row.key]) >= 0) coopSettings[row.key] = saved[row.key];
+        }
+        applyCoopSettings();
+    };
+
+    function Window_CoopText() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Window_CoopText.prototype = Object.create(Window_Base.prototype);
+    Window_CoopText.prototype.constructor = Window_CoopText;
+
+    Window_CoopText.prototype.initialize = function(x, y, w, h) {
+        Window_Base.prototype.initialize.apply(this, rectArgs(x, y, w, h));
+        this._coopText = '';
+    };
+
+    Window_CoopText.prototype.setText = function(title, text) {
+        const key = title + '|' + text;
+        if (key === this._coopText) return;
+        this._coopText = key;
+        const cw = this.contents.width;
+        this.contents.clear();
+        this.contents.fontSize = 24;
+        this.drawText(title, 0, 0, cw, 'left');
+        this.contents.fontSize = 18;
+        this.changeTextColor('#cfcfcf');
+        this.drawText(text, 0, 36, cw, 'left');
+        this.resetTextColor();
+    };
+
+    function Window_CoopSettings() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Window_CoopSettings.prototype = Object.create(Window_Selectable.prototype);
+    Window_CoopSettings.prototype.constructor = Window_CoopSettings;
+
+    Window_CoopSettings.prototype.initialize = function(x, y, w, h, helpWindow) {
+        this._coopHelp = helpWindow;
+        Window_Selectable.prototype.initialize.apply(this, rectArgs(x, y, w, h));
+        this.refresh();
+        this.select(0);
+        this.activate();
+    };
+
+    Window_CoopSettings.prototype.maxItems = function() {
+        return SETTINGS_ROWS.length;
+    };
+
+    Window_CoopSettings.prototype.drawItem = function(index) {
+        const row = SETTINGS_ROWS[index];
+        const rect = this.itemRect(index);
+        const pad = this.itemPadding ? this.itemPadding() : this.textPadding();
+        const value = coopSettings[row.key];
+        const label = row.labels[Math.max(0, row.values.indexOf(value))];
+        this.resetTextColor();
+        this.drawText(row.name, rect.x + pad, rect.y, rect.width / 2, 'left');
+        this.changeTextColor(COLOR_P1);
+        this.drawText('< ' + label + ' >', rect.x + rect.width / 2, rect.y, rect.width / 2 - pad, 'right');
+        this.resetTextColor();
+    };
+
+    Window_CoopSettings.prototype.changeValue = function(step) {
+        const row = SETTINGS_ROWS[this.index()];
+        if (!row) return;
+        const i = Math.max(0, row.values.indexOf(coopSettings[row.key]));
+        coopSettings[row.key] = row.values[(i + step + row.values.length) % row.values.length];
+        applyCoopSettings(row.key);
+        SoundManager.playCursor();
+        this.redrawItem(this.index());
+    };
+
+    Window_CoopSettings.prototype.processOk = function() {
+        this.changeValue(1);
+    };
+
+    Window_CoopSettings.prototype.cursorRight = function() {
+        this.changeValue(1);
+    };
+
+    Window_CoopSettings.prototype.cursorLeft = function() {
+        this.changeValue(-1);
+    };
+
+    Window_CoopSettings.prototype.updateHelp = function() {
+        const row = SETTINGS_ROWS[this.index()];
+        if (this._coopHelp && row) this._coopHelp.setText(row.name, row.help);
+    };
+
+    Window_CoopSettings.prototype.select = function(index) {
+        Window_Selectable.prototype.select.call(this, index);
+        this.updateHelp();
+    };
+
+    function Scene_CoopSettings() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Scene_CoopSettings.prototype = Object.create(Scene_MenuBase.prototype);
+    Scene_CoopSettings.prototype.constructor = Scene_CoopSettings;
+
+    Scene_CoopSettings.prototype.create = function() {
+        Scene_MenuBase.prototype.create.call(this);
+        const w = Graphics.boxWidth;
+        const helpH = 96;
+        this._coopHelp = new Window_CoopText(0, 0, w, helpH);
+        this.addWindow(this._coopHelp);
+        this._coopList = new Window_CoopSettings(0, helpH, w, Graphics.boxHeight - helpH, this._coopHelp);
+        this._coopList.setHandler('cancel', this.popScene.bind(this));
+        this.addWindow(this._coopList);
+        this._coopList.updateHelp();
+    };
+
+    Scene_CoopSettings.prototype.terminate = function() {
+        Scene_MenuBase.prototype.terminate.call(this);
+        ConfigManager.save();
+    };
+
+    window.Scene_CoopSettings = Scene_CoopSettings;
+
+    // Entrada en Opciones: con YEP_OptionsCore, una categoria "Co-op"; sin el, una linea mas
+    const COOP_OPTION_HELP = 'Camera, split screen, gamepads and keys of the local co-op.';
+    if (typeof Yanfly !== 'undefined' && Yanfly.Param && Array.isArray(Yanfly.Param.OptionsCategories)) {
+        const code = text => JSON.stringify(text);
+        Yanfly.Param.OptionsCategories.push({
+            Name: 'Co-op',
+            HelpDesc: code(COOP_OPTION_HELP),
+            OptionsList: [{
+                Name: 'Co-op settings...',
+                Symbol: 'coopSettings',
+                HelpDesc: code('Open the local co-op settings.'),
+                ShowHide: code('show = true;'),
+                Enable: code('enabled = true;'),
+                Ext: code('ext = 0;'),
+                MakeCommandCode: code('this.addCommand(name, symbol, enabled, ext);'),
+                DrawItemCode: code('this.drawOptionsName(index);'),
+                ProcessOkCode: code('SoundManager.playOk(); SceneManager.push(Scene_CoopSettings);'),
+                CursorRightCode: code(''),
+                CursorLeftCode: code(''),
+                DefaultConfigCode: code(''),
+                SaveConfigCode: code(''),
+                LoadConfigCode: code('')
+            }]
+        });
+    } else {
+        const _Window_Options_makeCommandList = Window_Options.prototype.makeCommandList;
+        Window_Options.prototype.makeCommandList = function() {
+            _Window_Options_makeCommandList.call(this);
+            this.addCommand('Co-op settings...', 'coopSettings');
+        };
+        const _Window_Options_statusText = Window_Options.prototype.statusText;
+        Window_Options.prototype.statusText = function(index) {
+            if (this.commandSymbol(index) === 'coopSettings') return '';
+            return _Window_Options_statusText.call(this, index);
+        };
+        const _Window_Options_processOk = Window_Options.prototype.processOk;
+        Window_Options.prototype.processOk = function() {
+            if (this.commandSymbol(this.index()) === 'coopSettings') {
+                SoundManager.playOk();
+                SceneManager.push(Scene_CoopSettings);
+                return;
+            }
+            _Window_Options_processOk.call(this);
+        };
+        ['cursorRight', 'cursorLeft'].forEach(name => {
+            const orig = Window_Options.prototype[name];
+            Window_Options.prototype[name] = function(wrap) {
+                if (this.commandSymbol(this.index()) === 'coopSettings') return;
+                orig.call(this, wrap);
+            };
+        });
+    }
 
     // =========================================================================
     // GAME OVER CONDICIONAL

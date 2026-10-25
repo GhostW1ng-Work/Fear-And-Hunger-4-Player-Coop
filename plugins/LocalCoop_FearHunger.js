@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc Fear & Hunger 2: Termina - luz de linterna para P2/P3 (TerraxLighting), disparo de P2/P3 con armas de fuego y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.0.0 Fear & Hunger 2: Termina - luz de linterna para P2/P3 (TerraxLighting), disparo de P2/P3 con armas de fuego y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @param ShootRetryFrames

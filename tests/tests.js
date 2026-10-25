@@ -627,4 +627,43 @@ SceneManager._scene = scene;
 frame();
 check('T27e item common event from P2 menu reads P2 position', $gameVariables.value(3) === $gamePlayer2.x, $gameVariables.value(3) + ' vs P2 ' + $gamePlayer2.x + ' / P1 ' + $gamePlayer.x);
 
+// --- T28: ajustes del co-op (Opciones > Co-op) ---
+$gameMap._interpreter.clear();
+$gameMessage.clear();
+var optWin = Object.create(Window_Options.prototype);
+optWin._list = []; optWin.makeCommandList();
+check('T28 Options has "Co-op settings..."', optWin._list.some(function(c) { return c.symbol === 'coopSettings'; }));
+var cfg = ConfigManager.makeData();
+check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
+var setScene = new Scene_CoopSettings(); setScene.create();
+var setList = setScene._coopList;
+function selectSetting(key) { setList.select(['camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin', 'windowFps'].indexOf(key)); }
+// P3 solo con teclado numerico: I/J/K/L ya no son de P3
+SceneManager._scene = scene;
+selectSetting('p3Keys'); setList.cursorRight();
+check('T28c P3 keyboard -> Numpad', ConfigManager.makeData().coopSettings.p3Keys === 'numpad');
+var p3now = !!$gamePlayer3;
+down('KeyI', 73); frame();
+check('T28d IJKL no longer moves P3', !CoopLocal.keys(3).up);
+up('KeyI', 73); frame();
+down('Numpad8', 104); frame();
+check('T28e Numpad still moves P3', CoopLocal.keys(3).up === true);
+up('Numpad8', 104); frame();
+setList.cursorLeft(); // vuelve a "Numpad + IJKL"
+check('T28f back to Numpad + IJKL', ConfigManager.makeData().coopSettings.p3Keys === 'all');
+// mandos apagados: un mando libre no une a nadie
+selectSetting('gamepads'); setList.cursorRight();
+var padD = makePad(5); __pads = []; __pads[5] = padD;
+var before4 = !!$gamePlayer4;
+padBtn(padD, 9, true); frame(); padBtn(padD, 9, false); frame(); frame();
+check('T28g gamepads off: Start does not join', !!$gamePlayer4 === before4);
+setList.cursorRight(); // mandos otra vez
+check('T28h gamepads on again', ConfigManager.makeData().coopSettings.gamepads === true);
+// la configuracion guardada se aplica al cargarla
+ConfigManager.applyData({ coopSettings: { camera: 'shared', splitZoom: 'near', windowFps: 15 } });
+check('T28i loaded config: camera shared', CoopLocal.cameraSetting() === 0, CoopLocal.cameraSetting());
+check('T28j loaded config: values kept', ConfigManager.makeData().coopSettings.splitZoom === 'near' && ConfigManager.makeData().coopSettings.windowFps === 15);
+ConfigManager.applyData({ coopSettings: { camera: 'auto', splitZoom: 'far', windowFps: 30 } });
+check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings: { p3Keys: 'banana' } }), ConfigManager.makeData().coopSettings.p3Keys === 'all'));
+
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

@@ -43,16 +43,20 @@ Numpad keys work with NumLock on or off.
 
 ## Install
 
-1. Download this repository (Code > Download ZIP) and unzip it.
+1. Download the latest **Termina-Local-Coop-vX.Y.Z.zip** from [Releases](../../releases) (or Code > Download ZIP) and unzip it.
 2. Drag your **game folder** (the one with `Game.exe`) onto `install.bat`,
    or run `powershell -ExecutionPolicy Bypass -File install.ps1 -GamePath "C:\path\to\game"`.
    Add `-QuickSave` to also install the F6/F7 quick save plugin.
 
-The installer copies the plugins to `www/js/plugins`, registers them at the end of `www/js/plugins.js` (backup: `plugins.js.coop.bak`) and copies `extras/coop_view.html` next to `index.html` (needed by F9). Re-running it updates the files; `-Uninstall` removes everything.
+The installer checks the game (title, RPG Maker version, Termina data version it was tested with) and only warns if something differs. It copies the plugins to `www/js/plugins`, registers them at the end of `www/js/plugins.js` (backup: `plugins.js.coop.bak`) and copies `extras/coop_view.html` next to `index.html` (needed by F9). Re-running it updates the files; `-Uninstall` removes everything.
+
+## Settings
+
+In the game: **Options > Co-op > Co-op settings...** - camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading, F9 window FPS. They are saved with the game config (like the volume) and apply to every save.
 
 ## Parameters (`LookOutsideOnline`)
 
-Set them in `www/js/plugins.js`, e.g. `"parameters": {"P3Keys": "ijkl", "SplitZoom": "medium"}`.
+Defaults for the settings above, plus a few advanced ones. Set them in `www/js/plugins.js`, e.g. `"parameters": {"MaxPlayers": "3"}`.
 
 | Parameter | Default | |
 |---|---|---|
@@ -78,6 +82,10 @@ python tests/run.py
 ```
 
 Graphics (split screen drawing, lights, windows) are not covered: check those in the game.
+
+## Releases
+
+`tools/make_release.ps1` builds `dist/Termina-Local-Coop-v<version>.zip` (the version is `COOP_VERSION` in `plugins/LookOutsideOnline.js`). Changes: [CHANGELOG.md](CHANGELOG.md).
 
 ## Roadmap
 
