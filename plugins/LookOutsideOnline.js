@@ -86,8 +86,10 @@
  *
  * @param WindowFps
  * @text Imagenes por segundo de las ventanas por jugador (F9)
- * @desc 30 = cada ventana de P2-P4 se actualiza un cuadro si y otro no (la mitad de trabajo). 60 = todos los cuadros.
+ * @desc Cuantas veces por segundo se actualiza cada ventana de P2-P4. Menos = menos trabajo (30 = la mitad que 60).
  * @type select
+ * @option 15
+ * @option 20
  * @option 30
  * @option 60
  * @default 30
@@ -220,7 +222,7 @@
     const SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
     const SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
     const SPLIT_ZOOM_STEPS = 4;
-    const WINDOW_FRAME_STEP = String(params.WindowFps) === '60' ? 1 : 2;
+    const WINDOW_FRAME_STEP = { 15: 4, 20: 3, 30: 2, 60: 1 }[String(params.WindowFps)] || 2;
     const SPLIT_ZOOM_START = { far: 0, medium: 2, near: 4 }[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
 
