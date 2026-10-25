@@ -403,4 +403,80 @@ $gameMap._interpreter.clear();
 $gamePlayer.updateScroll(0, 0);
 check('T21c after the cutscene the co-op camera is back', $gameMap.displayX() !== scrolledX, scrolledX + ' -> ' + $gameMap.displayX());
 
+// --- T22: reparto de personajes por el anfitrion (menu "Co-op") ---
+$gameMap._interpreter.clear();
+SceneManager._scene = scene;
+scene.coopRemovePlayer(4); scene.coopRemovePlayer(3);
+frame();
+var mem = $gameParty.members();
+check('T22 two players, four characters', !!$gamePlayer2 && !$gamePlayer3 && mem.length === 4, mem.length);
+// por defecto: por turnos (3.o -> P1, 4.o -> P2)
+var p2main = $gamePlayer2._coopActorId;
+var extras = mem.filter(function(a) { return a.actorId() !== mem[0].actorId() && a.actorId() !== p2main; });
+check('T22b default: extras alternate P1 / P2', extras.length === 2 && !extras[0].isAutoBattle() && !extras[1].isAutoBattle());
+$gameSystem._coopOwners = {};
+$gameSystem._coopOwners[extras[0].actorId()] = 2;   // el 3.o para P2
+$gameSystem._coopOwners[extras[1].actorId()] = 0;   // el 4.o lo lleva la IA
+$gameSystem._coopOwners[p2main] = 0;                // el principal de P2 no se puede cambiar
+check('T22c AI character fights by itself', extras[1].isAutoBattle() && !extras[1].canInput());
+check('T22d main character of P2 stays with P2', !$gameActors.actor(p2main).isAutoBattle());
+SceneManager._scene = Object.create(Scene_Battle.prototype);
+BattleManager._phase = 'input';
+BattleManager._actorIndex = mem.indexOf(extras[0]);
+frame();
+down('Enter', 13); frame();
+check('T22e assigned extra: P2 Enter = ok on its turn', Input.isPressed('ok'));
+up('Enter', 13); frame();
+down('KeyZ', 90); frame();
+check('T22f assigned extra: P1 Z ignored', !Input.isPressed('ok'));
+up('KeyZ', 90); frame();
+BattleManager._phase = '';
+SceneManager._scene = scene;
+frame();
+// el comando "Co-op" solo aparece en el menu de P1
+cmd._list = []; cmd.makeCommandList();
+check('T22g P1 menu has "Co-op"', cmd._list.some(function(c) { return c.symbol === 'coopAssign'; }));
+var menuP2 = Object.create(Window_MenuCommand.prototype);
+scene.coopCallMenuFor && (function() {
+    // simular menu de P2
+    var keep = SceneManager._nextScene;
+    scene.coopCallMenuFor(2);
+    menuP2._list = []; menuP2.makeCommandList();
+    SceneManager._nextScene = keep;
+})();
+check('T22h P2 menu has no "Co-op"', !menuP2._list.some(function(c) { return c.symbol === 'coopAssign'; }));
+// la ventana "Co-op": izquierda / derecha cambian el dueno de un personaje extra (P1 -> P2 -> IA -> P1)
+try {
+    // la capa de ventanas de RPG Maker necesita graficos de verdad: aqui basta un contenedor
+    Scene_Base.prototype.createWindowLayer = function() {
+        this._windowLayer = new PIXI.Container();
+        this.addChild(this._windowLayer);
+    };
+    Window_Base.prototype.initialize = function(x, y, w, h) {
+        PIXI.Container.call(this);
+        this._windowContentsSprite = { bitmap: null };
+        this._padding = 18;
+        this.x = x; this.y = y; this._width = w; this._height = h;
+        this.contents = new Bitmap(w - 36, h - 36);
+        this._opening = this._closing = false;
+        this.windowskin = new Bitmap(1, 1);
+        this._cursorRect = new Rectangle(0, 0, 0, 0);
+        this._refreshCursor = function() {};
+    };
+    var assignScene = new Scene_CoopAssign();
+    assignScene.create();
+    var list = assignScene._coopList;
+    $gameSystem._coopOwners = {};
+    list.select(mem.indexOf(extras[0]));
+    var seq = [];
+    for (var k = 0; k < 3; k++) { list.cursorRight(); seq.push($gameSystem._coopOwners[extras[0].actorId()]); }
+    check('T22i Co-op window cycles owners', seq.join(',') === '2,0,1', seq.join(','));
+    list.select(0);
+    list.cursorRight();
+    check('T22j leader cannot be reassigned', $gameSystem._coopOwners[mem[0].actorId()] === undefined);
+} catch (e) {
+    check('T22i Co-op window opens', false, String(e.stack).slice(0, 600));
+}
+try { Scene_Map.prototype.start.call(scene); } catch (e) { /* graficos */ }
+
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

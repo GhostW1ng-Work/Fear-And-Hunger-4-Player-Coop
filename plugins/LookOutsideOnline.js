@@ -170,6 +170,9 @@
  *  menu para ese jugador: solo responden sus teclas y Habilidades/Equipo/Estado
  *  van a su personaje. Opciones, Salir y Guardar quedan solo para P1.
  *
+ *  REPARTO: en el menu de P1, "Co-op" permite elegir quien controla en combate a
+ *  los personajes extra del grupo (P1..P4 o IA). El principal de cada jugador es fijo.
+ *
  *  DIALOGOS: si P2/P3/P4 habla con alguien, las opciones de respuesta las
  *  elige ese jugador (solo responden sus teclas).
  *
@@ -408,10 +411,40 @@
     // 4 jugadores: posiciones 1,5 -> P1 ; 2 -> P2 ; 3 -> P3 ; 4 -> P4
     // =========================================================================
 
+    // Personaje principal de un jugador (el que lleva por el mapa): 0 = no es de nadie
+    function mainOwnerOf(actor) {
+        const members = $gameParty.members();
+        if (members[0] === actor) return 1;
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            const p = coopPlayer(n);
+            if (p && actor && p._coopActorId === actor.actorId()) return n;
+        }
+        return 0;
+    }
+
+    // Reparto que eligio el anfitrion en el menu "Co-op": actorId -> jugador (0 = IA)
+    function assignedOwnerOf(actor) {
+        const table = $gameSystem && $gameSystem._coopOwners;
+        if (!table || !actor) return undefined;
+        const owner = table[actor.actorId()];
+        if (owner === 0) return 0;
+        return (owner >= 1 && coopPlayer(owner)) ? owner : undefined;
+    }
+
+    // Quien controla al personaje en combate: el suyo para cada jugador, los demas segun el
+    // reparto del anfitrion y, si no lo hay, por turnos (2 jugadores: 1,3,5 -> P1 ; 2,4 -> P2)
     function battleOwnerOf(actor) {
         const idx = $gameParty.members().indexOf(actor);
         if (idx < 0) return 1;
+        const main = mainOwnerOf(actor);
+        if (main) return main;
+        const assigned = assignedOwnerOf(actor);
+        if (assigned !== undefined) return assigned || 1;
         return (idx % playerCount()) + 1;
+    }
+
+    function isAiControlled(actor) {
+        return !!$gamePlayer2 && !mainOwnerOf(actor) && assignedOwnerOf(actor) === 0;
     }
 
     // =========================================================================
@@ -1139,6 +1172,7 @@
     const _Scene_Menu_createCommandWindow = Scene_Menu.prototype.createCommandWindow;
     Scene_Menu.prototype.createCommandWindow = function() {
         _Scene_Menu_createCommandWindow.call(this);
+        this._commandWindow.setHandler('coopAssign', () => SceneManager.push(Scene_CoopAssign));
         this._commandWindow.setHandler('godOfKnowledge', this.commandGodOfKnowledge.bind(this));
     };
 
@@ -2866,7 +2900,7 @@
     // a otro, y Opciones/Salir/Guardar/Formacion quedan solo para P1.
     // =========================================================================
 
-    const P1_ONLY_COMMANDS = ['formation', 'options', 'save', 'load', 'gameEnd', 'debug'];
+    const P1_ONLY_COMMANDS = ['formation', 'options', 'save', 'load', 'gameEnd', 'debug', 'coopAssign'];
 
     function menuActorOf(n) {
         const p = coopPlayer(n);
@@ -2914,6 +2948,12 @@
         _Window_MenuCommand_makeCommandList.call(this);
         if (CoopState.menuOwner >= 2) {
             this._list = this._list.filter(cmd => P1_ONLY_COMMANDS.indexOf(cmd.symbol) < 0);
+        } else if ($gamePlayer2 && !this._list.some(cmd => cmd.symbol === 'coopAssign')) {
+            // "Co-op" (reparto de personajes) antes de Opciones / Salir
+            const command = { name: 'Co-op', symbol: 'coopAssign', enabled: true, ext: null };
+            const at = this._list.findIndex(cmd => cmd.symbol === 'options' || cmd.symbol === 'gameEnd');
+            if (at >= 0) this._list.splice(at, 0, command);
+            else this._list.push(command);
         }
     };
 
@@ -2957,6 +2997,141 @@
             this.addChild(this._coopTurnSprite);
         }
     };
+
+    // =========================================================================
+    // REPARTO DE PERSONAJES (menu "Co-op" de P1)
+    // El anfitrion elige quien controla en combate a los personajes que no son el principal
+    // de ningun jugador: P1..P4 o la IA (combate automatico de RPG Maker).
+    // =========================================================================
+
+    // IA: RPG Maker elige la accion del personaje y no se le pide nada a nadie
+    const _Game_Actor_isAutoBattle = Game_Actor.prototype.isAutoBattle;
+    Game_Actor.prototype.isAutoBattle = function() {
+        if (isAiControlled(this)) return true;
+        return _Game_Actor_isAutoBattle.call(this);
+    };
+
+    function Window_CoopAssignHelp() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Window_CoopAssignHelp.prototype = Object.create(Window_Base.prototype);
+    Window_CoopAssignHelp.prototype.constructor = Window_CoopAssignHelp;
+
+    Window_CoopAssignHelp.prototype.initialize = function(x, y, w, h) {
+        Window_Base.prototype.initialize.apply(this, rectArgs(x, y, w, h));
+        const cw = this.contents.width;
+        this.contents.fontSize = 24;
+        this.drawText('Who controls each character in combat', 0, 0, cw, 'center');
+        this.contents.fontSize = 18;
+        this.changeTextColor('#cfcfcf');
+        this.drawText('Left / Right or OK: change    Cancel: back    (main characters are fixed)', 0, 36, cw, 'center');
+        this.resetTextColor();
+    };
+
+    function Window_CoopAssign() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Window_CoopAssign.prototype = Object.create(Window_Selectable.prototype);
+    Window_CoopAssign.prototype.constructor = Window_CoopAssign;
+
+    Window_CoopAssign.prototype.initialize = function(x, y, w, h) {
+        Window_Selectable.prototype.initialize.apply(this, rectArgs(x, y, w, h));
+        this.refresh();
+        this.select(0);
+        this.activate();
+    };
+
+    Window_CoopAssign.prototype.maxItems = function() {
+        return $gameParty.members().length;
+    };
+
+    Window_CoopAssign.prototype.itemHeight = function() {
+        return 48;
+    };
+
+    Window_CoopAssign.prototype.actorAt = function(index) {
+        return $gameParty.members()[index] || null;
+    };
+
+    function ownerLabel(owner) {
+        return owner === 0 ? 'AI' : 'P' + owner;
+    }
+
+    Window_CoopAssign.prototype.drawItem = function(index) {
+        const actor = this.actorAt(index);
+        if (!actor) return;
+        const rect = this.itemRect(index);
+        const pad = this.itemPadding ? this.itemPadding() : this.textPadding();
+        const y = rect.y + Math.floor((rect.height - this.lineHeight()) / 2);
+        const main = mainOwnerOf(actor);
+        const owner = main || (isAiControlled(actor) ? 0 : battleOwnerOf(actor));
+        this.changeTextColor(owner === 0 ? '#bbbbbb' : colorOf(owner));
+        this.drawText(main ? ownerLabel(owner) : '< ' + ownerLabel(owner) + ' >', rect.x + pad, y, 90, 'center');
+        this.resetTextColor();
+        this.drawText(actor.name(), rect.x + pad + 110, y, rect.width - pad * 2 - 330, 'left');
+        this.changeTextColor('#9a9a9a');
+        const note = main ? (main === 1 ? 'leader (P1)' : 'main character of P' + main) : 'extra character';
+        this.drawText(note, rect.x + rect.width - pad - 220, y, 220, 'right');
+        this.resetTextColor();
+    };
+
+    // P1, P2... de los jugadores que hay ahora, y despues la IA
+    function ownerChoices() {
+        const list = [];
+        for (let n = 1; n <= playerCount(); n++) list.push(n);
+        list.push(0);
+        return list;
+    }
+
+    Window_CoopAssign.prototype.changeOwner = function(step) {
+        const actor = this.actorAt(this.index());
+        if (!actor || mainOwnerOf(actor)) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        const choices = ownerChoices();
+        const current = isAiControlled(actor) ? 0 : battleOwnerOf(actor);
+        const i = Math.max(0, choices.indexOf(current));
+        const next = choices[(i + step + choices.length) % choices.length];
+        $gameSystem._coopOwners = $gameSystem._coopOwners || {};
+        $gameSystem._coopOwners[actor.actorId()] = next;
+        SoundManager.playCursor();
+        this.redrawItem(this.index());
+    };
+
+    Window_CoopAssign.prototype.processOk = function() {
+        this.changeOwner(1);
+    };
+
+    Window_CoopAssign.prototype.cursorRight = function() {
+        this.changeOwner(1);
+    };
+
+    Window_CoopAssign.prototype.cursorLeft = function() {
+        this.changeOwner(-1);
+    };
+
+    function Scene_CoopAssign() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Scene_CoopAssign.prototype = Object.create(Scene_MenuBase.prototype);
+    Scene_CoopAssign.prototype.constructor = Scene_CoopAssign;
+
+    Scene_CoopAssign.prototype.create = function() {
+        Scene_MenuBase.prototype.create.call(this);
+        const w = Graphics.boxWidth;
+        const helpH = 96;
+        this._coopHelp = new Window_CoopAssignHelp(0, 0, w, helpH);
+        this.addWindow(this._coopHelp);
+        this._coopList = new Window_CoopAssign(0, helpH, w, Graphics.boxHeight - helpH);
+        this._coopList.setHandler('cancel', this.popScene.bind(this));
+        this.addWindow(this._coopList);
+    };
+
+    window.Scene_CoopAssign = Scene_CoopAssign;
 
     // =========================================================================
     // GAME OVER CONDICIONAL

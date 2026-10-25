@@ -17,3 +17,6 @@ Sprite.prototype.update = function() {};
 ImageManager.loadCharacter = function() { return new Bitmap(1, 1); };
 Bitmap.load = Bitmap.request = Bitmap.snap = function() { return new Bitmap(1, 1); };
 ImageManager.loadBitmap = ImageManager.reserveBitmap = ImageManager.requestBitmap = function() { return new Bitmap(1, 1); };
+['beginFill', 'drawRect', 'endFill', 'clear', 'lineStyle', 'moveTo', 'lineTo'].forEach(function(m) {
+    PIXI.Graphics.prototype[m] = function() { return this; };
+});
