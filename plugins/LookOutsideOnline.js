@@ -100,6 +100,14 @@
  * @option 60
  * @default 30
  *
+ * @param WindowResolution
+ * @text Resolucion de las ventanas por jugador (F9)
+ * @desc half = se dibujan a la mitad y se agrandan (imagen mas suave, mucho menos trabajo). full = tamano del juego.
+ * @type select
+ * @option full
+ * @option half
+ * @default full
+ *
  * @param SplitZoom
  * @text Distancia de la camara en pantalla dividida
  * @desc far = cada vista ve tanto mapa como la pantalla entera (personajes mas pequenos). near = sin alejar (como antes). Se cambia en el juego con - y =.
@@ -185,6 +193,7 @@
  *    G                   = Auto -> Compartida -> Pantalla dividida -> Solo P1 -> ... -> Solo P4
  *                          (Auto: compartida si estan cerca, dividida si se separan)
  *    - / =               = En pantalla dividida: alejar / acercar la camara de cada vista
+ *    F10                 = Medidor de rendimiento (tiempo de cada parte por cuadro)
  *
  * =========================================================
  *  BATALLAS
@@ -2311,6 +2320,15 @@
     };
 
     Spriteset_Map.prototype.coopSplitRender = function() {
+        const tViews = perfNow();
+        try {
+            this.coopSplitRenderViews();
+        } finally {
+            perfAdd('views', tViews);
+        }
+    };
+
+    Spriteset_Map.prototype.coopSplitRenderViews = function() {
         const r = getRenderer();
         if (!r) return;
         const scene = this.parent;
@@ -2387,7 +2405,9 @@
             this.y = 0;
             applyCamera(cameraFor(players[i], sizes[i].w / zoom, sizes[i].h / zoom));
             this.coopSyncToCamera();
+            const tLight = perfNow();
             coopHooks.forEach(h => h.splitPass && h.splitPass(this, i, players[i]));
+            perfAdd('light', tLight);
             for (const pic of this._pictureContainer.children) {
                 pic.renderable = lights.indexOf(pic) >= 0;
             }
@@ -2398,7 +2418,9 @@
                 l.x = pos[0];
                 l.y = pos[1];
             }
+            const tDraw = perfNow();
             r.render(this, st.rts[i], true);
+            perfAdd('viewDraw', tDraw);
             coopHooks.forEach(h => h.splitPassEnd && h.splitPassEnd(this, i));
         }
 
@@ -2480,6 +2502,71 @@
     // un programa de streaming por monitor. La ventana principal debe quedar abierta (no
     // minimizada): es la que hace funcionar el juego.
     // =========================================================================
+
+    // ---- MEDIDOR DE RENDIMIENTO (F10) ------------------------------------------
+    // Cuanto tarda cada parte por cuadro (media de ~1 s), para saber que hay que aligerar.
+    // Los tiempos son de CPU; la copia a las ventanas incluye la espera a la tarjeta grafica.
+    const KEY_PERF = 121; // F10
+    const perf = { on: false, sum: {}, renders: 0, start: 0, sprite: null, lines: '' };
+
+    function perfNow() {
+        return perf.on ? performance.now() : 0;
+    }
+
+    function perfAdd(key, t0) {
+        if (perf.on) perf.sum[key] = (perf.sum[key] || 0) + (performance.now() - t0);
+    }
+
+    function perfReport() {
+        const t = performance.now();
+        const frames = Math.max(1, perf.renders);
+        const ms = key => ((perf.sum[key] || 0) / frames).toFixed(1);
+        const fps = perf.start ? Math.round(frames * 1000 / (t - perf.start)) : 0;
+        perf.lines = 'FPS ' + fps + '   frame CPU ' + ms('update') + ' ms   views ' + ms('views') +
+            ' (light ' + ms('light') + ', draw ' + ms('viewDraw') + ')   windows: draw ' + ms('winDraw') +
+            ' copy ' + ms('winCopy') + '   main ' + ms('main') + '   [' + extraPlayers().length + ' extra, ' +
+            Object.keys(coopWindows.list).length + ' win, ' + (coopSettings.windowRes === 'half' ? 'half' : 'full') + ']';
+        perf.sum = {};
+        perf.renders = 0;
+        perf.start = t;
+    }
+
+    function perfDraw() {
+        const scene = SceneManager._scene;
+        if (!perf.on || !scene) return;
+        if (!perf.sprite) {
+            perf.sprite = new Sprite(new Bitmap(Graphics.width, 24));
+            perf.sprite.y = Graphics.height - 24;
+            perf.drawn = '';
+        }
+        if (perf.sprite.parent !== scene) scene.addChild(perf.sprite);
+        if (perf.drawn !== perf.lines) {
+            const bmp = perf.sprite.bitmap;
+            bmp.clear();
+            bmp.fillRect(0, 0, bmp.width, bmp.height, 'rgba(0,0,0,0.7)');
+            bmp.fontSize = 14;
+            bmp.textColor = '#ffffff';
+            bmp.drawText(perf.lines || 'measuring...', 6, 0, bmp.width - 12, 24, 'left');
+            perf.drawn = perf.lines;
+        }
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.keyCode !== KEY_PERF || e.repeat) return;
+        perf.on = !perf.on;
+        perf.sum = {};
+        perf.renders = 0;
+        perf.start = performance.now();
+        perf.lines = '';
+        if (!perf.on && perf.sprite && perf.sprite.parent) perf.sprite.parent.removeChild(perf.sprite);
+    });
+
+    const _SceneManager_updateMain = SceneManager.updateMain;
+    SceneManager.updateMain = function() {
+        const t0 = perfNow();
+        _SceneManager_updateMain.call(this);
+        perfAdd('update', t0);
+    };
 
     const KEY_WINDOWS = 120; // F9
     const coopWindows = {
@@ -2594,16 +2681,22 @@
         return (Graphics.frameCount + n) % WINDOW_FRAME_STEP === 0;
     }
 
-    // Se copia al tamano del juego; la ventana lo escala con CSS (lo hace la tarjeta grafica)
-    function drawToCoopWindow(n, source) {
+    // Se copia al tamano del juego (o a la mitad con F9 windows "Half": la escena se dibuja
+    // reducida en la esquina y se copia solo ese trozo, cuatro veces menos); la ventana lo
+    // escala con CSS (lo hace la tarjeta grafica)
+    function drawToCoopWindow(n, source, half) {
         const entry = coopWindows.list[n];
         if (!entry || !entry.ctx) return;
+        const t0 = perfNow();
         const canvas = entry.canvas;
-        if (canvas.width !== source.width || canvas.height !== source.height) {
-            canvas.width = source.width;
-            canvas.height = source.height;
+        const w = half ? Math.floor(source.width / 2) : source.width;
+        const h = half ? Math.floor(source.height / 2) : source.height;
+        if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
         }
-        entry.ctx.drawImage(source, 0, 0);
+        entry.ctx.drawImage(source, 0, 0, w, h, 0, 0, w, h);
+        perfAdd('winCopy', t0);
     }
 
     function activeSplitForWindows() {
@@ -2618,17 +2711,33 @@
     // carteles, etc.) y se copia. Despues el dibujo normal muestra la vista de P1, no la cuadricula.
     const _Graphics_render = Graphics.render;
     Graphics.render = function(stage) {
+        if (perf.on && this._skipCount <= 0) {
+            perf.renders++;
+            if (performance.now() - perf.start > 1000) perfReport();
+            perfDraw();
+        }
         const ids = Object.keys(coopWindows.list).map(Number);
         if (ids.length === 0 || !stage || this._skipCount > 0) {
+            const tMain = perfNow();
             _Graphics_render.call(this, stage);
+            perfAdd('main', tMain);
             return;
         }
         const due = ids.filter(coopWindowDue);
+        const half = coopSettings.windowRes === 'half';
         const st = activeSplitForWindows();
         if (!st) {
             // fuera del mapa (combate, menus...): todos ven la pantalla normal
+            if (half && due.length > 0) {
+                stage.scale.set(0.5, 0.5);
+                this._renderer.render(stage);
+                stage.scale.set(1, 1);
+                due.forEach(n => drawToCoopWindow(n, this._canvas, true));
+            }
+            const tMain = perfNow();
             _Graphics_render.call(this, stage);
-            if (this._rendered) due.forEach(n => drawToCoopWindow(n, this._canvas));
+            perfAdd('main', tMain);
+            if (!half && this._rendered) due.forEach(n => drawToCoopWindow(n, this._canvas));
             return;
         }
         const saved = st.sprites.map(s => [s.visible, s.x, s.y, s.scale.x, s.scale.y]);
@@ -2647,13 +2756,20 @@
                 const i = order.indexOf(coopPlayer(n));
                 if (i < 1 || !st.sprites[i] || !st.sprites[i].parent) continue;
                 showOnly(i);
+                const tDraw = perfNow();
+                if (half) stage.scale.set(0.5, 0.5);
                 this._renderer.render(stage);
+                if (half) stage.scale.set(1, 1);
                 if (this._renderer.gl && this._renderer.gl.flush) this._renderer.gl.flush();
-                drawToCoopWindow(n, this._canvas);
+                perfAdd('winDraw', tDraw);
+                drawToCoopWindow(n, this._canvas, half);
             }
             showOnly(0);
+            const tMain = perfNow();
             _Graphics_render.call(this, stage);
+            perfAdd('main', tMain);
         } finally {
+            stage.scale.set(1, 1);
             st.sprites.forEach((s, j) => {
                 s.visible = saved[j][0];
                 s.position.set(saved[j][1], saved[j][2]);
@@ -2752,7 +2868,6 @@
             if (assign[n]) continue;
             CoopState.parked[n] = { actorId: coopPlayer(n)._coopActorId };
             this.coopRemovePlayer(n, true);
-            continue;
             CoopUI.banner('Player ' + n + ' is waiting', 'Comes back when someone joins the party', colorOf(n), 160);
         }
         // 4) orden del grupo: lider, personajes de P2..P4, y el resto como estaba
@@ -3338,7 +3453,9 @@
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
             help: 'On: players that were playing come back by themselves when a save is loaded.' },
         { key: 'windowFps', name: 'F9 player windows', values: [30, 20, 15, 60], labels: ['30 FPS', '20 FPS', '15 FPS', '60 FPS'],
-            help: 'How often each player window (F9) updates. Lower = less work for the PC.' }
+            help: 'How often each player window (F9) updates. Lower = less work for the PC.' },
+        { key: 'windowRes', name: 'F9 window resolution', values: ['full', 'half'], labels: ['Full', 'Half (faster)'],
+            help: 'Half: the player windows are drawn at half size and scaled up (softer picture, much less work). F10 shows timings.' }
     ];
 
     function cameraSettingName() {
@@ -3353,7 +3470,8 @@
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
         autoRejoin: AUTO_REJOIN,
-        windowFps: ({ 4: 15, 3: 20, 2: 30, 1: 60 })[WINDOW_FRAME_STEP]
+        windowFps: ({ 4: 15, 3: 20, 2: 30, 1: 60 })[WINDOW_FRAME_STEP],
+        windowRes: String(params.WindowResolution) === 'half' ? 'half' : 'full'
     };
 
     function applyCoopSettings(changedKey) {
