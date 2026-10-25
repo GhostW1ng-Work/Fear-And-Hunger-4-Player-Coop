@@ -2319,6 +2319,82 @@
         }
     };
 
+    // ---- UN "LIENZO" DE BALDOSAS POR VISTA ------------------------------------------
+    // ShaderTilemap rehace la geometria de las baldosas cada vez que la camara cambia de casilla.
+    // En pantalla dividida la camara salta de un jugador a otro en cada vista, asi que se rehacia
+    // todo varias veces por cuadro. Cada vista tiene ahora sus propias capas de baldosas y solo se
+    // rehacen cuando su jugador cambia de casilla (o cuando el juego cambia el mapa).
+
+    function tileCacheOf(tm) {
+        if (!tm || !tm.lowerZLayer || !tm.lowerLayer || !tm.upperLayer || typeof PIXI === 'undefined' || !PIXI.tilemap) return null;
+        if ($gameMap.useUltraMode7) return null; // Mode 7 dibuja las baldosas a su manera
+        if (!tm._coopTileCache) {
+            tm._coopTileCache = {
+                current: 0,
+                views: [{ lower: tm.lowerLayer, upper: tm.upperLayer, startX: tm._lastStartX, startY: tm._lastStartY, dirty: false }]
+            };
+        }
+        return tm._coopTileCache;
+    }
+
+    function tileBitmaps(tm) {
+        return tm.bitmaps.map(x => x._baseTexture ? new PIXI.Texture(x._baseTexture) : x);
+    }
+
+    function newTileView(tm) {
+        const parameters = PluginManager.parameters('ShaderTilemap') || {};
+        const useSquare = Number(parameters.hasOwnProperty('squareShader') ? parameters['squareShader'] : 0);
+        const bitmaps = tileBitmaps(tm);
+        const lower = new PIXI.tilemap.CompositeRectTileLayer(0, bitmaps, useSquare);
+        lower.shadowColor = new Float32Array([0.0, 0.0, 0.0, 0.5]);
+        const upper = new PIXI.tilemap.CompositeRectTileLayer(4, bitmaps, useSquare);
+        return { lower: lower, upper: upper, startX: null, startY: null, dirty: true };
+    }
+
+    // Pone en el mapa las capas de la vista i (las crea la primera vez)
+    function useTileView(tm, cache, i) {
+        if (cache.current !== i) {
+            const cur = cache.views[cache.current];
+            cur.startX = tm._lastStartX;
+            cur.startY = tm._lastStartY;
+            const v = cache.views[i] || (cache.views[i] = newTileView(tm));
+            tm.lowerZLayer.removeChild(tm.lowerLayer);
+            tm.upperZLayer.removeChild(tm.upperLayer);
+            tm.lowerLayer = v.lower;
+            tm.upperLayer = v.upper;
+            tm.lowerZLayer.addChildAt(v.lower, 0);
+            tm.upperZLayer.addChildAt(v.upper, 0);
+            tm._lastStartX = v.startX;
+            tm._lastStartY = v.startY;
+            cache.current = i;
+        }
+        const v = cache.views[i];
+        if (v.dirty) tm._needsRepaint = true;
+        v.dirty = false;
+    }
+
+    // Si el juego cambia el tileset, tambien las capas de las demas vistas
+    const _ShaderTilemap_refreshTileset = ShaderTilemap.prototype.refreshTileset;
+    ShaderTilemap.prototype.refreshTileset = function() {
+        _ShaderTilemap_refreshTileset.call(this);
+        const cache = this._coopTileCache;
+        if (!cache) return;
+        const bitmaps = tileBitmaps(this);
+        cache.views.forEach((v, i) => {
+            if (i === cache.current) return;
+            v.lower.setBitmaps(bitmaps);
+            v.upper.setBitmaps(bitmaps);
+            v.dirty = true;
+        });
+    };
+
+    const _ShaderTilemap_paintAllTiles = ShaderTilemap.prototype._paintAllTiles;
+    ShaderTilemap.prototype._paintAllTiles = function(startX, startY) {
+        const t0 = perfNow();
+        _ShaderTilemap_paintAllTiles.call(this, startX, startY);
+        perfAdd('tiles', t0);
+    };
+
     Spriteset_Map.prototype.coopSplitRender = function() {
         const tViews = perfNow();
         try {
@@ -2391,6 +2467,9 @@
 
         const saved = [$gameMap._displayX, $gameMap._displayY, $gameMap._parallaxX, $gameMap._parallaxY];
         const savedTransform = [this.scale.x, this.scale.y, this.x, this.y];
+        // el juego pidio repintar el mapa (cambio de baldosas...): vale para todas las vistas
+        const tiles = tileCacheOf(this._tilemap);
+        if (tiles && this._tilemap._needsRepaint) tiles.views.forEach(v => { v.dirty = true; });
 
         this.renderable = true;
         this.children.forEach(c => { c.visible = true; });
@@ -2418,6 +2497,7 @@
                 l.x = pos[0];
                 l.y = pos[1];
             }
+            if (tiles) useTileView(this._tilemap, tiles, i);
             const tDraw = perfNow();
             r.render(this, st.rts[i], true);
             perfAdd('viewDraw', tDraw);
@@ -2478,6 +2558,16 @@
 
     const _Spriteset_Map_destroy = Spriteset_Map.prototype.destroy;
     Spriteset_Map.prototype.destroy = function(options) {
+        // capas de baldosas de las otras vistas (las del mapa las destruye el propio mapa)
+        const tiles = this._tilemap && this._tilemap._coopTileCache;
+        if (tiles) {
+            tiles.views.forEach((v, i) => {
+                if (i === tiles.current) return;
+                if (v.lower.destroy) v.lower.destroy({ children: true });
+                if (v.upper.destroy) v.upper.destroy({ children: true });
+            });
+            this._tilemap._coopTileCache = null;
+        }
         if (this._coopSplit) {
             this._coopSplit.rts.forEach(rt => rt.destroy(true));
             if (this._coopSplit.panel && this._coopSplit.panel.parent) {
@@ -2523,7 +2613,7 @@
         const ms = key => ((perf.sum[key] || 0) / frames).toFixed(1);
         const fps = perf.start ? Math.round(frames * 1000 / (t - perf.start)) : 0;
         perf.lines = 'FPS ' + fps + '   frame CPU ' + ms('update') + ' ms   views ' + ms('views') +
-            ' (light ' + ms('light') + ', draw ' + ms('viewDraw') + ')   windows: draw ' + ms('winDraw') +
+            ' (light ' + ms('light') + ', draw ' + ms('viewDraw') + ', tiles ' + ms('tiles') + ')   windows: draw ' + ms('winDraw') +
             ' copy ' + ms('winCopy') + '   main ' + ms('main') + '   [' + extraPlayers().length + ' extra, ' +
             Object.keys(coopWindows.list).length + ' win, ' + (coopSettings.windowRes === 'half' ? 'half' : 'full') + ']';
         perf.sum = {};
