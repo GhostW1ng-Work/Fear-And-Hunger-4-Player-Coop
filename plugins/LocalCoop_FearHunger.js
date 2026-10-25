@@ -103,7 +103,7 @@
 
     // Jugador (P2/P3) que dispara ahora, o null
     function nextShooter() {
-        if (!window.$gamePlayer2 || session) return null;
+        if (!coop.isOn() || session) return null;
         if (!(SceneManager._scene instanceof Scene_Map)) return null;
         if ($gameMap.isEventRunning() || $gameMessage.isBusy()) return null;
         if (sw(SW_CANNOT_USE_BOW) || sw(SW_ARROW) || sw(SW_ARROW_FLYING)) return null;
@@ -234,7 +234,7 @@
         if (typeof orig !== 'function') return false;
         Bitmap.prototype[name] = function(x1, y1) {
             orig.apply(this, arguments);
-            if (duplicating || !window.$gamePlayer2 || !$gameMap) return;
+            if (duplicating || !coop.isOn() || !$gameMap) return;
             if (coop.mode() === 1) return; // en pantalla dividida cada vista dibuja su propia luz
             if (SceneManager._scene && !(SceneManager._scene instanceof Scene_Map)) return;
             if (!playerLightMatches(x1, y1)) return;
@@ -270,7 +270,7 @@
         const orig = proto.update;
         proto.update = function() {
             // en pantalla dividida solo se actualiza durante cada vista (ver splitPass)
-            if (coop.mode() === 1 && window.$gamePlayer2 && !this._coopForce) return;
+            if (coop.mode() === 1 && coop.isOn() && !this._coopForce) return;
             orig.call(this);
         };
     }

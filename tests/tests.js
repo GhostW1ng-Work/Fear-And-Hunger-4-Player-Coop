@@ -181,17 +181,17 @@ padB.axes[0] = -1; frame();
 check('T8b Start reclaims pad for P4 (no new join)', CoopLocal.keys(4).left === true && JSON.stringify($gameSystem._coopSession.pads) === '{"4":0}', JSON.stringify($gameSystem._coopSession));
 padB.axes[0] = 0; frame();
 
-// --- T9: sale el personaje de P2 -> P2 toma el del ultimo jugador y P4 espera ---
-// (P2=3, P3=4, P4=5; cada uno conserva su personaje mientras siga en el grupo)
+// --- T9: sale el personaje de P2 -> P2 espera; P3 y P4 siguen con los suyos ---
+// (P2=3, P3=4, P4=5; nadie le quita el personaje a otro)
 $gameParty.removeActor(3);
 frame();
-check('T9 P4 waiting when there are not enough characters', !$gamePlayer4);
-check('T9b P3 keeps actor 4, P2 takes 5', $gamePlayer2._coopActorId === 5 && $gamePlayer3._coopActorId === 4, $gamePlayer2._coopActorId + ',' + $gamePlayer3._coopActorId);
-check('T9c waiting P4 keeps its gamepad', JSON.stringify($gameSystem._coopSession) === '{"players":[2,3],"pads":{"4":0}}', JSON.stringify($gameSystem._coopSession));
-// vuelve alguien al grupo: P4 vuelve solo, con su mando
+check('T9 P2 waiting when its character leaves', !$gamePlayer2 && !!$gamePlayer3 && !!$gamePlayer4);
+check('T9b P3 keeps actor 4, P4 keeps 5', $gamePlayer3._coopActorId === 4 && $gamePlayer4._coopActorId === 5, $gamePlayer3._coopActorId + ',' + $gamePlayer4._coopActorId);
+check('T9c session without P2, P4 keeps its gamepad', JSON.stringify($gameSystem._coopSession) === '{"players":[3,4],"pads":{"4":0}}', JSON.stringify($gameSystem._coopSession));
+// vuelve su personaje: P2 vuelve solo
 $gameParty._actors.push(3);
 frame(); frame();
-check('T9d waiting P4 comes back by itself', $gamePlayer4 && $gamePlayer4._coopActorId === 3, $gamePlayer4 && $gamePlayer4._coopActorId);
+check('T9d waiting P2 comes back by itself', $gamePlayer2 && $gamePlayer2._coopActorId === 3, $gamePlayer2 && $gamePlayer2._coopActorId);
 padB.axes[0] = 1; frame();
 check('T9e P4 still has its gamepad', CoopLocal.keys(4).right === true);
 padB.axes[0] = 0; frame();
@@ -518,5 +518,66 @@ sc2._coopList.processOk();
 check('T23f Co-op menu: P2 marked away', p2actor.isAutoBattle());
 sc2._coopList.processOk();
 check('T23g Co-op menu: P2 back', !p2actor.isAutoBattle());
+
+// --- T24: los acompanantes del juego muestran solo a los personajes sin jugador ---
+function followerActors() {
+    return $gamePlayer.followers()._data.map(function(fw) { return fw.actor(); }).filter(Boolean).map(function(a) { return a.actorId(); });
+}
+var mainsNow = [$gamePlayer2, $gamePlayer3, $gamePlayer4].filter(Boolean).map(function(p) { return p._coopActorId; });
+var fa = followerActors();
+check('T24 followers exclude players characters', mainsNow.every(function(id) { return fa.indexOf(id) < 0; }), 'followers=' + fa.join(',') + ' mains=' + mainsNow.join(','));
+
+// --- T25: el anfitrion se queda el personaje de P3 (menu Co-op: P3 -> IA -> P1) ---
+var p3actor = $gameActors.actor($gamePlayer3._coopActorId);
+var sc3 = new Scene_CoopAssign(); sc3.create();
+sc3._coopList.select($gameParty.members().indexOf(p3actor));
+sc3._coopList.processOk(); // ausente
+sc3._coopList.processOk(); // P1 se lo queda
+check('T25 still in the menu: nothing applied yet', !!$gamePlayer3);
+sc3.terminate();
+SceneManager._scene = scene;
+frame();
+check('T25b P3 left, its character stays in the party', !$gamePlayer3 && $gameParty._actors.indexOf(p3actor.actorId()) >= 0);
+check('T25c that character is now a normal follower', followerActors().indexOf(p3actor.actorId()) >= 0, followerActors().join(','));
+check('T25d P1 controls it in combat (not AI)', !p3actor.isAutoBattle() && (function() {
+    SceneManager._scene = Object.create(Scene_Battle.prototype);
+    BattleManager._phase = 'input';
+    BattleManager._actorIndex = $gameParty.members().indexOf(p3actor);
+    frame();
+    down('KeyZ', 90); frame();
+    var ok = Input.isPressed('ok');
+    up('KeyZ', 90); frame();
+    BattleManager._phase = '';
+    SceneManager._scene = scene;
+    frame();
+    return ok;
+})());
+// P3 vuelve: recupera su personaje
+tap('KeyU', 85);
+check('T25e P3 rejoins with its old character', $gamePlayer3 && $gamePlayer3._coopActorId === p3actor.actorId(), $gamePlayer3 && $gamePlayer3._coopActorId);
+check('T25f no longer a follower', followerActors().indexOf(p3actor.actorId()) < 0);
+
+// --- T26: el anfitrion se queda el de P2 y P3 sigue jugando (hueco en P2) ---
+var p2a = $gameActors.actor($gamePlayer2._coopActorId);
+var sc4 = new Scene_CoopAssign(); sc4.create();
+sc4._coopList.select($gameParty.members().indexOf(p2a));
+sc4._coopList.processOk(); sc4._coopList.processOk();
+sc4.terminate();
+SceneManager._scene = scene;
+frame();
+check('T26 P2 gone, P3 still playing', !$gamePlayer2 && !!$gamePlayer3 && CoopLocal.isOn());
+SceneManager._scene = Object.create(Scene_Battle.prototype);
+BattleManager._phase = 'input';
+BattleManager._actorIndex = $gameParty.members().indexOf($gameActors.actor($gamePlayer3._coopActorId));
+frame();
+down('Numpad0', 96); frame();
+check('T26b P3 still controls its character in combat', Input.isPressed('ok'));
+up('Numpad0', 96); frame();
+BattleManager._phase = '';
+SceneManager._scene = scene;
+frame();
+// P2 vuelve con su Enter (con co-op en marcha)
+tap('Enter', 13);
+check('T26c P2 rejoins with Enter and gets its character back', $gamePlayer2 && $gamePlayer2._coopActorId === p2a.actorId(), $gamePlayer2 && $gamePlayer2._coopActorId);
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

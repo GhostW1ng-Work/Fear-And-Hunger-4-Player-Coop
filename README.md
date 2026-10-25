@@ -16,7 +16,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Split screen** | 2 = halves, 3 = three equal views (two on top, one centered below), 4 = 2x2. `-` / `=` zoom each view out / in (by default every view sees as much map as the full screen). |
 | **Combat** | Each character is controlled by its owner; a banner shows whose turn it is. Extra characters alternate between players unless the host assigns them. |
 | **Dialogue choices** | If P2-P4 started the conversation, only that player can pick the answer. |
-| **Who plays who** | In P1's menu, **Co-op** lets the host choose who controls each extra character in combat (P1..P4 or AI). Each player's main character stays with them. |
+| **Who plays who** | In P1's menu, **Co-op** lets the host choose who controls each extra character in combat (P1..P4 or AI). On a player's main character: mark them away, or **take it** - the player leaves and the character becomes a normal companion that follows P1 and that P1 controls. Characters nobody plays follow P1 like normal companions. |
 | **Away players** | If a player's gamepad is unplugged (or the host marks them away in **Co-op**), AI fights for their character and it follows P1 on the map; any button of that player brings them back. |
 | **Own menus** | P2-P4 open the game menu for themselves (Skill / Equip / Status go straight to their character). Options, Game End, Save and Formation stay with P1. |
 | **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
@@ -30,7 +30,7 @@ Game over rule (as in the original mod): if any player's character dies in comba
 
 | | P1 | P2 | P3 (keyboard) | Gamepad (P2 / P3 / P4) |
 |---|---|---|---|---|
-| Join | - | `X` on the map | `U` / `Numpad 0` (after P2) | `Start` |
+| Join | - | `X` on the map (`Enter` once co-op is on) | `U` / `Numpad 0` | `Start` |
 | Move | `W A S D` | Arrows | `Numpad 8 4 5 6` or `I J K L` | D-pad / left stick |
 | Sprint / shoot | Left Shift | Right Shift | `Numpad +` or `H` | `X` or `RT` |
 | OK / interact | `Z` / `Space` | `Enter` | `Numpad 0` / `Numpad Enter` or `U` | `A` |
