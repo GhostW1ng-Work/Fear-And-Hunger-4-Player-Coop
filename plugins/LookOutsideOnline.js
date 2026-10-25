@@ -84,6 +84,14 @@
  * @option big
  * @default triangle
  *
+ * @param WindowFps
+ * @text Imagenes por segundo de las ventanas por jugador (F9)
+ * @desc 30 = cada ventana de P2-P4 se actualiza un cuadro si y otro no (la mitad de trabajo). 60 = todos los cuadros.
+ * @type select
+ * @option 30
+ * @option 60
+ * @default 30
+ *
  * @param SplitZoom
  * @text Distancia de la camara en pantalla dividida
  * @desc far = cada vista ve tanto mapa como la pantalla entera (personajes mas pequenos). near = sin alejar (como antes). Se cambia en el juego con - y =.
@@ -212,6 +220,7 @@
     const SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
     const SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
     const SPLIT_ZOOM_STEPS = 4;
+    const WINDOW_FRAME_STEP = String(params.WindowFps) === '60' ? 1 : 2;
     const SPLIT_ZOOM_START = { far: 0, medium: 2, near: 4 }[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
 
@@ -2146,6 +2155,8 @@
         this.children.forEach(c => { c.visible = true; });
 
         for (let i = 0; i < vps.length; i++) {
+            // con ventanas por jugador: la vista de P2-P4 solo hace falta cuando su ventana se actualiza
+            if (st.windowMode && i > 0 && !coopWindowDue(i + 1)) continue;
             // cada vista con su propia escala (sin el zoom de pantalla del juego, que es para la pantalla entera)
             const zoom = splitZoomFor(sizes[i], W, H);
             this.scale.set(zoom, zoom);
@@ -2240,7 +2251,8 @@
 
     // =========================================================================
     // VENTANAS POR JUGADOR (F9)
-    // Cada jugador tiene su propia ventana con su vista (y los dialogos, menus, combate...).
+    // P2..P4 tienen cada uno su propia ventana con su vista (y los dialogos, menus, combate...);
+    // la ventana principal muestra la de P1.
     // Sirve para mandar cada ventana a un monitor distinto, p.ej. para jugar en remoto con
     // un programa de streaming por monitor. La ventana principal debe quedar abierta (no
     // minimizada): es la que hace funcionar el juego.
@@ -2319,11 +2331,11 @@
         Object.keys(coopWindows.list).forEach(n => closeCoopWindow(Number(n)));
     }
 
-    // Una ventana por cada jugador en la partida (tambien P1, por si el anfitrion la quiere)
+    // Una ventana por cada jugador P2..P4; la ventana principal pasa a mostrar solo a P1
     function syncCoopWindows() {
         if (!coopWindows.on) return;
         const wanted = {};
-        allPlayers().forEach((p, i) => { wanted[i + 1] = true; });
+        extraPlayers().forEach(p => { wanted[p.coopIndex()] = true; });
         for (const n of Object.keys(coopWindows.list)) {
             if (!wanted[n]) closeCoopWindow(Number(n));
         }
@@ -2341,7 +2353,7 @@
         coopWindows.closedByUser = {};
         if (coopWindows.on) {
             syncCoopWindows();
-            CoopUI.banner('Player windows: ON', 'Drag each window to its monitor  -  double click = fullscreen', '#bbbbbb', 220);
+            CoopUI.banner('Player windows: ON', 'This window = P1. Drag the others to their monitors, double click = fullscreen', '#bbbbbb', 240);
         } else {
             closeAllCoopWindows();
             CoopUI.banner('Player windows: OFF', 'F9 to open them again', '#bbbbbb', 120);
@@ -2354,25 +2366,21 @@
     // al recargar (F5) o cerrar el juego no deben quedar ventanas sueltas
     window.addEventListener('beforeunload', closeAllCoopWindows);
 
+    // Las ventanas se actualizan por turnos (WindowFps): en cada cuadro le toca a la mitad
+    function coopWindowDue(n) {
+        return (Graphics.frameCount + n) % WINDOW_FRAME_STEP === 0;
+    }
+
+    // Se copia al tamano del juego; la ventana lo escala con CSS (lo hace la tarjeta grafica)
     function drawToCoopWindow(n, source) {
         const entry = coopWindows.list[n];
-        if (!entry || !entry.ctx || !entry.win || !entry.win.window) return;
+        if (!entry || !entry.ctx) return;
         const canvas = entry.canvas;
-        const view = entry.win.window;
-        const ratio = view.devicePixelRatio || 1;
-        const cw = Math.max(1, Math.floor(view.innerWidth * ratio));
-        const ch = Math.max(1, Math.floor(view.innerHeight * ratio));
-        if (canvas.width !== cw || canvas.height !== ch) {
-            canvas.width = cw;
-            canvas.height = ch;
+        if (canvas.width !== source.width || canvas.height !== source.height) {
+            canvas.width = source.width;
+            canvas.height = source.height;
         }
-        const ctx = entry.ctx;
-        const scale = Math.min(cw / source.width, ch / source.height);
-        const dw = Math.floor(source.width * scale);
-        const dh = Math.floor(source.height * scale);
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, cw, ch);
-        ctx.drawImage(source, 0, 0, source.width, source.height, Math.floor((cw - dw) / 2), Math.floor((ch - dh) / 2), dw, dh);
+        entry.ctx.drawImage(source, 0, 0);
     }
 
     function activeSplitForWindows() {
@@ -2382,8 +2390,9 @@
         return (st && st.active && st.windowMode) ? st : null;
     }
 
-    // Antes del dibujo normal, la escena se dibuja una vez por ventana con solo la vista de ese
-    // jugador a pantalla completa (encima van igual los dialogos, carteles, etc.) y se copia.
+    // Con ventanas: antes del dibujo normal, la escena se dibuja una vez por cada ventana a la que
+    // le toca, con solo la vista de ese jugador a pantalla completa (encima van igual los dialogos,
+    // carteles, etc.) y se copia. Despues el dibujo normal muestra la vista de P1, no la cuadricula.
     const _Graphics_render = Graphics.render;
     Graphics.render = function(stage) {
         const ids = Object.keys(coopWindows.list).map(Number);
@@ -2391,37 +2400,43 @@
             _Graphics_render.call(this, stage);
             return;
         }
+        const due = ids.filter(coopWindowDue);
         const st = activeSplitForWindows();
         if (!st) {
             // fuera del mapa (combate, menus...): todos ven la pantalla normal
             _Graphics_render.call(this, stage);
-            if (this._rendered) ids.forEach(n => drawToCoopWindow(n, this._canvas));
+            if (this._rendered) due.forEach(n => drawToCoopWindow(n, this._canvas));
             return;
         }
         const saved = st.sprites.map(s => [s.visible, s.x, s.y, s.scale.x, s.scale.y]);
         const dividerVisible = st.divider.visible;
         const panelVisible = st.panel ? st.panel.visible : false;
+        const showOnly = i => {
+            st.sprites.forEach((s, j) => { s.visible = j === i; });
+            st.sprites[i].position.set(0, 0);
+            st.sprites[i].scale.set(1, 1);
+        };
         st.divider.visible = false;
         if (st.panel) st.panel.visible = false;
         try {
-            for (const n of ids) {
-                const view = st.sprites[n - 1];
-                if (!view || !view.parent) continue;
-                st.sprites.forEach((s, j) => { s.visible = j === n - 1; });
-                view.position.set(0, 0);
-                view.scale.set(1, 1);
+            for (const n of due) {
+                if (!st.sprites[n - 1] || !st.sprites[n - 1].parent) continue;
+                showOnly(n - 1);
                 this._renderer.render(stage);
                 if (this._renderer.gl && this._renderer.gl.flush) this._renderer.gl.flush();
                 drawToCoopWindow(n, this._canvas);
-                view.position.set(saved[n - 1][1], saved[n - 1][2]);
-                view.scale.set(saved[n - 1][3], saved[n - 1][4]);
             }
+            showOnly(0);
+            _Graphics_render.call(this, stage);
         } finally {
-            st.sprites.forEach((s, j) => { s.visible = saved[j][0]; });
+            st.sprites.forEach((s, j) => {
+                s.visible = saved[j][0];
+                s.position.set(saved[j][1], saved[j][2]);
+                s.scale.set(saved[j][3], saved[j][4]);
+            });
             st.divider.visible = dividerVisible;
             if (st.panel) st.panel.visible = panelVisible;
         }
-        _Graphics_render.call(this, stage);
     };
 
     // =========================================================================

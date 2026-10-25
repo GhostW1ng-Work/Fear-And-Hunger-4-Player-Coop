@@ -6,7 +6,8 @@
     <!-- Ventana de un jugador (LookOutsideOnline, F9). El juego dibuja aqui su vista cada cuadro. -->
     <style>
         html, body { margin: 0; width: 100%; height: 100%; background: #000; overflow: hidden; cursor: none; }
-        canvas { display: block; width: 100%; height: 100%; }
+        /* el juego dibuja a su tamano (816x624); el escalado lo hace el navegador con la tarjeta grafica */
+        canvas { display: block; width: 100%; height: 100%; object-fit: contain; }
     </style>
 </head>
 <body>
