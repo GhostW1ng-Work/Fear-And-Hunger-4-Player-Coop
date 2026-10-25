@@ -181,29 +181,31 @@ padB.axes[0] = -1; frame();
 check('T8b Start reclaims pad for P4 (no new join)', CoopLocal.keys(4).left === true && JSON.stringify($gameSystem._coopSession.pads) === '{"4":0}', JSON.stringify($gameSystem._coopSession));
 padB.axes[0] = 0; frame();
 
-// --- T9: sale un personaje -> los puestos se corren y P4 sale ---
+// --- T9: sale el personaje de P2 -> P2 toma el del ultimo jugador y P4 espera ---
+// (P2=3, P3=4, P4=5; cada uno conserva su personaje mientras siga en el grupo)
 $gameParty.removeActor(3);
 frame();
-check('T9 P4 removed when slot 4 empty', !$gamePlayer4);
-check('T9b P2 now actor 4, P3 actor 5', $gamePlayer2._coopActorId === 4 && $gamePlayer3._coopActorId === 5, $gamePlayer2._coopActorId + ',' + $gamePlayer3._coopActorId);
-check('T9c pad unbound and session updated', JSON.stringify($gameSystem._coopSession) === '{"players":[2,3],"pads":{}}', JSON.stringify($gameSystem._coopSession));
-// el mando liberado vuelve a ser de P1 en el mapa... y Start lo une otra vez como P4
+check('T9 P4 waiting when there are not enough characters', !$gamePlayer4);
+check('T9b P3 keeps actor 4, P2 takes 5', $gamePlayer2._coopActorId === 5 && $gamePlayer3._coopActorId === 4, $gamePlayer2._coopActorId + ',' + $gamePlayer3._coopActorId);
+check('T9c waiting P4 keeps its gamepad', JSON.stringify($gameSystem._coopSession) === '{"players":[2,3],"pads":{"4":0}}', JSON.stringify($gameSystem._coopSession));
+// vuelve alguien al grupo: P4 vuelve solo, con su mando
 $gameParty._actors.push(3);
-padBtn(padB, 9, true); frame(); padBtn(padB, 9, false); frame();
-check('T9d Start rejoins P4', $gamePlayer4 && $gamePlayer4._coopActorId === 3, $gamePlayer4 && $gamePlayer4._coopActorId);
+frame(); frame();
+check('T9d waiting P4 comes back by itself', $gamePlayer4 && $gamePlayer4._coopActorId === 3, $gamePlayer4 && $gamePlayer4._coopActorId);
+padB.axes[0] = 1; frame();
+check('T9e P4 still has its gamepad', CoopLocal.keys(4).right === true);
+padB.axes[0] = 0; frame();
 
-// --- T10: sin P2 nadie puede seguir: quitar P2 quita a todos ---
+// --- T10: grupo en solitario (partes de la historia): todos esperan ---
 $gameParty._actors = [1];
 frame();
-check('T10 all extra players leave when party is solo', !$gamePlayer2 && !$gamePlayer3 && !$gamePlayer4);
+check('T10 all extra players wait when party is solo', !$gamePlayer2 && !$gamePlayer3 && !$gamePlayer4);
 
-// --- T11: Start como primer jugador extra -> P2 por mando ---
+// --- T11: vuelve un companero -> P2 vuelve solo ---
 $gameParty._actors = [1, 3];
-padBtn(padB, 9, true); frame(); padBtn(padB, 9, false); frame();
-check('T11 Start with no P2 -> pad joins as P2', $gamePlayer2 && $gamePlayer2._coopActorId === 3);
-padB.axes[0] = 1; frame();
-check('T11b pad moves P2', CoopLocal.keys(2).right === true);
-padB.axes[0] = 0; frame();
+frame(); frame();
+check('T11 waiting P2 comes back by itself', $gamePlayer2 && $gamePlayer2._coopActorId === 3, $gamePlayer2 && $gamePlayer2._coopActorId);
+check('T11b P3/P4 still waiting', !$gamePlayer3 && !$gamePlayer4);
 
 // --- T12: camara recorre P4 ---
 $gameParty._actors = [1, 3, 4, 5];
@@ -320,5 +322,85 @@ check('T15g auto: no switch during events', CoopLocal.mode() === 0, CoopLocal.mo
 $gameMap._interpreter.clear();
 for (f = 0; f < 15; f++) frame();
 check('T15h auto: switches after the event', CoopLocal.mode() === 1, CoopLocal.mode());
+
+// ======================= arreglos del analisis de eventos (tools/audit_events.py) =======================
+SceneManager._scene = scene; SceneManager._nextScene = null;
+$gameMap._interpreter.clear();
+$gamePlayer.locate(px, py);
+[$gamePlayer2, $gamePlayer3, $gamePlayer4].forEach(function(p, i) { p.locate(px + 1 + i, py); });
+for (f = 0; f < 3; f++) frame();
+var ids = function() { return [$gamePlayer2._coopActorId, $gamePlayer3._coopActorId, $gamePlayer4._coopActorId].join(','); };
+var bound = ids();
+
+// --- T16: el juego reordena el grupo (PartyREARRANGE): cada jugador conserva su personaje ---
+var a = $gameParty._actors.slice();
+$gameParty._actors = [a[0], a[3], a[1], a[2]];
+frame();
+check('T16 party reorder keeps each player character', ids() === bound, ids() + ' vs ' + bound);
+check('T16b party order restored to P2/P3/P4 slots', $gameParty._actors.join(',') === a.join(','), $gameParty._actors.join(','));
+
+// --- T17: parte en solitario (temporary_party_remove / back) durante un evento ---
+$gameMap._interpreter.setup([{ code: 0, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 0);
+$gameParty._actors = [a[0]];
+frame();
+check('T17 nothing changes while the event runs', !!$gamePlayer2 && !!$gamePlayer4);
+$gameMap._interpreter.clear();
+frame();
+check('T17b after the event everyone waits', !$gamePlayer2 && !$gamePlayer3 && !$gamePlayer4);
+$gameParty._actors = [a[0], a[3], a[2], a[1]]; // vuelven en otro orden
+for (f = 0; f < 5; f++) frame();
+check('T17c everyone back with their own character', !!$gamePlayer4 && ids() === bound, ($gamePlayer4 ? ids() : 'P4 missing') + ' vs ' + bound);
+
+// --- T18: el juego oculta al protagonista -> tambien a P2-P4 ---
+$gamePlayer.setTransparent(true);
+frame();
+check('T18 extras hidden with P1', $gamePlayer2.isTransparent() && $gamePlayer4.isTransparent());
+$gamePlayer.setTransparent(false);
+frame();
+check('T18b extras visible again', !$gamePlayer2.isTransparent() && !$gamePlayer4.isTransparent());
+
+// --- T19: eventos del protagonista (arrow_check...) ven siempre a P1; los demas al mas cercano ---
+var arrowEv = null, otherEv = null;
+$gameMap.events().forEach(function(ev) {
+    if (!ev) return;
+    if (!arrowEv && ev.event().name === 'arrow_check') arrowEv = ev;
+    if (!otherEv && ev.event().name !== 'arrow_check' && ev.event().name !== 'bleeding') otherEv = ev;
+});
+check('T19 map has arrow_check', !!arrowEv);
+if (arrowEv && otherEv) {
+    var seenX = {};
+    [arrowEv, otherEv].forEach(function(ev) {
+        ev.updateParallel = function() { seenX[ev.eventId()] = $gamePlayer.x; };
+        $gamePlayer.locate(ev.x + 20, ev.y);
+        $gamePlayer2.locate(ev.x + 1, ev.y);
+        ev.update();
+    });
+    check('T19b arrow_check sees P1 even with P2 closer', seenX[arrowEv.eventId()] === arrowEv.x + 20, seenX[arrowEv.eventId()]);
+    check('T19c other events see the nearest player', seenX[otherEv.eventId()] === otherEv.x + 1, seenX[otherEv.eventId()]);
+    delete arrowEv.updateParallel; delete otherEv.updateParallel;
+}
+
+// --- T20: una escena mueve al protagonista -> P2-P4 lo siguen ---
+$gamePlayer.locate(px, py);
+$gamePlayer2.locate(px + 6, py);
+$gameMap._interpreter.setup([{ code: 0, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 0);
+$gamePlayer.forceMoveRoute({ list: [{ code: 15, parameters: [600] }, { code: 0 }], repeat: false, skippable: true, wait: false });
+var d0 = Math.abs($gamePlayer2.x - $gamePlayer.x);
+for (f = 0; f < 120; f++) { $gamePlayer.updateRoutineMove && $gamePlayer.updateRoutineMove(); frame(); }
+var d1 = Math.abs($gamePlayer2.x - $gamePlayer.x) + Math.abs($gamePlayer2.y - $gamePlayer.y);
+check('T20 P2 walks to P1 during a forced move route', d1 < d0 && d1 <= 2, d0 + ' -> ' + d1);
+$gamePlayer._moveRouteForcing = false;
+
+// --- T21: la escena desplaza la camara -> el mod no la recentra hasta que termina ---
+Graphics._renderer = { gl: {} };
+$gameMap.startScroll(6, 5, 6);
+for (f = 0; f < 60; f++) { $gameMap.updateScroll(); frame(); }
+var scrolledX = $gameMap.displayX();
+for (f = 0; f < 10; f++) { $gamePlayer.updateScroll(0, 0); frame(); }
+check('T21 camera stays where the cutscene scrolled it', $gameMap.displayX() === scrolledX, scrolledX + ' -> ' + $gameMap.displayX());
+check('T21b split is not used during that cutscene', CoopLocal.mode() === 0, CoopLocal.mode());
+$gameMap._interpreter.clear();
+$gamePlayer.updateScroll(0, 0);
+check('T21c after the cutscene the co-op camera is back', $gameMap.displayX() !== scrolledX, scrolledX + ' -> ' + $gameMap.displayX());
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

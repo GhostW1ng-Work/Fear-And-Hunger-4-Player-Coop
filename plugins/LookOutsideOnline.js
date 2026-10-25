@@ -67,6 +67,12 @@
  * @option p4
  * @default auto
  *
+ * @param PlayerOnlyEvents
+ * @text Eventos que siguen solo a P1
+ * @desc Nombres de eventos de mapa (separados por coma) que deben ver siempre a P1 y no al jugador mas cercano: sistemas del protagonista (disparo, sangrado...).
+ * @type string
+ * @default arrow_check,arrow_player,backstab_check,backstab,bleeding,blood
+ *
  * @param SplitDirection
  * @text Direccion de la pantalla dividida
  * @desc vertical = una pantalla a cada lado (con 3: P1 a la izquierda, P2/P3 a la derecha). horizontal = una arriba y otra abajo (con 3: P1 arriba, P2/P3 abajo).
@@ -225,6 +231,9 @@
     const WINDOW_FRAME_STEP = { 15: 4, 20: 3, 30: 2, 60: 1 }[String(params.WindowFps)] || 2;
     const SPLIT_ZOOM_START = { far: 0, medium: 2, near: 4 }[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
+    const PLAYER_ONLY_EVENTS = String(params.PlayerOnlyEvents === undefined
+        ? 'arrow_check,arrow_player,backstab_check,backstab,bleeding,blood' : params.PlayerOnlyEvents)
+        .split(',').map(t => t.trim()).filter(t => t.length > 0);
 
     const CAM_SHARED = 0;
     const CAM_SPLIT = 1;
@@ -263,7 +272,8 @@
         lastOwner: 0,
         restore: null,      // jugadores a volver a unir tras cargar partida (ver AUTO_REJOIN)
         starting: 0,        // jugador que esta activando un evento en este momento
-        menuOwner: 0        // jugador que abrio el menu (solo responden sus teclas)
+        menuOwner: 0,       // jugador que abrio el menu (solo responden sus teclas)
+        parked: {}          // jugador -> { actorId }: sin personaje por ahora, vuelve solo
     };
 
     function newPlayerKeys() {
@@ -849,7 +859,7 @@
         for (const key of Object.keys(padOwner)) {
             const index = Number(key);
             const n = padOwner[index];
-            if (!coopPlayer(n) && !playerInput[n].join && CoopState.selecting !== n) {
+            if (!coopPlayer(n) && !playerInput[n].join && CoopState.selecting !== n && !CoopState.parked[n]) {
                 unbindPad(index);
                 continue;
             }
@@ -1495,13 +1505,35 @@
 
     Game_CoopPlayer.prototype.update = function() {
         this.syncActorImage();
+        // si el juego oculta al protagonista (escenas), tambien a P2-P4
+        if (this.isTransparent() !== $gamePlayer.isTransparent()) this.setTransparent($gamePlayer.isTransparent());
         Game_Character.prototype.update.call(this);
 
-        if (!this.isMoving() && this.canMoveCoop()) {
-            this.updateMoveCoop();
+        if (!this.isMoving()) {
+            if (this.canMoveCoop()) {
+                this._through = false;
+                this.updateMoveCoop();
+            } else {
+                this.updateCutsceneFollow();
+            }
         }
 
         this.triggerInteractionCoop();
+    };
+
+    // Cuando una escena mueve al protagonista (ruta de movimiento), P2-P4 lo siguen como
+    // acompanantes, atravesando todo para no estorbar ni quedarse atascados.
+    Game_CoopPlayer.prototype.updateCutsceneFollow = function() {
+        if (!$gameMap.isEventRunning() || !$gamePlayer.isMoveRouteForcing()) {
+            this._through = false;
+            return;
+        }
+        const gap = this._coopIndex - 1; // P2 a 1 casilla, P3 a 2...
+        const dx = Math.abs($gameMap.deltaX(this.x, $gamePlayer.x));
+        const dy = Math.abs($gameMap.deltaY(this.y, $gamePlayer.y));
+        if (Math.max(dx, dy) <= gap) return;
+        this._through = true;
+        this.moveTowardCharacter($gamePlayer);
     };
 
     Game_CoopPlayer.prototype.updateMoveCoop = function() {
@@ -1586,12 +1618,22 @@
 
     const _Game_Event_update = Game_Event.prototype.update;
 
+    // Sistemas del protagonista (disparo, puñalada, rastro de sangre): siempre ven a P1
+    // (o al tirador durante un disparo de P2-P4, ver LocalCoop_FearHunger)
+    Game_Event.prototype.coopIsPlayerOnly = function() {
+        if (this._coopPlayerOnly === undefined) {
+            const data = this.event();
+            this._coopPlayerOnly = !!data && PLAYER_ONLY_EVENTS.indexOf(data.name) >= 0;
+        }
+        return this._coopPlayerOnly;
+    };
+
     Game_Event.prototype.update = function() {
         let realX = null;
         let realY = null;
         let nearest = null;
 
-        if ($gamePlayer2) {
+        if ($gamePlayer2 && !this.coopIsPlayerOnly()) {
             let best = $gameMap.distance(this.x, this.y, $gamePlayer.x, $gamePlayer.y);
             for (const p of extraPlayers()) {
                 const d = $gameMap.distance(this.x, this.y, p.x, p.y);
@@ -1704,8 +1746,13 @@
     const AUTO_MERGE_FRAMES = 40;
     const autoCamera = { split: false, timer: 0 };
 
+    // Una escena que desplaza la camara ("Desplazar mapa") la controla hasta que termina:
+    // el mod no la recentra y se ve con camara compartida.
+    const eventCamera = { on: false };
+
     // lo que se ve ahora mismo: en auto, compartida o dividida
     function viewMode() {
+        if (eventCamera.on && (cameraMode === CAM_AUTO || cameraMode === CAM_SPLIT)) return CAM_SHARED;
         if (cameraMode !== CAM_AUTO) return cameraMode;
         return autoCamera.split ? CAM_SPLIT : CAM_SHARED;
     }
@@ -1754,6 +1801,12 @@
         if (!$gamePlayer2) {
             _Game_Player_updateScroll.call(this, lastScrolledX, lastScrolledY);
             return;
+        }
+        if ($gameMap.isEventRunning()) {
+            if ($gameMap.isScrolling()) eventCamera.on = true;
+            if (eventCamera.on) return;
+        } else {
+            eventCamera.on = false;
         }
         if ($gameMap.isScrolling()) return;
 
@@ -2487,37 +2540,114 @@
             this.coopFollowPartySlots();
             extraPlayers().forEach(p => p.update());
         }
+        if (!CoopState.selecting) this.coopUpdateParked();
         updateAutoCamera();
     };
 
-    // Los protagonistas pueden abandonar el grupo: P2 siempre es el miembro en la 2.a posicion,
-    // P3 el de la 3.a y P4 el de la 4.a. Si ese puesto queda vacio, el jugador sale hasta que
-    // vuelva a unirse.
+    // Cada jugador conserva su personaje aunque el juego reordene el grupo (Termina lo reordena
+    // al reclutar, con "PartyREARRANGE"): al terminar cada evento, el personaje de P2 vuelve al
+    // 2.o puesto, el de P3 al 3.o, etc. Si un personaje se va, su jugador toma a otro miembro
+    // libre; si no queda ninguno, el jugador "espera" y vuelve solo cuando haya alguien
+    // (p.ej. las partes en solitario de la historia con "temporary_party_remove/back").
     Scene_Map.prototype.coopFollowPartySlots = function() {
-        const members = $gameParty.members();
-        for (let n = MAX_PLAYERS; n >= 2; n--) {
-            const p = coopPlayer(n);
-            if (!p) continue;
-            if (n === 2 && coopMode() !== 'select') continue; // Look Outside: P2 es un clon fijo
-            const member = members[n - 1];
-            if (!member) {
-                if ($gameMap.isEventRunning()) continue; // eventos que reordenan el grupo
-                this.coopRemovePlayer(n);
-                CoopUI.banner('Player ' + n + ' left the party', 'Press ' + JOIN_KEY_NAME[n] + ' to rejoin', colorOf(n), 160);
-                continue;
+        if ($gameMap.isEventRunning()) return; // los eventos cambian el grupo en varios pasos
+        const actors = $gameParty._actors;
+        const leaderId = actors[0];
+        const players = [];
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            if (coopPlayer(n)) players.push(n);
+        }
+        const taken = [leaderId];
+        const assign = {};
+        // 1) cada uno se queda con su personaje si sigue en el grupo (y no es el lider)
+        for (const n of players) {
+            const id = coopPlayer(n)._coopActorId;
+            if (actors.indexOf(id) > 0 && taken.indexOf(id) < 0) {
+                assign[n] = id;
+                taken.push(id);
             }
-            if (p._coopActorId !== member.actorId()) {
-                p._coopActorId = member.actorId();
-                CoopUI.banner('Player ' + n + ' is now ' + member.name(), '', colorOf(n), 110);
+        }
+        // 2) quien lo perdio toma el primer miembro libre
+        for (const n of players) {
+            if (assign[n]) continue;
+            const id = actors.find(a => taken.indexOf(a) < 0);
+            if (id) {
+                assign[n] = id;
+                taken.push(id);
+            }
+        }
+        // 3) si faltan personajes, se quedan sin el los ultimos jugadores (nunca P2 sin P3, etc.)
+        for (let i = 0; i < players.length; i++) {
+            if (assign[players[i]]) continue;
+            for (let j = players.length - 1; j > i; j--) {
+                if (assign[players[j]]) {
+                    assign[players[i]] = assign[players[j]];
+                    delete assign[players[j]];
+                    break;
+                }
+            }
+        }
+        for (let i = players.length - 1; i >= 0; i--) {
+            const n = players[i];
+            if (assign[n]) continue;
+            CoopState.parked[n] = { actorId: coopPlayer(n)._coopActorId };
+            this.coopRemovePlayer(n, true);
+            CoopUI.banner('Player ' + n + ' is waiting', 'Comes back when someone joins the party', colorOf(n), 160);
+        }
+        // 4) orden del grupo: lider, personajes de P2..P4, y el resto como estaba
+        const order = [leaderId];
+        for (const n of players) {
+            if (assign[n]) order.push(assign[n]);
+        }
+        const next = order.concat(actors.filter(a => order.indexOf(a) < 0));
+        if (next.join(',') !== actors.join(',')) {
+            $gameParty._actors = next;
+            $gamePlayer.refresh();
+            $gameMap.requestRefresh();
+        }
+        for (const n of players) {
+            const p = coopPlayer(n);
+            if (p && assign[n] && p._coopActorId !== assign[n]) {
+                p._coopActorId = assign[n];
+                CoopUI.banner('Player ' + n + ' is now ' + $gameActors.actor(assign[n]).name(), '', colorOf(n), 110);
             }
         }
     };
 
-    Scene_Map.prototype.coopRemovePlayer = function(n) {
+    // Jugadores en espera: vuelven en cuanto hay un miembro libre (preferiblemente su personaje)
+    Scene_Map.prototype.coopUpdateParked = function() {
+        if (!isMapIdle()) return;
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            const parked = CoopState.parked[n];
+            if (!parked) continue;
+            if (coopPlayer(n)) {
+                delete CoopState.parked[n];
+                continue;
+            }
+            if (n > 2 && !coopPlayer(n - 1)) return;
+            const actors = $gameParty._actors;
+            const used = [actors[0]].concat(extraPlayers().map(p => p._coopActorId));
+            const free = actors.filter(a => used.indexOf(a) < 0);
+            if (free.length === 0) return;
+            const id = free.indexOf(parked.actorId) >= 0 ? parked.actorId : free[0];
+            delete CoopState.parked[n];
+            this.spawnPlayer(n, id, true);
+            if (coopPlayer(n)) {
+                CoopUI.banner('Player ' + n + ' is back', $gameActors.actor(id).name(), colorOf(n), 140);
+            }
+            return;
+        }
+    };
+
+    // keepPads = el jugador queda en espera (ver coopFollowPartySlots) y conserva su mando
+    Scene_Map.prototype.coopRemovePlayer = function(n, keepPads) {
         const p = coopPlayer(n);
         if (!p) return;
         // nadie puede quedarse sin el jugador anterior (P3 sin P2, P4 sin P3)
-        if (coopPlayer(n + 1)) this.coopRemovePlayer(n + 1);
+        if (coopPlayer(n + 1)) {
+            if (keepPads) CoopState.parked[n + 1] = { actorId: coopPlayer(n + 1)._coopActorId };
+            this.coopRemovePlayer(n + 1, keepPads);
+        }
         setCoopPlayer(n, null);
         if (this._spriteset) {
             const list = this._spriteset._characterSprites;
@@ -2530,8 +2660,12 @@
         }
         if (isPlayerCamera(cameraMode) && cameraPlayerIndex(cameraMode) === n) cameraMode = CAM_AUTO;
         Object.assign(playerInput[n], newPlayerKeys());
-        padsOf(n).forEach(unbindPad);
-        delete padWanted[n];
+        if (keepPads) {
+            padsOf(n).forEach(index => releasePad(Input, index));
+        } else {
+            padsOf(n).forEach(unbindPad);
+            delete padWanted[n];
+        }
         CoopState.lastOwner = 0;
         Input.clear();
         saveCoopSession();
@@ -2543,6 +2677,7 @@
     };
 
     Scene_Map.prototype.coopBeginJoin = function(n) {
+        delete CoopState.parked[n];
         if (n > 2 && !coopPlayer(n - 1)) {
             CoopUI.banner('Player ' + (n - 1) + ' must join first', 'Press ' + JOIN_KEY_NAME[n - 1] + ' on the map', '#ffaa44', 140);
             if (typeof SoundManager !== 'undefined') SoundManager.playBuzzer();
@@ -2705,6 +2840,7 @@
         CoopState.lastOwner = 0;
         CoopState.restore = null;
         CoopState.menuOwner = 0;
+        CoopState.parked = {};
     }
 
     const _DataManager_setupNewGame = DataManager.setupNewGame;

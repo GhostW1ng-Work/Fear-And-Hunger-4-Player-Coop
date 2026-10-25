@@ -18,7 +18,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Dialogue choices** | If P2-P4 started the conversation, only that player can pick the answer. |
 | **Own menus** | P2-P4 open the game menu for themselves (Skill / Equip / Status go straight to their character). Options, Game End, Save and Formation stay with P1. |
 | **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
-| **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. |
+| **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. Each player keeps their character when the game rearranges the party; in solo story parts players wait and come back by themselves; in cutscenes P2-P4 follow / hide with P1. See [docs/AUDIT_SUMMARY.md](docs/AUDIT_SUMMARY.md). |
 | **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
 | **Quick save (testing)** | Optional plugin: `F6` save / `F7` load in slot 99. |
 
