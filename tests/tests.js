@@ -637,7 +637,7 @@ var cfg = ConfigManager.makeData();
 check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
 var setScene = new Scene_CoopSettings(); setScene.create();
 var setList = setScene._coopList;
-function selectSetting(key) { setList.select(['camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin', 'windowFps'].indexOf(key)); }
+function selectSetting(key) { setList.select(['camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin'].indexOf(key)); }
 // P3 solo con teclado numerico: I/J/K/L ya no son de P3
 SceneManager._scene = scene;
 selectSetting('p3Keys'); setList.cursorRight();
@@ -660,10 +660,10 @@ check('T28g gamepads off: Start does not join', !!$gamePlayer4 === before4);
 setList.cursorRight(); // mandos otra vez
 check('T28h gamepads on again', ConfigManager.makeData().coopSettings.gamepads === true);
 // la configuracion guardada se aplica al cargarla
-ConfigManager.applyData({ coopSettings: { camera: 'shared', splitZoom: 'near', windowFps: 15 } });
+ConfigManager.applyData({ coopSettings: { camera: 'shared', splitZoom: 'near' } });
 check('T28i loaded config: camera shared', CoopLocal.cameraSetting() === 0, CoopLocal.cameraSetting());
-check('T28j loaded config: values kept', ConfigManager.makeData().coopSettings.splitZoom === 'near' && ConfigManager.makeData().coopSettings.windowFps === 15);
-ConfigManager.applyData({ coopSettings: { camera: 'auto', splitZoom: 'far', windowFps: 30 } });
+check('T28j loaded config: values kept', ConfigManager.makeData().coopSettings.splitZoom === 'near');
+ConfigManager.applyData({ coopSettings: { camera: 'auto', splitZoom: 'far' } });
 check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings: { p3Keys: 'banana' } }), ConfigManager.makeData().coopSettings.p3Keys === 'all'));
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

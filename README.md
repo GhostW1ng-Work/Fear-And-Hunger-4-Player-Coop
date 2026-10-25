@@ -52,7 +52,7 @@ The installer checks the game (title, RPG Maker version, Termina data version it
 
 ## Settings
 
-In the game: **Options > Co-op > Co-op settings...** - camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading, F9 window FPS. They are saved with the game config (like the volume) and apply to every save.
+In the game: **Options > Co-op > Co-op settings...** - camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading. They are saved with the game config (like the volume) and apply to every save.
 
 ## Parameters (`LookOutsideOnline`)
 

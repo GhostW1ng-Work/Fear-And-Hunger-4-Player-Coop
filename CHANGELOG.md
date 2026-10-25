@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**Performance (split screen and F9 windows)**
+- Each split view keeps its own tile layers: the map geometry is no longer rebuilt several times per frame.
+- Each view only draws the characters inside it (Termina maps have up to ~900 events).
+- `F10` shows per-frame timings.
+- F9 player windows always update at 30 FPS and full resolution (60 FPS stalled the game; half resolution looked too blurry); the window FPS setting was removed.
+
+**Fixes**
+- The "Player N is waiting" banner was not shown.
+
 ## v1.0.0
 
 First release of the 3-4 player version, based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players).

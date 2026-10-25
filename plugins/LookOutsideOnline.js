@@ -90,26 +90,6 @@
  * @option big
  * @default triangle
  *
- * @param WindowFps
- * @text Imagenes por segundo de las ventanas por jugador (F9)
- * @desc Cuantas veces por segundo se actualiza cada ventana de P2-P4. Menos = menos trabajo (30 = la mitad que 60).
- * @type select
- * @option 15
- * @option 20
- * @option 30
- * @option 40
- * @option 45
- * @option 60
- * @default 30
- *
- * @param WindowResolution
- * @text Resolucion de las ventanas por jugador (F9)
- * @desc half = se dibujan a la mitad y se agrandan (imagen mas suave, mucho menos trabajo). full = tamano del juego.
- * @type select
- * @option full
- * @option half
- * @default full
- *
  * @param SplitZoom
  * @text Distancia de la camara en pantalla dividida
  * @desc far = cada vista ve tanto mapa como la pantalla entera (personajes mas pequenos). near = sin alejar (como antes). Se cambia en el juego con - y =.
@@ -250,8 +230,9 @@
     let SPLIT_VERTICAL = String(params.SplitDirection || 'vertical') !== 'horizontal';
     let SPLIT3_LAYOUT = ['grid', 'big'].indexOf(String(params.Split3Layout)) >= 0 ? String(params.Split3Layout) : 'triangle';
     const SPLIT_ZOOM_STEPS = 4;
-    const WINDOW_FPS_VALUES = [15, 20, 30, 40, 45, 60];
-    let WINDOW_FPS = WINDOW_FPS_VALUES.indexOf(Number(params.WindowFps)) >= 0 ? Number(params.WindowFps) : 30;
+    // Las ventanas por jugador (F9) se actualizan a 30 por segundo y a tamano completo: a 60 Chromium
+    // (NW.js 0.29) se atasca con varias ventanas y la imagen a mitad de tamano se ve demasiado borrosa.
+    const WINDOW_FPS = 30;
     const SPLIT_ZOOM_STEP = { far: 0, medium: 2, near: 4 };
     const SPLIT_ZOOM_START = SPLIT_ZOOM_STEP[String(params.SplitZoom || 'far')];
     const JOIN_TEXT = String(params.JoinText || 'Player %1 has joined');
@@ -2635,7 +2616,7 @@
         perf.lines = 'FPS ' + fps + '   frame CPU ' + ms('update') + ' ms   views ' + ms('views') +
             ' (light ' + ms('light') + ', draw ' + ms('viewDraw') + ', tiles ' + ms('tiles') + ')   windows: draw ' + ms('winDraw') +
             ' copy ' + ms('winCopy') + '   main ' + ms('main') + '   [' + extraPlayers().length + ' extra, ' +
-            Object.keys(coopWindows.list).length + ' win, ' + (coopSettings.windowRes === 'half' ? 'half' : 'full') + ']';
+            Object.keys(coopWindows.list).length + ' win]';
         perf.sum = {};
         perf.renders = 0;
         perf.start = t;
@@ -2786,30 +2767,25 @@
     // al recargar (F5) o cerrar el juego no deben quedar ventanas sueltas
     window.addEventListener('beforeunload', closeAllCoopWindows);
 
-    // Las ventanas se actualizan por turnos (WindowFps): en cada cuadro le toca a la mitad
-    // (el juego va a 60: con 30 se actualiza un cuadro si y otro no, con 45 tres de cada cuatro...;
-    // cada jugador va desfasado para que no se dibujen todas las ventanas en el mismo cuadro)
+    // Las ventanas se actualizan por turnos: el juego va a 60 y cada ventana un cuadro si y otro no;
+    // cada jugador va desfasado para que no se dibujen todas las ventanas en el mismo cuadro
     function coopWindowDue(n) {
         const rate = WINDOW_FPS / 60;
         const f = Graphics.frameCount + n * 7;
         return Math.floor(f * rate) !== Math.floor((f - 1) * rate);
     }
 
-    // Se copia al tamano del juego (o a la mitad con F9 windows "Half": la escena se dibuja
-    // reducida en la esquina y se copia solo ese trozo, cuatro veces menos); la ventana lo
-    // escala con CSS (lo hace la tarjeta grafica)
-    function drawToCoopWindow(n, source, half) {
+    // Se copia al tamano del juego; la ventana lo escala con CSS (lo hace la tarjeta grafica)
+    function drawToCoopWindow(n, source) {
         const entry = coopWindows.list[n];
         if (!entry || !entry.ctx) return;
         const t0 = perfNow();
         const canvas = entry.canvas;
-        const w = half ? Math.floor(source.width / 2) : source.width;
-        const h = half ? Math.floor(source.height / 2) : source.height;
-        if (canvas.width !== w || canvas.height !== h) {
-            canvas.width = w;
-            canvas.height = h;
+        if (canvas.width !== source.width || canvas.height !== source.height) {
+            canvas.width = source.width;
+            canvas.height = source.height;
         }
-        entry.ctx.drawImage(source, 0, 0, w, h, 0, 0, w, h);
+        entry.ctx.drawImage(source, 0, 0);
         perfAdd('winCopy', t0);
     }
 
@@ -2838,20 +2814,13 @@
             return;
         }
         const due = ids.filter(coopWindowDue);
-        const half = coopSettings.windowRes === 'half';
         const st = activeSplitForWindows();
         if (!st) {
             // fuera del mapa (combate, menus...): todos ven la pantalla normal
-            if (half && due.length > 0) {
-                stage.scale.set(0.5, 0.5);
-                this._renderer.render(stage);
-                stage.scale.set(1, 1);
-                due.forEach(n => drawToCoopWindow(n, this._canvas, true));
-            }
             const tMain = perfNow();
             _Graphics_render.call(this, stage);
             perfAdd('main', tMain);
-            if (!half && this._rendered) due.forEach(n => drawToCoopWindow(n, this._canvas));
+            if (this._rendered) due.forEach(n => drawToCoopWindow(n, this._canvas));
             return;
         }
         const saved = st.sprites.map(s => [s.visible, s.x, s.y, s.scale.x, s.scale.y]);
@@ -2871,19 +2840,16 @@
                 if (i < 1 || !st.sprites[i] || !st.sprites[i].parent) continue;
                 showOnly(i);
                 const tDraw = perfNow();
-                if (half) stage.scale.set(0.5, 0.5);
                 this._renderer.render(stage);
-                if (half) stage.scale.set(1, 1);
                 if (this._renderer.gl && this._renderer.gl.flush) this._renderer.gl.flush();
                 perfAdd('winDraw', tDraw);
-                drawToCoopWindow(n, this._canvas, half);
+                drawToCoopWindow(n, this._canvas);
             }
             showOnly(0);
             const tMain = perfNow();
             _Graphics_render.call(this, stage);
             perfAdd('main', tMain);
         } finally {
-            stage.scale.set(1, 1);
             st.sprites.forEach((s, j) => {
                 s.visible = saved[j][0];
                 s.position.set(saved[j][1], saved[j][2]);
@@ -3565,11 +3531,7 @@
         { key: 'p3Keys', name: 'P3 keyboard', values: ['all', 'numpad', 'ijkl'], labels: ['Numpad + IJKL', 'Numpad', 'IJKL'],
             help: 'Keys P3 can use on the keyboard.' },
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
-            help: 'On: players that were playing come back by themselves when a save is loaded.' },
-        { key: 'windowFps', name: 'F9 player windows', values: [30, 40, 45, 60, 15, 20], labels: ['30 FPS', '40 FPS', '45 FPS', '60 FPS (may stall)', '15 FPS', '20 FPS'],
-            help: 'How often each player window (F9) updates. Lower = less work for the PC.' },
-        { key: 'windowRes', name: 'F9 window resolution', values: ['full', 'half'], labels: ['Full', 'Half (faster)'],
-            help: 'Half: the player windows are drawn at half size and scaled up (softer picture, much less work). F10 shows timings.' }
+            help: 'On: players that were playing come back by themselves when a save is loaded.' }
     ];
 
     function cameraSettingName() {
@@ -3583,9 +3545,7 @@
         split3Layout: SPLIT3_LAYOUT,
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
-        autoRejoin: AUTO_REJOIN,
-        windowFps: WINDOW_FPS,
-        windowRes: String(params.WindowResolution) === 'half' ? 'half' : 'full'
+        autoRejoin: AUTO_REJOIN
     };
 
     function applyCoopSettings(changedKey) {
@@ -3593,7 +3553,6 @@
         SPLIT_VERTICAL = st.splitDirection !== 'horizontal';
         SPLIT3_LAYOUT = st.split3Layout;
         AUTO_REJOIN = !!st.autoRejoin;
-        WINDOW_FPS = WINDOW_FPS_VALUES.indexOf(st.windowFps) >= 0 ? st.windowFps : 30;
         if (GAMEPADS !== !!st.gamepads || P3_KEY_SET !== st.p3Keys) {
             GAMEPADS = !!st.gamepads;
             P3_KEY_SET = st.p3Keys;
