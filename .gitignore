@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.pyc
+pylib/
+
+# test output
+tests/out.txt
+
+# never commit game files or saves
+*.rpgsave
+www/
+data/
+img/
+audio/

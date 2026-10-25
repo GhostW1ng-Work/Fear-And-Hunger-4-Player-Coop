@@ -1,0 +1,86 @@
+# Termina Local Co-op (up to 4 players)
+
+Local co-op for **Fear & Hunger 2: Termina** (RPG Maker MV): up to 4 players on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
+
+Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players, MIT). This version extends it to 3-4 players and adds gamepads, auto camera, per-player menus and more. The base plugin still works on other RPG Maker MV/MZ games (e.g. Look Outside), but development and testing target Termina.
+
+[Русская версия](README.ru.md)
+
+## Features
+
+| | |
+|---|---|
+| **Up to 4 players** | P1 and P2 on the keyboard, P3 on the keyboard or a gamepad, P4 on a gamepad. Party slot N = player N. |
+| **Gamepads** | Press `Start` on a free gamepad: the next free player joins and the pad becomes theirs. A free pad still controls P1. |
+| **Auto camera** | Shared camera while everyone fits on screen, split screen when someone walks away, shared again when you regroup. |
+| **Split screen** | 2 = halves, 3 = three equal views (two on top, one centered below), 4 = 2x2. `-` / `=` zoom each view out / in (by default every view sees as much map as the full screen). |
+| **Combat** | Each character is controlled by its owner; a banner shows whose turn it is. |
+| **Dialogue choices** | If P2-P4 started the conversation, only that player can pick the answer. |
+| **Own menus** | P2-P4 open the game menu for themselves (Skill / Equip / Status go straight to their character). Options, Game End, Save and Formation stay with P1. |
+| **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
+| **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. |
+| **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
+| **Quick save (testing)** | Optional plugin: `F6` save / `F7` load in slot 99. |
+
+Game over rule (as in the original mod): if any player's character dies in combat, it's game over.
+
+## Controls
+
+| | P1 | P2 | P3 (keyboard) | Gamepad (P2 / P3 / P4) |
+|---|---|---|---|---|
+| Join | - | `X` on the map | `U` / `Numpad 0` (after P2) | `Start` |
+| Move | `W A S D` | Arrows | `Numpad 8 4 5 6` or `I J K L` | D-pad / left stick |
+| Sprint / shoot | Left Shift | Right Shift | `Numpad +` or `H` | `X` or `RT` |
+| OK / interact | `Z` / `Space` | `Enter` | `Numpad 0` / `Numpad Enter` or `U` | `A` |
+| Cancel / own menu | `X` / `Esc` | `Backspace` | `Numpad .` or `O` | `B` |
+| Camera | `G` (anyone): auto / shared / split / P1..P4 | | | `Back` / `Select` |
+| Split zoom | `-` / `=` | | | |
+| Player windows | `F9` | | | |
+
+Numpad keys work with NumLock on or off.
+
+## Install
+
+1. Download this repository (Code > Download ZIP) and unzip it.
+2. Drag your **game folder** (the one with `Game.exe`) onto `install.bat`,
+   or run `powershell -ExecutionPolicy Bypass -File install.ps1 -GamePath "C:\path\to\game"`.
+   Add `-QuickSave` to also install the F6/F7 quick save plugin.
+
+The installer copies the plugins to `www/js/plugins`, registers them at the end of `www/js/plugins.js` (backup: `plugins.js.coop.bak`) and copies `extras/coop_view.html` next to `index.html` (needed by F9). Re-running it updates the files; `-Uninstall` removes everything.
+
+## Parameters (`LookOutsideOnline`)
+
+Set them in `www/js/plugins.js`, e.g. `"parameters": {"P3Keys": "ijkl", "SplitZoom": "medium"}`.
+
+| Parameter | Default | |
+|---|---|---|
+| `MaxPlayers` | 4 | 2, 3 or 4. |
+| `P3Keys` | all | `all` = numpad and IJKL, `numpad`, `ijkl`. |
+| `Gamepads` | true | `false` = gamepads always control P1. |
+| `AutoRejoin` | true | Players rejoin automatically after loading. |
+| `DefaultCameraMode` | auto | `auto`, `shared`, `split`, `p1`..`p4`. |
+| `SplitDirection` | vertical | 2 players: `vertical` = side by side, `horizontal` = stacked. |
+| `Split3Layout` | triangle | 3 players: `triangle`, `grid` (2x2 with a party HP/MP panel), `big` (P1 half screen). |
+| `SplitZoom` | far | Starting split zoom: `far`, `medium`, `near`. |
+| `P2ActorMode` / `P2ActorChoices` | auto / all | Character picker (see the plugin help). |
+| `P2MoveSpeed` / `P2DashBonus` | 0 / 1 | Speed of P2-P4 (0 = copy P1). |
+
+## Tests
+
+`tests/` runs the real RPG Maker MV engine of your installed game in V8 (graphics stubbed) with the plugins from this repository, and checks ~60 co-op scenarios: joining, gamepads, combat turns, dialogue choices, menus, save/load, auto camera...
+
+```
+pip install mini-racer
+set TERMINA_GAME=C:\Games\Fear2\www
+python tests/run.py
+```
+
+Graphics (split screen drawing, lights, windows) are not covered: check those in the game.
+
+## Roadmap
+
+See [docs/ROADMAP.md](docs/ROADMAP.md), in particular **remote play with one view per player** (each friend sees only their own character in a browser).
+
+## License
+
+MIT (see [LICENSE](LICENSE)). Contains no game assets: you need your own copy of Fear & Hunger 2: Termina.
