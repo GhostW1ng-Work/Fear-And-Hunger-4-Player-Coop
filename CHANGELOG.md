@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.1.0
 
 **Performance (split screen and F9 windows)**
 - Each split view keeps its own tile layers: the map geometry is no longer rebuilt several times per frame.
