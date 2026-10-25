@@ -1426,12 +1426,21 @@
     // Lista para el selector. Usa los datos de la base sin crear actores nuevos en la partida.
     // Fear & Hunger 2: Termina - los 7 personajes con "SELECT" propio en el juego
     const TERMINA_PLAYABLE = [1, 3, 4, 5, 13, 14, 15];
+    // Fear & Hunger 1 - Mercenario, Caballero, Sacerdote oscuro, Forastero y los companeros que se
+    // pueden reclutar (Le'garde, Moonless, Nas'hrah); sin monstruos ni actores de prueba
+    const FEARHUNGER1_PLAYABLE = [1, 3, 4, 5, 6, 7, 14];
+
+    function defaultActorChoices() {
+        const title = gameTitle();
+        if (/termina/i.test(title)) return TERMINA_PLAYABLE;
+        if (/fear\s*(&|and)\s*hunger/i.test(title)) return FEARHUNGER1_PLAYABLE;
+        return [];
+    }
 
     // n = jugador que elige: no puede elegir a los personajes de los jugadores anteriores
     function selectableActors(n) {
         const taken = [$gameParty._actors[0]].concat(extraPlayers().map(p => p._coopActorId));
-        const choices = (P2_ACTOR_CHOICES.length === 0 && /termina/i.test(gameTitle()))
-            ? TERMINA_PLAYABLE : P2_ACTOR_CHOICES;
+        const choices = P2_ACTOR_CHOICES.length > 0 ? P2_ACTOR_CHOICES : defaultActorChoices();
         const ids = choices.length > 0
             ? choices
             : $dataActors.map((a, i) => (a && a.name && a.characterName) ? i : 0).filter(i => i > 0);

@@ -37,7 +37,7 @@ function frame() {
 Game_Event.prototype.checkEventTriggerAuto = function() {};
 DataManager.createGameObjects();
 $dataMap = __map;
-$gameMap.setup(19);
+$gameMap.setup(__map.__id || 19);
 $gameParty._actors = [1, 3];
 $gamePlayer.locate(10, 10);
 $gamePlayer.refresh();
@@ -665,5 +665,39 @@ check('T28i loaded config: camera shared', CoopLocal.cameraSetting() === 0, Coop
 check('T28j loaded config: values kept', ConfigManager.makeData().coopSettings.splitZoom === 'near');
 ConfigManager.applyData({ coopSettings: { camera: 'auto', splitZoom: 'far' } });
 check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings: { p3Keys: 'banana' } }), ConfigManager.makeData().coopSettings.p3Keys === 'all'));
+
+// --- T29: disparo de P2 segun el juego (Termina: pistola / Fear & Hunger 1: arco) ---
+(function() {
+    var isTermina = /termina/i.test($dataSystem.gameTitle);
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    SceneManager._scene = scene;
+    // P2 lleva al Caballero (actor 3, con interruptor SELECT propio en los dos juegos)
+    var wanted = 3;
+    if ($gameParty._actors.indexOf(wanted) < 0) $gameParty._actors.push(wanted);
+    $gameParty._actors.splice($gameParty._actors.indexOf(wanted), 1);
+    $gameParty._actors.splice(1, 0, wanted);
+    $gamePlayer2._coopActorId = wanted;
+    var p2a = $gameActors.actor(wanted);
+    var weaponId = isTermina ? 13 : 11; // pistola / arco corto
+    p2a.forceChangeEquip(0, $dataWeapons[weaponId]);
+    check('T29 ' + (isTermina ? 'pistol' : 'bow') + ' equipped on P2 (' + p2a.name() + ')', p2a.weapons().some(function(w) { return w.id === weaponId; }));
+    var story = [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); });
+    [242, 243, 244, 245, 246].forEach(function(id) { $gameSwitches.setValue(id, false); });
+    $gameSwitches.setValue(410, false); $gameSwitches.setValue(297, false); $gameSwitches.setValue(300, false);
+    for (var k = 0; k < 30; k++) frame();
+    down('ShiftRight', 16, 2); frame(); frame();
+    var selectOn = $gameSwitches.value(242);
+    var after = [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); });
+    check('T29b P2 shot: the game sees the Knight as shooter (KNIGHT_SELECT on)', selectOn === true);
+    if (isTermina) {
+        check('T29c Termina: pistol switch on during the shot', after[2] === true, after.join(','));
+    } else {
+        check('T29c Fear & Hunger 1: story switches 2252-2254 untouched', after.join(',') === story.join(','), story.join(',') + ' -> ' + after.join(','));
+    }
+    up('ShiftRight', 16, 2);
+    for (k = 0; k < 40; k++) frame();
+    check('T29d after the shot the switches are restored', $gameSwitches.value(242) === false && [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); }).join(',') === story.join(','));
+    p2a.forceChangeEquip(0, null);
+})();
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

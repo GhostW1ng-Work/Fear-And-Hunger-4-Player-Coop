@@ -29,7 +29,8 @@ $viewPage = Join-Path (Split-Path $jsDir -Parent) 'coop_view.html'
 # Version del mod y comprobaciones del juego (solo avisos: el mod puede funcionar igual)
 $modVersion = [regex]::Match([IO.File]::ReadAllText((Join-Path $src 'LookOutsideOnline.js')), "COOP_VERSION = '([^']+)'").Groups[1].Value
 Write-Host "Termina Local Co-op v$modVersion"
-$testedVersionId = 41801202   # data/System.json versionId de la version de Termina con la que se probo
+# data/System.json versionId de las versiones con las que se probo el mod
+$testedVersionIds = @{ 'Fear & Hunger 2: Termina' = 41801202; 'Fear & Hunger' = 14145329 }
 $title = ''
 $versionId = ''
 $dataDir = @("$GamePath\data", "$GamePath\www\data") | Where-Object { Test-Path "$_\System.json" } | Select-Object -First 1
@@ -43,8 +44,11 @@ if (Test-Path $coreFile) {
     $engine = [regex]::Match([IO.File]::ReadAllText($coreFile), 'RPGMAKER_VERSION = "([^"]+)"').Groups[1].Value
     if ($engine -and -not $engine.StartsWith('1.6')) { Write-Warning "RPG Maker MV $engine`: el mod se probo con MV 1.6." }
 }
-if ($title -match 'termina' -and $versionId -and [int64]$versionId -ne $testedVersionId) {
-    Write-Warning "Esta version de Termina ($versionId) no es la probada ($testedVersionId). Deberia funcionar; si algo falla, avisa."
+$gameName = $null
+if ($title -match 'termina') { $gameName = 'Fear & Hunger 2: Termina' }
+elseif ($title -match 'fear\s*(&|and)\s*hunger') { $gameName = 'Fear & Hunger' }
+if ($gameName -and $versionId -and [int64]$versionId -ne $testedVersionIds[$gameName]) {
+    Write-Warning "Esta version de $gameName ($versionId) no es la probada ($($testedVersionIds[$gameName])). Deberia funcionar; si algo falla, avisa."
 }
 
 # Perfil: el plugin de disparo previo al combate solo va en juegos que lo tienen (Fear & Hunger 2)

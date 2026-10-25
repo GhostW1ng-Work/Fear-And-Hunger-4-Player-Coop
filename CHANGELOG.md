@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Fear & Hunger 1 support**
+- The Fear & Hunger plugin detects the game by its title: Termina (guns) or Fear & Hunger 1 (bow: Short bow / Cursed short bow, arrows, the game's own `arrow_check`). In other games it only adds the light and never touches the shooting switches.
+- In Fear & Hunger 1 the shot no longer touches switches 2252-2254 (story switches there) or treats the spear / swords as guns.
+- Character picker for Fear & Hunger 1: the four classes and the recruitable companions.
+- Installer: knows the tested Fear & Hunger 1 version; event audit `docs/AUDIT_FH1.md`; tests run on both games (`TEST_MAP`).
+
 ## v1.1.0
 
 **Performance (split screen and F9 windows)**

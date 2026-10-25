@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.1.0 Fear & Hunger 2: Termina - luz de linterna para P2/P3 (TerraxLighting), disparo de P2/P3 con armas de fuego y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.1.0 Fear & Hunger 1 y 2 (Termina) - luz para P2-P4 (TerraxLighting / vision), disparo de P2-P4 (armas de fuego en Termina, arco en Fear & Hunger 1) y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @param ShootRetryFrames
@@ -11,8 +11,9 @@
  * @default 20
  *
  * @help
- * Este plugin es solo para Fear & Hunger 2: Termina (y juegos que usen el mismo
- * sistema de disparo por eventos de mapa y TerraxLighting).
+ * Este plugin es para Fear & Hunger 2: Termina y Fear & Hunger 1 (los dos usan el
+ * mismo sistema de disparo por eventos de mapa y TerraxLighting). Reconoce el juego
+ * por su titulo; en otros juegos solo da la luz y no toca el disparo.
  *
  * Que hace
  * --------
@@ -21,11 +22,12 @@
  *    luz a P2 y P3 (en camara compartida se unen; en pantalla dividida cada
  *    vista usa la suya).
  *
- * 2) DISPARO DE P2: en Termina el disparo en el mapa NO es un plugin: cada mapa
+ * 2) DISPARO DE P2: el disparo en el mapa NO es un plugin: cada mapa
  *    tiene un evento paralelo "arrow_check" que, al mantener Shift con un arma
  *    de fuego equipada, lanza el evento "arrow_player" desde la posicion del
  *    jugador. Cuando P2, P3 o P4 mantienen su tecla de correr (P2: Shift derecho,
- *    P3: Numpad + o H, mando: X o RT) con una pistola, fusil o escopeta equipada,
+ *    P3: Numpad + o H, mando: X o RT) con una pistola, fusil o escopeta (Termina)
+ *    o un arco (Fear & Hunger 1) equipado,
  *    el plugin hace que ese mismo evento "vea" a ese jugador (posicion, direccion,
  *    personaje y arma) durante el disparo. Si varios disparan a la vez, se
  *    turnan. Usa la municion compartida del grupo y los mismos efectos del juego.
@@ -47,30 +49,53 @@
     const params = PluginManager.parameters('LocalCoop_FearHunger') || {};
     const RETRY_FRAMES = Math.max(1, Number(params.ShootRetryFrames || 20));
 
-    // Interruptores y objetos de Termina
-    const SW_GUN_OK = 2251;
-    const SW_RIFLE = 2252;
-    const SW_SHOTGUN = 2253;
-    const SW_PISTOL = 2254;
+    // Interruptores comunes a los dos juegos (Termina se hizo sobre el proyecto del primero)
+    const SW_GUN_OK = 2251;      // Termina: arma lista / Fear & Hunger 1: BOW_OK
     const SW_CANNOT_USE_BOW = 410;
     const SW_ARROW = 297;        // player_arrow: el disparo esta en curso
     const SW_ARROW_FLYING = 300; // player_arrow2: la flecha/bala esta volando
     const SW_BOW_USED = 299;     // Player_whileBow_used
 
-    // actor -> interruptor "SELECT" que usan Rifle_CHECK / Pistol_CHECK / Shotgun_CHECK
-    const SELECT_SWITCH = { 1: 246, 3: 242, 4: 243, 5: 244, 15: 2402, 13: 2403, 14: 2404 };
-    const GUN_WEAPONS = { rifle: [10, 11], shotgun: [12], pistol: [13] };
-    const GUN_SWITCH = { rifle: SW_RIFLE, shotgun: SW_SHOTGUN, pistol: SW_PISTOL };
+    // Lo que cambia de un juego a otro:
+    //  select: actor -> interruptor "SELECT" con el que arrow_check sabe quien dispara
+    //  weapons: tipo -> armas; typeSwitch: tipo -> interruptor del tipo (solo Termina)
+    // OJO: en Fear & Hunger 1 los interruptores 2252-2254 son de la historia (Cavemother_visible,
+    // Bloodyman1_coming, statue1) y las armas 10/12/13 son lanza, nada y espada: no tocarlos.
+    const GAME_PROFILES = {
+        termina: {
+            select: { 1: 246, 3: 242, 4: 243, 5: 244, 15: 2402, 13: 2403, 14: 2404 },
+            weapons: { rifle: [10, 11], shotgun: [12], pistol: [13] },
+            typeSwitch: { rifle: 2252, shotgun: 2253, pistol: 2254 }
+        },
+        fearhunger1: {
+            // Mercenario, Caballero, Sacerdote oscuro, Forastero, Le'garde, Marriage (2 actores)
+            select: { 1: 246, 3: 242, 4: 243, 5: 244, 6: 245, 9: 375, 11: 375 },
+            weapons: { bow: [11, 23] }, // Short bow, Cursed short bow
+            typeSwitch: {}
+        }
+    };
+
+    let profileCache;
+    function gameProfile() {
+        if (profileCache !== undefined) return profileCache;
+        if (typeof $dataSystem === 'undefined' || !$dataSystem) return null;
+        const title = String($dataSystem.gameTitle || '');
+        if (/termina/i.test(title)) profileCache = GAME_PROFILES.termina;
+        else if (/fear\s*(&|and)\s*hunger/i.test(title)) profileCache = GAME_PROFILES.fearhunger1;
+        else profileCache = null; // otro juego: solo luz, sin disparo
+        return profileCache;
+    }
 
     // =========================================================================
-    // ARMA DE FUEGO DE P2/P3
+    // ARMA A DISTANCIA DE P2-P4
     // =========================================================================
 
     function gunTypeOf(actor) {
-        if (!actor) return null;
+        const profile = gameProfile();
+        if (!actor || !profile) return null;
         const ids = actor.weapons().map(w => w.id);
-        for (const type of ['rifle', 'shotgun', 'pistol']) {
-            if (GUN_WEAPONS[type].some(id => ids.includes(id))) return type;
+        for (const type of Object.keys(profile.weapons)) {
+            if (profile.weapons[type].some(id => ids.includes(id))) return type;
         }
         return null;
     }
@@ -98,7 +123,8 @@
         const keys = coop.keys(player.coopIndex());
         if (!keys || !keys.shift) return false;
         const actor = coop.actorOf(player);
-        return !!(actor && SELECT_SWITCH[actor.actorId()] && gunTypeOf(actor));
+        const profile = gameProfile();
+        return !!(actor && profile && profile.select[actor.actorId()] && gunTypeOf(actor));
     }
 
     // Jugador (P2/P3) que dispara ahora, o null
@@ -117,16 +143,19 @@
     function startSession(player) {
         const actor = coop.actorOf(player);
         const type = gunTypeOf(actor);
+        const profile = gameProfile();
         const saved = {};
 
         // el juego decide con que personaje y que arma se dispara mediante estos interruptores
-        for (const a of Object.keys(SELECT_SWITCH)) {
-            const id = SELECT_SWITCH[a];
-            saved[id] = sw(id);
-            $gameSwitches.setValue(id, Number(a) === actor.actorId());
+        // (varios actores pueden compartir el suyo: se guarda una sola vez)
+        const shooterSwitch = profile.select[actor.actorId()];
+        for (const a of Object.keys(profile.select)) {
+            const id = profile.select[a];
+            if (!(id in saved)) saved[id] = sw(id);
         }
-        for (const t of Object.keys(GUN_SWITCH)) {
-            const id = GUN_SWITCH[t];
+        for (const id of Object.keys(saved)) $gameSwitches.setValue(Number(id), Number(id) === shooterSwitch);
+        for (const t of Object.keys(profile.typeSwitch)) {
+            const id = profile.typeSwitch[t];
             saved[id] = sw(id);
             $gameSwitches.setValue(id, t === type);
         }

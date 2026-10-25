@@ -1,6 +1,6 @@
 # Termina Local Co-op (up to 4 players)
 
-Local co-op for **Fear & Hunger 2: Termina** (RPG Maker MV): up to 4 players on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
+Local co-op for **Fear & Hunger 2: Termina** and **Fear & Hunger 1** (RPG Maker MV): up to 4 players on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
 
 Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players, MIT). This version extends it to 3-4 players and adds gamepads, auto camera, per-player menus and more. The base plugin still works on other RPG Maker MV/MZ games (e.g. Look Outside), but development and testing target Termina.
 
@@ -20,6 +20,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Away players** | If a player's gamepad is unplugged (or the host marks them away in **Co-op**), AI fights for their character and it follows P1 on the map; any button of that player brings them back. |
 | **Own menus** | P2-P4 open the game menu for themselves (Skill / Equip / Status go straight to their character). Options, Game End, Save and Formation stay with P1. |
 | **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
+| **Fear & Hunger 1** | Same features; P2-P4 shoot with a bow (Short bow / Cursed short bow + arrows) like P1, and the character picker offers the four classes and the recruitable companions (Le'garde, Moonless, Nas'hrah). Event audit: [docs/AUDIT_FH1.md](docs/AUDIT_FH1.md). |
 | **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. Each player keeps their character when the game rearranges the party; in solo story parts players wait and come back by themselves; in cutscenes P2-P4 follow / hide with P1. See [docs/AUDIT_SUMMARY.md](docs/AUDIT_SUMMARY.md). |
 | **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
 | **Quick save (testing)** | Optional plugin: `F6` save / `F7` load in slot 99. |
@@ -81,6 +82,8 @@ set TERMINA_GAME=C:\Games\Fear2\www
 python tests/run.py
 ```
 
+Fear & Hunger 1: `set TERMINA_GAME=C:\Games\Fear1\www` and `set TEST_MAP=1`.
+
 Graphics (split screen drawing, lights, windows) are not covered: check those in the game.
 
 ## Releases
@@ -93,4 +96,4 @@ See [docs/ROADMAP.md](docs/ROADMAP.md), in particular **remote play with one vie
 
 ## License
 
-MIT (see [LICENSE](LICENSE)). Contains no game assets: you need your own copy of Fear & Hunger 2: Termina.
+MIT (see [LICENSE](LICENSE)). Contains no game assets: you need your own copy of Fear & Hunger 2: Termina and/or Fear & Hunger 1.
