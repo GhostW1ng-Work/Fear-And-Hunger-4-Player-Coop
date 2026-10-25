@@ -2090,6 +2090,20 @@
         return list;
     };
 
+    // En cada vista solo se dibujan los personajes que caen dentro (con margen para sprites
+    // altos): Termina tiene mapas con cientos de eventos y sin esto se dibujaban todos en cada
+    // vista. "original" = renderable que tenia cada sprite antes de las vistas.
+    const CULL_MARGIN = 240;
+    Spriteset_Map.prototype.coopCullCharacters = function(areaW, areaH, original) {
+        const list = this._characterSprites;
+        for (let k = 0; k < list.length; k++) {
+            const sp = list[k];
+            if (!original[k]) continue;
+            sp.renderable = sp.x > -CULL_MARGIN && sp.x < areaW + CULL_MARGIN &&
+                sp.y > -CULL_MARGIN && sp.y < areaH + CULL_MARGIN * 2;
+        }
+    };
+
     // Sincroniza posiciones de sprites con la camara actual
     Spriteset_Map.prototype.coopSyncToCamera = function() {
         this.updateParallax();
@@ -2467,6 +2481,8 @@
 
         const saved = [$gameMap._displayX, $gameMap._displayY, $gameMap._parallaxX, $gameMap._parallaxY];
         const savedTransform = [this.scale.x, this.scale.y, this.x, this.y];
+        // personajes ocultos por estar fuera de cada vista (se restauran al final)
+        const culled = this._characterSprites.map(sp => sp.renderable);
         // el juego pidio repintar el mapa (cambio de baldosas...): vale para todas las vistas
         const tiles = tileCacheOf(this._tilemap);
         if (tiles && this._tilemap._needsRepaint) tiles.views.forEach(v => { v.dirty = true; });
@@ -2484,6 +2500,7 @@
             this.y = 0;
             applyCamera(cameraFor(players[i], sizes[i].w / zoom, sizes[i].h / zoom));
             this.coopSyncToCamera();
+            this.coopCullCharacters(sizes[i].w / zoom, sizes[i].h / zoom, culled);
             const tLight = perfNow();
             coopHooks.forEach(h => h.splitPass && h.splitPass(this, i, players[i]));
             perfAdd('light', tLight);
@@ -2504,6 +2521,7 @@
             coopHooks.forEach(h => h.splitPassEnd && h.splitPassEnd(this, i));
         }
 
+        this._characterSprites.forEach((sp, k) => { sp.renderable = culled[k]; });
         $gameMap._displayX = saved[0];
         $gameMap._displayY = saved[1];
         $gameMap._parallaxX = saved[2];
