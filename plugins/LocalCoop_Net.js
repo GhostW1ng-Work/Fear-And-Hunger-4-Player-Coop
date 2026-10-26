@@ -885,6 +885,15 @@
     const AUDIO_CALLS = ['playBgm', 'playBgs', 'playMe', 'playSe', 'playStaticSe', 'replayBgm', 'replayBgs', 'fadeOutBgm',
         'fadeOutBgs', 'fadeOutMe', 'fadeInBgm', 'fadeInBgs', 'stopBgm', 'stopBgs', 'stopMe', 'stopSe', 'stopAll'];
 
+    // registro corto de los combates aparte (para saber que paso si algo no va)
+    function battleLog(msg) {
+        try {
+            fs.appendFileSync(path.join(baseDir, 'coop_net_battle.log'), new NativeDate().toISOString() + '  frame ' + Net.frame + '  ' + msg + '\n');
+        } catch (e) {
+            // nada
+        }
+    }
+
     function inSeparateBattle(n) {
         return !!battle && battle.involved.indexOf(n) >= 0;
     }
@@ -1008,10 +1017,12 @@
         SoundManager.playBattleStart();
     }
 
-    function queueJoin(n) {
+    function queueJoin(n, how) {
         if (!battle || inSeparateBattle(n) || battle.joins.indexOf(n) >= 0) return;
         if (n !== 1 && !coop.player(n)) return;
         battle.joins.push(n);
+        battleLog('P' + n + ' wants to join (' + how + '), phase ' + BattleManager._phase);
+        if (n === Net.player) banner('Joining the battle...', 'At the next turn', COLOR_NET, 150);
         if (!battle.started) applyJoins();
     }
 
@@ -1020,6 +1031,7 @@
         const joins = b.joins.splice(0);
         if (joins.length === 0) return;
         const before = $gameParty.battleMembers();
+        battleLog('joined: P' + joins.join(', P') + ' (phase ' + BattleManager._phase + ')');
         joins.forEach(n => {
             closeSub(n);
             b.involved.push(n);
@@ -1058,7 +1070,9 @@
                 const q = coop.player(m);
                 return q && Math.abs($gameMap.deltaX(q.x, p.x)) <= 1 && Math.abs($gameMap.deltaY(q.y, p.y)) <= 1;
             });
-            if (next) queueJoin(n);
+            if (next) queueJoin(n, 'OK next to a fighter');
+            else battleLog('P' + n + ' pressed OK at ' + p.x + ',' + p.y + ', fighters at ' +
+                battle.involved.map(m => coop.player(m) ? coop.player(m).x + ',' + coop.player(m).y : '?').join(' '));
         });
     }
 
@@ -1071,6 +1085,7 @@
             logError('closing the separate battle', e);
         }
         battle = null;
+        battleLog('battle ' + b.seq + ' ended (P' + b.involved.join(', P') + ')');
         // un evento comun que el combate dejo pendiente sigue en el mapa
         if (b.temp.isCommonEventReserved()) $gameTemp.reserveCommonEvent(b.temp._commonEventId);
         b.involved.forEach(n => { Net.mask[n] = Net.raw[n] || 0; });
@@ -1100,7 +1115,11 @@
         stepBattleInputs();
         let next = null;
         try {
-            next = withBattle(() => battle.scene.update());
+            next = withBattle(() => {
+                // mientras se eligen acciones se puede entrar ya (elige la suya en este turno)
+                if (battle.joins.length > 0 && BattleManager._phase === 'input') applyJoins();
+                battle.scene.update();
+            });
         } catch (e) {
             logError('separate battle', e);
             closeBattle();
@@ -1154,6 +1173,7 @@
         b.inputs[starter] = newVirtualInput(Net.raw[starter] || 0);
         Net.battleSeq = b.seq;
         battle = b;
+        battleLog('battle ' + b.seq + ' for P' + starter + ' (troop ' + $gameTroop._troopId + ')');
         closeSub(starter);
         this._waitMode = 'coopBattle';
         if (starter === Net.player) battleStartAudio();
@@ -1205,7 +1225,7 @@
             // un enemigo (o el mismo con el que ya luchan): entra en ese combate
             this._starting = false;
             this.unlock();
-            queueJoin(n);
+            queueJoin(n, 'touched an enemy');
         }
     };
 
