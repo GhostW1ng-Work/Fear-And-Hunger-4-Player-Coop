@@ -103,6 +103,21 @@ frame();
 padBtn(pad1, 0, true); frame();
 check('T5f P1 turn: free pad works for P1', Input.isPressed('ok'));
 padBtn(pad1, 0, false); frame();
+// en red (LocalCoop_Net) las acciones llegan con injectAction: el turno manda igual
+BattleManager._actorIndex = 2; // P3
+frame();
+CoopLocal.injectAction(1, 'ok', true); frame();
+check('T5n1 network: P1 ok ignored in P3 turn', !Input.isPressed('ok'));
+CoopLocal.injectAction(1, 'ok', false); frame();
+CoopLocal.injectAction(3, 'ok', true); frame();
+check('T5n2 network: P3 ok works in P3 turn', Input.isPressed('ok'));
+CoopLocal.injectAction(3, 'ok', false); frame();
+BattleManager._actorIndex = 0; // P1
+frame();
+CoopLocal.injectAction(1, 'ok', true); frame();
+check('T5n3 network: P1 ok works in P1 turn', Input.isPressed('ok'));
+CoopLocal.injectAction(1, 'ok', false); frame();
+check('T5n4 network: P1 ok released', !Input.isPressed('ok'));
 // Bloq Num apagado: Numpad8 llega con keyCode 38 (flecha arriba) y no debe mover a P1
 down('Numpad8', 38); frame();
 check('T5g NumLock off numpad not P1 up', !Input.isPressed('up'));

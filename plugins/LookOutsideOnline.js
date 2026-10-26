@@ -2078,7 +2078,9 @@
             let ev;
             if (n === 1) {
                 const name = P1_NET_BUTTON[action];
-                if (name) Input._currentState[name] = !!down;
+                // en el turno de otro (combate, elegir respuesta...) P1 no cuenta, como su teclado
+                if (!name || (coopActive() && coopInputOwner() >= 2)) return;
+                Input._currentState[name] = !!down;
                 return;
             } else {
                 ev = fakeKeyEvent(padCode(n, action));
