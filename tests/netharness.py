@@ -23,8 +23,28 @@ Scene_Map.prototype.createDisplayObjects = function() {
 };
 Scene_Map.prototype.terminate = function() { $gameScreen.clearZoom(); };
 Scene_Base.prototype.createFadeSprite = function() { this._fadeSprite = { opacity: 0, setBlack: function() {}, setWhite: function() {} }; };
-Scene_Base.prototype.createWindowLayer = function() { this._windowLayer = new PIXI.Container(); this.addChild(this._windowLayer); };
+Scene_Base.prototype.createWindowLayer = function() {
+    this._windowLayer = new PIXI.Container();
+    this._windowLayer.update = function() { this.children.forEach(function(c) { if (c.update) c.update(); }); };
+    this.addChild(this._windowLayer);
+};
 SceneManager.requestUpdate = function() {};
+ConfigManager.save = function() {};
+Window.prototype.setTone = function() {};
+Window.prototype._updateContents = Window.prototype._updateArrows = Window.prototype._updatePauseSign = Window.prototype._updateCursor = function() {};
+Window_Base.prototype.initialize = function(x, y, w, h) {
+    PIXI.Container.call(this);
+    this._windowContentsSprite = { bitmap: null };
+    this._padding = 18;
+    this.x = x; this.y = y; this._width = w; this._height = h;
+    this.contents = new Bitmap(w - 36, h - 36);
+    this._opening = this._closing = false;
+    this._openness = 255;
+    this._colorTone = [0, 0, 0];
+    this.windowskin = new Bitmap(1, 1);
+    this._cursorRect = new Rectangle(0, 0, 0, 0);
+    this._refreshCursor = function() {};
+};
 Graphics.startLoading = Graphics.endLoading = Graphics.updateLoading = function() {};
 Graphics.render = function() {};
 Graphics.isFontLoaded = function() { return true; };
@@ -42,7 +62,12 @@ var __timers = [];
 var __timerId = 0;
 setTimeout = function(fn, ms) { __timers.push({ id: ++__timerId, at: __now + (ms || 0), fn: fn }); return __timerId; };
 clearTimeout = function(id) { __timers = __timers.filter(function(t) { return t.id !== id; }); };
-setInterval = function() { return 0; };
+setInterval = function(fn, ms) {
+    var id = ++__timerId;
+    var again = function() { fn(); __timers.push({ id: id, at: __now + ms, fn: again }); };
+    __timers.push({ id: id, at: __now + ms, fn: again });
+    return id;
+};
 function __tickTimers() {
     var due = __timers.filter(function(t) { return t.at <= __now; });
     __timers = __timers.filter(function(t) { return t.at > __now; });
@@ -91,7 +116,7 @@ var require = function(name) {
 };
 function __tick(ms) { __now += ms; __tickTimers(); SceneManager.updateMain(); }
 function __world() {
-    var players = CoopLocal.allPlayers().map(function(p) { return [p._x, p._y, p._direction].join('.'); }).join('|');
+    var players = CoopLocal.allPlayers().map(function(p) { return p ? [p._x, p._y, p._direction].join('.') : 'null'; }).join('|');
     var events = $gameMap.events().map(function(e) { return e ? [e._eventId, e._x, e._y, e._direction].join('.') : ''; }).join('|');
     return JSON.stringify({ map: $gameMap.mapId(), players: players, events: events, party: $gameParty._actors.join(','), sw: $gameSwitches._data.join(','), v: $gameVariables._data.join(',') });
 }
@@ -170,6 +195,15 @@ class Net:
 results = []
 
 
+def _report_on_crash(kind, value, tb):
+    import traceback
+    print('\n'.join(results))
+    traceback.print_exception(kind, value, tb)
+
+
+sys.excepthook = _report_on_crash
+
+
 def check(name, cond, extra=''):
     results.append(('PASS ' if cond else 'FAIL ') + name + ('  [%s]' % extra if extra != '' else ''))
 
@@ -197,6 +231,9 @@ def aligned_worlds(net, peers):
                 p.ev('__tick(%f)' % (1000 / 60))
             net.pump()
     worlds = [p.ev('__world()') for p in peers]
+    if os.environ.get('NET_DEBUG') and len(set(worlds)) > 1:
+        for w in worlds:
+            print('WORLD', w[:400])
     return all(w == worlds[0] for w in worlds), [frame(p) for p in peers]
 
 
@@ -214,14 +251,21 @@ net = Net(host, [g2])
 host.ev(HOST_SETUP)
 check('host is on the map before starting', host.ev('SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted'))
 tick(net, [host, g2], 3)
-check('guest connected as P2', g2.ev('CoopNet.player') == 2, g2.ev('CoopNet.player'))
+check('nothing connects by itself when the game opens',
+      host.ev('CoopNet.role') == 'off' and g2.ev('CoopNet.role') == 'off' and not g2.ev('CoopNet.connected'))
+host.ev("CoopNet.open('host')")
+g2.ev("CoopNet.open('join')")
+tick(net, [host, g2], 3)
+check('guest connected as P2 (after "Connect")', g2.ev('CoopNet.player') == 2, g2.ev('CoopNet.player'))
 
-# --- start (F11) ---
-host.ev('__key(122)')
-net.pump()
+# --- start from the menu (Options > Co-op > Network game > Start) ---
+host.ev('SceneManager.push(Scene_Options)')
+tick(net, [host, g2], 5)
+host.ev('CoopNet.startRequested = true')
 tick(net, [host, g2], 40)
 check('network game active on both', host.ev('CoopNet.active') and g2.ev('CoopNet.active'))
 check('both on the map and started', all(p.ev('SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted') for p in (host, g2)))
+check('the menu the host started from is gone', host.ev('SceneManager._stack.length') == 0, host.ev('SceneManager._stack.length'))
 check('P2 exists on both PCs', host.ev('!!$gamePlayer2') and g2.ev('!!$gamePlayer2'))
 f0 = frame(host)
 p2start = host.ev('$gamePlayer2.x')
@@ -251,24 +295,70 @@ check('back in sync after the snapshot', same, frames)
 p2after = [p.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') for p in (host, g2)]
 check('P2 kept its place after the snapshot', p2after == [p2before, p2before], '%s %s' % (p2before, p2after))
 
-# --- the guest is unplugged: the host goes on, AI plays P2 ---
+# --- P2 opens their menu: everybody waits, only P2 sees it ---
+g2.ev('CoopNet.localKeys = 32')  # cancel = menu
+tick(net, [host, g2], 6)
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 30)
+check('P2 menu open on both PCs', all(p.ev('SceneManager._scene instanceof Scene_Menu') for p in (host, g2)),
+      [p.ev('SceneManager._scene && SceneManager._scene.constructor.name') for p in (host, g2)])
+check('menu windows visible only on the P2 PC',
+      g2.ev('SceneManager._scene._windowLayer.visible') and not host.ev('SceneManager._scene._windowLayer.visible'))
+
+# --- the guest is unplugged with the menu open: AI plays P2, P1 can close the menu ---
 fcut = frame(host)
 net.cut(g2)
-tick(net, [host], 120)
-check('host keeps playing without P2', frame(host) > fcut + 100, frame(host) - fcut)
+net.guests.remove(g2)
+tick(net, [host], 30)
 check('P2 is away (AI) on the host', host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
+check('P1 now controls the abandoned menu', host.ev('CoopLocal.menuOwner()') == 1, host.ev('CoopLocal.menuOwner()'))
+for _ in range(3):
+    if host.ev('SceneManager._scene instanceof Scene_Map'):
+        break
+    host.ev('CoopNet.localKeys = 32')
+    tick(net, [host], 8)
+    host.ev('CoopNet.localKeys = 0')
+    tick(net, [host], 30)
+check('P1 closed it: back on the map', host.ev('SceneManager._scene instanceof Scene_Map'), host.ev('SceneManager._scene.constructor.name'))
+tick(net, [host], 60)
+check('host keeps playing without P2', frame(host) > fcut + 100, frame(host) - fcut)
 
-# --- the guest comes back (it retries every 3 s) ---
-tick(net, [host, g2], 240)
-check('guest reconnected as P2', g2.ev('CoopNet.player') == 2 and g2.ev('CoopNet.active'))
+# --- P2 restarts their game (fresh copy at the title) and connects again ---
+g2 = Peer(2, 'join')
+net.add_guest(g2)
+g2.ev("CoopNet.open('join')")
+tick(net, [host, g2], 60)
+check('restarted guest got P2 back and is playing', g2.ev('CoopNet.player') == 2 and g2.ev('CoopNet.active'))
+check('no error on the restarted guest', 'coop_net_error' not in g2.ev('JSON.stringify(Object.keys(__files))'),
+      g2.ev('JSON.stringify(__files)')[:300])
 tick(net, [host, g2], 60)
 check('P2 no longer away', not host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
 same, frames = aligned_worlds(net, [host, g2])
 check('same world after the reconnect', same, frames)
+g2.ev('CoopNet.localKeys = 1')  # up
+tick(net, [host, g2], 60)
+g2.ev('CoopNet.localKeys = 0')
+same, frames = aligned_worlds(net, [host, g2])
+check('P2 plays after the reconnect, same world', same, frames)
+
+# --- a guest that stops answering (frozen game) is dropped: the host does not hang ---
+fz = frame(host)
+for _ in range(600):  # 10 s: the host runs, the guest is frozen
+    host.ev('__tick(%f)' % (1000 / 60))
+    net.pump()
+check('frozen guest dropped after 5 s, host goes on', frame(host) > fz + 200, frame(host) - fz)
+check('frozen guest is away', host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
+net.guests.remove(g2)
+g2 = Peer(2, 'join')
+net.add_guest(g2)
+g2.ev("CoopNet.open('join')")
+tick(net, [host, g2], 60)
+check('it can come back', g2.ev('CoopNet.active') and not host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
 
 # --- a third PC joins in the middle ---
 g3 = Peer(3, 'join')
 net.add_guest(g3)
+g3.ev("CoopNet.open('join')")
 tick(net, [host, g2, g3], 120)
 check('third PC joined as P3', g3.ev('CoopNet.player') == 3 and g3.ev('CoopNet.active'))
 check('P3 exists on every PC', all(p.ev('!!$gamePlayer3') for p in (host, g2, g3)))

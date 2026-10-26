@@ -465,6 +465,8 @@
         if (n < 2 || !p || !!CoopState.away[n] === on) return;
         if (on) {
             CoopState.away[n] = true;
+            // su menu abierto pasa a P1 (si no, nadie podria cerrarlo)
+            if (CoopState.menuOwner === n) CoopState.menuOwner = 1;
             const actor = p.actor();
             CoopUI.banner('Player ' + n + ' is away', 'AI plays ' + (actor ? actor.name() : 'the character') + '  -  any button to come back', colorOf(n), 200);
         } else {
@@ -2091,6 +2093,9 @@
         },
         setAway(n, on) {
             setPlayerAway(n, !!on);
+        },
+        menuOwner() {
+            return CoopState.menuOwner;
         },
         awayPlayers() {
             return Object.keys(CoopState.away).map(Number).filter(n => CoopState.away[n]);

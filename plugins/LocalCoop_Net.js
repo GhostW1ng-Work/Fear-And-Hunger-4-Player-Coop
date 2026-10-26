@@ -4,7 +4,9 @@
  * @author TheTiranix
  *
  * @help
- * PROTOTIPO. Se configura en Opciones > Co-op > Network game... (o en www/coop_net.json).
+ * PROTOTIPO. Todo se hace en Opciones > Co-op > Network game...: el anfitrion abre la
+ * partida ("Host") y la empieza cuando los demas estan conectados; los invitados escriben
+ * la IP del anfitrion y pulsan "Connect". Nada se conecta solo al abrir el juego.
  *
  * Como funciona (lockstep)
  * ------------------------
@@ -24,14 +26,12 @@
  * Si un jugador se desconecta, su personaje pasa a la IA ("ausente") y los demas siguen;
  * al volver a conectarse recupera su personaje.
  *
- * www/coop_net.json
- * -----------------
- *  { "role": "host", "port": 47810 }                         anfitrion (P1)
- *  { "role": "join", "host": "192.168.1.20", "port": 47810 } invitado
- *  { "role": "off" }                                         apagado
+ * En www/coop_net.json se guardan el modo elegido, la IP y el puerto (solo como valores
+ * por defecto del menu). Los errores de la partida en red van a www/coop_net_error.log.
  *
- * Uso: el anfitrion carga su partida y se pone en el mapa; los invitados abren el juego
- * (basta la pantalla de titulo) y se conectan solos; el anfitrion pulsa F11.
+ * Uso: el anfitrion carga su partida, elige Host y "Open the game"; los invitados (basta
+ * la pantalla de titulo) eligen Join, escriben la IP y "Connect"; el anfitrion pulsa
+ * "Start the network game".
  * En cada PC: WASD o flechas, Z/Espacio/Enter, X/Esc/Retroceso, Shift, o un mando.
  * En la partida en red no hay guardado rapido (F6/F7), ventanas F9 ni recarga (F5).
  */
@@ -59,7 +59,7 @@
     const PING_MS = 1000;
     const DEFAULT_PORT = 47810;
     const ACTIONS = coop.actions;
-    const KEY_START = 122;      // F11: el anfitrion empieza la partida en red
+    const PEER_TIMEOUT = 5000;  // ms sin teclas de un invitado: se le da por desconectado
     const COLOR_NET = '#7fb3ff';
 
     // ---- configuracion (www/coop_net.json) --------------------------------------
@@ -68,12 +68,12 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'off', host: '127.0.0.1', port: DEFAULT_PORT };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
             return {
-                role: ['host', 'join'].indexOf(cfg.role) >= 0 ? cfg.role : 'off',
+                role: cfg.role === 'join' ? 'join' : 'host',
                 host: String(cfg.host || '127.0.0.1'),
                 port: Number(cfg.port) || DEFAULT_PORT
             };
@@ -90,6 +90,21 @@
             console.error('LocalCoop_Net: no se pudo guardar coop_net.json', e);
         }
     }
+
+    function logError(where, e) {
+        console.error('LocalCoop_Net: ' + where, e);
+        try {
+            fs.appendFileSync(path.join(baseDir, 'coop_net_error.log'), new Date().toISOString() + '  ' + where + '\n' +
+                (e && e.stack ? e.stack : String(e)) + '\n\n');
+        } catch (e2) {
+            // nada
+        }
+    }
+
+    // errores sin capturar durante la partida en red (para poder ver que ha pasado)
+    window.addEventListener('error', e => {
+        if (Net.role !== 'off') logError('uncaught (' + (Net.active ? 'playing' : Net.role) + ')', e.error || e.message);
+    });
 
     function localAddresses() {
         const out = [];
@@ -136,6 +151,9 @@
         resyncWanted: false,
         joinQueue: [],          // jugadores que entran / vuelven en la proxima instantanea
         pendingEvents: [],      // sucesos para el proximo cuadro (p.ej. alguien se fue)
+        blockedSince: 0,        // desde cuando se espera la tecla de algun invitado
+        blockedOn: [],
+        startRequested: false,
         // invitado
         sock: null,
         reconnectTimer: null
@@ -174,7 +192,15 @@
                 } catch (e) {
                     console.error('LocalCoop_Net: mensaje no valido', e);
                 }
-                if (msg) onMessage(msg);
+                if (!msg) continue;
+                try {
+                    onMessage(msg);
+                } catch (e) {
+                    logError('message ' + msg.t, e);
+                    banner('Network error: ' + (e && e.message), 'Details in www/coop_net_error.log', '#ff5555', 400);
+                    sock.destroy(); // mejor desconectarse que dejar a los demas esperando
+                    return;
+                }
             }
         });
     }
@@ -370,6 +396,10 @@
 
     const _SceneManager_updateMain = SceneManager.updateMain;
     SceneManager.updateMain = function() {
+        if (Net.startRequested) {
+            Net.startRequested = false;
+            hostStartSession();
+        }
         if (!Net.active) {
             _SceneManager_updateMain.call(this);
             return;
@@ -431,6 +461,31 @@
     Window_Message.prototype.updateLoading = function() {
         if (Net.active) return false;
         return _Window_Message_updateLoading.call(this);
+    };
+
+    // Los menus siguen parando el juego para todos (como en el co-op local), pero solo los ve
+    // quien los abrio; en los demas PC se ve el mapa con un aviso. Es solo dibujo: no cambia nada.
+    const _Scene_MenuBase_update = Scene_MenuBase.prototype.update;
+    Scene_MenuBase.prototype.update = function() {
+        _Scene_MenuBase_update.call(this);
+        if (!this._windowLayer) return;
+        const owner = coop.menuOwner();
+        const hide = Net.active && owner > 0 && owner !== Net.player;
+        this._windowLayer.visible = !hide;
+        if (hide && this._netMenuOwner !== owner) {
+            this._netMenuOwner = owner;
+            if (!this._netMenuNote) {
+                this._netMenuNote = new Sprite(new Bitmap(Graphics.width, 64));
+                this._netMenuNote.y = Math.floor(Graphics.height / 2 - 32);
+                this.addChild(this._netMenuNote);
+            }
+            const bmp = this._netMenuNote.bitmap;
+            bmp.clear();
+            bmp.fontSize = 26;
+            bmp.fillRect(0, 0, Graphics.width, 64, 'rgba(0, 0, 0, 0.6)');
+            bmp.drawText('P' + owner + ' is in their menu...', 0, 0, Graphics.width, 64, 'center');
+        }
+        if (this._netMenuNote) this._netMenuNote.visible = hide;
     };
 
     // el raton de un PC no debe mover a nadie en los demas
@@ -517,6 +572,7 @@
         SceneManager._scene = null;
         SceneManager._sceneStarted = false;
         SceneManager._nextScene = null;
+        SceneManager.clearStack(); // puede venir de un menu (Opciones > Co-op)
     }
 
     function enterSession() {
@@ -544,7 +600,7 @@
         closeSceneNow();
         DataManager.createGameObjects();
         DataManager.extractSaveContents(JsonEx.parse(saveJson));
-        if (meta.first) $gameSystem.onAfterLoad(); // musica de la partida (al empezar)
+        $gameSystem.onAfterLoad(); // musica de la partida (si sigue siendo la misma, no se corta)
         coop.clearInputs();
         coop.forceRestore(meta.players.filter(p => p !== 1));
         Net.pendingExtras = { extras: meta.extras || [], away: meta.away || [], back: meta.back || [] };
@@ -597,7 +653,14 @@
             const f = Net.nextBuild;
             if (Net.hold && f >= Net.hold.at) return;
             const got = Net.inputs[f] || {};
-            if (Net.players.some(p => !Net.lost[p] && got[p] === undefined)) return;
+            const missing = Net.players.filter(p => !Net.lost[p] && got[p] === undefined);
+            if (missing.length > 0) {
+                // el anfitrion ya tiene su tecla y espera a otros: se cuenta cuanto tiempo
+                if (got[1] !== undefined && !Net.blockedSince) Net.blockedSince = performance.now();
+                Net.blockedOn = missing;
+                return;
+            }
+            Net.blockedSince = 0;
             const a = [0, 0, 0, 0, 0];
             Net.players.forEach(p => { a[p] = Net.lost[p] ? 0 : got[p]; });
             const ready = [Net.hostReady].concat(sessionPeers().map(pp => pp.ready));
@@ -635,6 +698,7 @@
         const reason = first ? '' : (Net.joinQueue.length > 0 ? 'P' + Net.joinQueue.join(', P') + ' joined' : 'Back in sync');
         const peersNow = Net.peers.filter(pp => Net.players.indexOf(pp.player) >= 0);
         peersNow.forEach(pp => { pp.inSession = true; pp.ready = -1; });
+        Net.blockedSince = 0;
         $gameSystem.onBeforeSave();
         const meta = {
             f: Net.frame,
@@ -661,16 +725,15 @@
         applySnapshot(meta, saveJson);
     }
 
+    // hay una partida cargada (en el mapa o en un menu abierto desde el mapa)
+    function gameLoaded() {
+        const sm = SceneManager;
+        const onMap = sm._scene instanceof Scene_Map || sm._stack.indexOf(Scene_Map) >= 0;
+        return onMap && !!$gameMap && $gameMap.mapId() > 0 && !!$gameParty && !!$gameParty.leader();
+    }
+
     function hostStartSession() {
-        if (Net.role !== 'host' || Net.active) return;
-        if (!(SceneManager._scene instanceof Scene_Map) || !$gameParty.leader()) {
-            banner('Load your game and stand on the map first', '', '#ffaa44', 180);
-            return;
-        }
-        if (Net.peers.length === 0) {
-            banner('Nobody connected yet', 'Your IP: ' + (localAddresses().join(', ') || '?') + '  port ' + Net.config.port, '#ffaa44', 240);
-            return;
-        }
+        if (Net.role !== 'host' || Net.active || !gameLoaded() || Net.peers.length === 0) return false;
         Net.player = 1;
         Net.players = [1];
         Net.lost = {};
@@ -680,6 +743,7 @@
         Net.sceneSeq = 0;
         enterSession();
         hostSnapshot(true);
+        return true;
     }
 
     function startHost() {
@@ -700,7 +764,7 @@
                 Net.joinQueue.push(player);
                 banner('P' + player + ' connected', 'Joining at the next quiet moment...', COLOR_NET, 200);
             } else {
-                banner('P' + player + ' connected', peer.address + '  -  F11 starts the network game', COLOR_NET, 240);
+                banner('P' + player + ' connected', peer.address + '  -  Options > Co-op > Network game to start', COLOR_NET, 240);
             }
             readLines(sock, msg => {
                 if (msg.t === 'in') hostStoreInput(msg.f, player, msg.b | 0, msg.rs);
@@ -728,10 +792,6 @@
         Net.server.listen(Net.config.port, () => console.log('LocalCoop_Net: host listening on ' + Net.config.port));
     }
 
-    window.addEventListener('keydown', e => {
-        if (e.keyCode === KEY_START && Net.role === 'host' && !e.repeat) hostStartSession();
-    });
-
     // ---- invitado -----------------------------------------------------------------------
 
     function startJoin() {
@@ -744,7 +804,7 @@
             readLines(sock, msg => {
                 if (msg.t === 'hi') {
                     Net.player = msg.player;
-                    banner('Connected to the host as P' + msg.player, 'Waiting for the host...', COLOR_NET, 300);
+                    banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
                     banner('The network game is full', '', '#ffaa44', 300);
                 } else if (msg.t === 'snap') {
@@ -792,19 +852,29 @@
         Net.connected = false;
     }
 
-    function startNetworking() {
+    function startNetworking(role) {
         stopNetworking();
-        Net.role = Net.config.role;
+        Net.role = role;
         Net.player = Net.role === 'host' ? 1 : 0;
         if (Net.role === 'host') startHost();
         else if (Net.role === 'join') startJoin();
     }
 
-    // ping cada segundo (lo que se ve en F10)
+    // ping cada segundo (lo que se ve en F10); el anfitrion suelta a quien lleva mucho sin teclas
     setInterval(() => {
         const ts = performance.now();
-        if (Net.role === 'host') Net.peers.forEach(pp => send(pp.sock, { t: 'ping', ts: ts }));
-        else if (Net.role === 'join' && Net.sock) send(Net.sock, { t: 'ping', ts: ts });
+        if (Net.role === 'host') {
+            Net.peers.forEach(pp => send(pp.sock, { t: 'ping', ts: ts }));
+            if (Net.active && Net.blockedSince && ts - Net.blockedSince > PEER_TIMEOUT) {
+                Net.blockedSince = 0;
+                Net.peers.filter(pp => pp.inSession && Net.blockedOn.indexOf(pp.player) >= 0).forEach(pp => {
+                    logError('P' + pp.player + ' sent nothing for ' + PEER_TIMEOUT + ' ms: dropped', '');
+                    pp.sock.destroy();
+                });
+            }
+        } else if (Net.role === 'join' && Net.sock) {
+            send(Net.sock, { t: 'ping', ts: ts });
+        }
     }, PING_MS);
 
     coop.setNetStatus(() => {
@@ -817,12 +887,10 @@
             ' ping ' + Net.ping + 'ms buffer ' + framesWaiting();
     });
 
-    startNetworking();
-
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'apply'];
-    const ROLE_LABELS = { off: 'Off', host: 'Host (I am P1)', join: 'Join a host' };
+    const NET_ROWS = ['role', 'host', 'port', 'action', 'stop'];
+    const ROLE_LABELS = { host: 'Host (I am P1)', join: 'Join a host' };
 
     function Window_CoopNet() {
         this.initialize.apply(this, arguments);
@@ -835,11 +903,12 @@
         this._cfg = Object.assign({}, Net.config);
         this._editing = null;  // fila que se esta escribiendo ('host' / 'port')
         this._text = '';
+        this._stateKey = '';
         Window_Selectable.prototype.initialize.call(this, x, y, w, h);
         this._onKey = this.onKey.bind(this);
         window.addEventListener('keydown', this._onKey, true);
         this.refresh();
-        this.select(0);
+        this.select(Net.role === 'off' ? 0 : 3);
         this.activate();
     };
 
@@ -847,70 +916,110 @@
         return NET_ROWS.length;
     };
 
+    // lo que hace la fila de accion segun el estado de la red
+    Window_CoopNet.prototype.actionInfo = function() {
+        if (Net.role === 'off') {
+            return this._cfg.role === 'host' ? { text: 'Open the game for other players', on: true } : { text: 'Connect to the host', on: true };
+        }
+        if (Net.role === 'host') {
+            if (Net.active) return { text: 'Playing (P' + Net.players.join(', P') + ')', on: false };
+            if (Net.peers.length === 0) return { text: 'Waiting for players to connect...', on: false };
+            if (!gameLoaded()) return { text: 'Load your game first, then start', on: false };
+            return { text: 'Start the network game (P' + [1].concat(Net.peers.map(pp => pp.player)).join(', P') + ')', on: true };
+        }
+        if (Net.active) return { text: 'Playing as P' + Net.player, on: false };
+        return { text: Net.connected ? 'Connected as P' + (Net.player || '?') + ' - waiting for the host' : 'Connecting to ' + Net.config.host + '...', on: false };
+    };
+
     Window_CoopNet.prototype.rowValue = function(key) {
-        if (key === 'role') return '< ' + ROLE_LABELS[this._cfg.role] + ' >';
+        if (key === 'role') return Net.role === 'off' ? '< ' + ROLE_LABELS[this._cfg.role] + ' >' : ROLE_LABELS[Net.role];
         if (key === 'host') return this._editing === 'host' ? this._text + '_' : (this._cfg.role === 'join' ? this._cfg.host : '-');
         if (key === 'port') return this._editing === 'port' ? this._text + '_' : String(this._cfg.port);
-        return Net.active ? '(in a network game)' : 'Save and connect';
+        if (key === 'action') return this.actionInfo().text;
+        if (Net.role === 'host') return 'Close the game (stop hosting)';
+        if (Net.role === 'join') return 'Disconnect';
+        return '';
+    };
+
+    Window_CoopNet.prototype.isRowEnabled = function(key) {
+        if (key === 'action') return this.actionInfo().on;
+        if (key === 'stop') return Net.role !== 'off';
+        if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
+        return Net.role === 'off';
     };
 
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', apply: '' };
+        const names = { role: 'Mode', host: "Host's IP", port: 'Port', action: '', stop: '' };
+        const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
-        this.drawText(names[key], rect.x + 8, rect.y, rect.width / 3, 'left');
-        if (key === 'apply') this.changeTextColor(COLOR_NET);
-        this.drawText(this.rowValue(key), rect.x + rect.width / 3, rect.y, rect.width * 2 / 3 - 8, key === 'apply' ? 'center' : 'right');
+        this.changePaintOpacity(this.isRowEnabled(key));
+        if (!wide) this.drawText(names[key], rect.x + 8, rect.y, rect.width / 3, 'left');
+        if (key === 'action') this.changeTextColor(COLOR_NET);
+        if (wide) this.drawText(this.rowValue(key), rect.x + 8, rect.y, rect.width - 16, 'center');
+        else this.drawText(this.rowValue(key), rect.x + rect.width / 3, rect.y, rect.width * 2 / 3 - 8, 'right');
+        this.changePaintOpacity(true);
         this.resetTextColor();
     };
 
-    Window_CoopNet.prototype.changeRole = function(step) {
-        if (Net.active) {
+    // se vuelve a dibujar si cambia el estado de la red (alguien se conecta, etc.)
+    Window_CoopNet.prototype.update = function() {
+        Window_Selectable.prototype.update.call(this);
+        const key = NET_ROWS.map(k => this.rowValue(k) + this.isRowEnabled(k)).join('|');
+        if (key !== this._stateKey) {
+            this._stateKey = key;
+            this.refresh();
+        }
+    };
+
+    Window_CoopNet.prototype.changeRole = function() {
+        if (Net.role !== 'off') {
             SoundManager.playBuzzer();
             return;
         }
-        const roles = ['off', 'host', 'join'];
-        const i = roles.indexOf(this._cfg.role);
-        this._cfg.role = roles[(i + step + roles.length) % roles.length];
+        this._cfg.role = this._cfg.role === 'host' ? 'join' : 'host';
         SoundManager.playCursor();
         this.refresh();
     };
 
     Window_CoopNet.prototype.cursorRight = function() {
-        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole(1);
+        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
-        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole(-1);
+        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole();
     };
 
     Window_CoopNet.prototype.processOk = function() {
         if (this._editing) return;
         const key = NET_ROWS[this.index()];
-        if (Net.active) {
+        if (!this.isRowEnabled(key)) {
             SoundManager.playBuzzer();
             return;
         }
         if (key === 'role') {
-            this.changeRole(1);
+            this.changeRole();
         } else if (key === 'host' || key === 'port') {
-            if (key === 'host' && this._cfg.role !== 'join') {
-                SoundManager.playBuzzer();
-                return;
-            }
             this._editing = key;
             this._text = '';
             SoundManager.playOk();
             this.refresh();
-        } else if (key === 'apply') {
+        } else if (key === 'action' && Net.role === 'off') {
             Net.config = Object.assign({}, this._cfg);
             writeConfig(Net.config);
-            startNetworking();
+            startNetworking(Net.config.role);
             SoundManager.playOk();
-            banner('Network: ' + ROLE_LABELS[Net.config.role], Net.config.role === 'host'
-                ? 'Your IP: ' + (localAddresses().join(', ') || '?') : (Net.config.role === 'join' ? 'Connecting to ' + Net.config.host : ''), COLOR_NET, 240);
+            this.select(3);
+        } else if (key === 'action') {
+            SoundManager.playOk();
+            Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
+        } else if (key === 'stop') {
+            stopNetworking();
+            SoundManager.playCancel();
+            this.select(0);
         }
+        this.refresh();
     };
 
     // escribir la IP o el puerto (cifras, punto y retroceso; Enter acepta, Esc cancela)
@@ -969,19 +1078,19 @@
 
     Window_CoopNetHelp.prototype.lines = function() {
         const cfg = Net.config;
-        const playing = Net.active ? 'In a network game as P' + Net.player + '.' : '';
         if (Net.role === 'host') {
             return ['You are the host (P1). Your IP: ' + (localAddresses().join(', ') || '?') + '  port ' + cfg.port,
                 'Connected: ' + (Net.peers.map(pp => 'P' + pp.player + ' ' + pp.address).join(', ') || 'nobody yet'),
-                playing || 'Load your game, stand on the map and press F11 to start.'];
+                Net.active ? 'Players can join or come back during the game.' : 'Tell the others your IP. When they are connected, start.'];
         }
         if (Net.role === 'join') {
             return ['Joining ' + cfg.host + ':' + cfg.port + ' - ' + (Net.connected ? 'connected as P' + (Net.player || '?') : 'connecting...'),
-                playing || 'Wait for the host to press F11.',
+                Net.active ? 'In the network game as P' + Net.player + '.' : 'The host starts the game; you will see their world.',
                 'Every PC needs its own copy of the game (same version).'];
         }
-        return ['Network game is off.', 'Host: your friends connect to you.  Join: type the host\'s IP.',
-            'Left / Right / OK to change, then "Save and connect".'];
+        return ['Play over the network, each player on their own PC.',
+            'Host: load your game and open it.  Join: type the host\'s IP and connect.',
+            'Left / Right changes the mode, OK on a line to change it.'];
     };
 
     function Scene_CoopNet() {
@@ -1043,5 +1152,8 @@
         };
     }
 
+    // para pruebas y otros plugins: CoopNet.open('host' / 'join'), CoopNet.close()
+    Net.open = startNetworking;
+    Net.close = stopNetworking;
     window.CoopNet = Net;
 })();
