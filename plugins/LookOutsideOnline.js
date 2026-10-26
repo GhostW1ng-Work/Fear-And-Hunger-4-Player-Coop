@@ -2089,6 +2089,21 @@
         forceRestore(players) {
             CoopState.restore = { players: players.slice(), pads: {} };
         },
+        setAway(n, on) {
+            setPlayerAway(n, !!on);
+        },
+        awayPlayers() {
+            return Object.keys(CoopState.away).map(Number).filter(n => CoopState.away[n]);
+        },
+        // suelta todas las teclas de todos los jugadores (al cargar el mundo de otro PC)
+        clearInputs() {
+            for (let n = 2; n <= MAX_PLAYERS; n++) Object.assign(playerInput[n], newPlayerKeys());
+            Input.clear();
+        },
+        // texto extra para la linea de F10 (estado de la red)
+        setNetStatus(fn) {
+            perf.netStatus = fn || null;
+        },
         setCamera(name) {
             if (CAM_BY_NAME[name] !== undefined) cameraMode = CAM_BY_NAME[name];
         },
@@ -2667,7 +2682,7 @@
         perf.lines = 'FPS ' + fps + '   frame CPU ' + ms('update') + ' ms   views ' + ms('views') +
             ' (light ' + ms('light') + ', draw ' + ms('viewDraw') + ', tiles ' + ms('tiles') + ')   windows: draw ' + ms('winDraw') +
             ' copy ' + ms('winCopy') + '   main ' + ms('main') + '   [' + extraPlayers().length + ' extra, ' +
-            Object.keys(coopWindows.list).length + ' win]';
+            Object.keys(coopWindows.list).length + ' win]' + (perf.netStatus ? '   ' + perf.netStatus() : '');
         perf.sum = {};
         perf.renders = 0;
         perf.start = t;

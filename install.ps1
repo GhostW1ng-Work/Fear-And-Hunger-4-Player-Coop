@@ -5,6 +5,7 @@
   -QuickSave instala tambien el plugin de pruebas F6/F7 (guardado rapido).
   -Net host | -Net join -NetHost 192.168.1.20  instala el PROTOTIPO de juego en red y
    escribe www\coop_net.json (puerto: -NetPort, por defecto 47810).
+  -Net menu  instala el prototipo sin configurarlo: se elige en Opciones > Co-op > Network game...
 #>
 param(
     [Parameter(Mandatory = $true)][string]$GamePath,
@@ -14,7 +15,7 @@ param(
     # plugin de pruebas: F6 = guardado rapido, F7 = carga rapida
     [switch]$QuickSave,
     # prototipo de juego en red (lockstep): host = este PC es P1, join = se conecta a -NetHost
-    [ValidateSet('', 'host', 'join')][string]$Net = '',
+    [ValidateSet('', 'host', 'join', 'menu')][string]$Net = '',
     [string]$NetHost = '127.0.0.1',
     [int]$NetPort = 47810
 )
@@ -108,7 +109,7 @@ foreach ($n in $names) {
     }
 }
 Copy-Item (Join-Path $PSScriptRoot 'extras\coop_view.html') $viewPage -Force
-if ($Net) {
+if ($Net -eq 'host' -or $Net -eq 'join') {
     $cfg = if ($Net -eq 'host') { "{ ""role"": ""host"", ""port"": $NetPort }" } else { "{ ""role"": ""join"", ""host"": ""$NetHost"", ""port"": $NetPort }" }
     [IO.File]::WriteAllText($netConfig, $cfg)
     Write-Host "Juego en red (prototipo): $netConfig -> $cfg"
