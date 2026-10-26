@@ -57,7 +57,11 @@
     const os = require('os');
     const netlib = require('net');
 
-    const INPUT_DELAY = 3;      // cuadros de margen para que lleguen las teclas de todos
+    const DEFAULT_DELAY = 3;    // cuadros de margen para que lleguen las teclas de todos (al empezar)
+    const MIN_DELAY = 2;        // a mano (en la misma red puede bastar)
+    const AUTO_MIN_DELAY = 3;   // en Auto: el ping no ve los tirones del ritmo de cuadros de cada PC
+    const MAX_DELAY = 20;       // 20 cuadros = 1/3 s: mas alla no se puede jugar bien
+    const PING_KEEP = 5;        // pings que se miran para la espera automatica (el peor de ellos)
     const HASH_EVERY = 60;      // cada cuantos cuadros se compara la huella del mundo
     const MAX_CATCH_UP = 3;     // cuadros que se recuperan de golpe si un PC se queda atras
     const STEP_MS = 1000 / 60;  // el juego va a 60 cuadros por segundo, sea cual sea el monitor
@@ -74,14 +78,15 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto' };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
             return {
                 role: cfg.role === 'join' ? 'join' : 'host',
                 host: String(cfg.host || '127.0.0.1'),
-                port: Number(cfg.port) || DEFAULT_PORT
+                port: Number(cfg.port) || DEFAULT_PORT,
+                delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto'
             };
         } catch (e) {
             console.error('LocalCoop_Net: coop_net.json no valido', e);
@@ -148,6 +153,8 @@
         lastDesync: -9999,
         connected: false,
         ping: 0,
+        pings: [],              // ultimos pings al anfitrion (invitado)
+        delay: DEFAULT_DELAY,   // cuadros por delante a los que este PC manda sus teclas
         // anfitrion
         server: null,
         peers: [],              // { sock, player, ready, address, ping, inSession }
@@ -189,6 +196,7 @@
         let buffer = '';
         sock.setEncoding('utf8');
         sock.setNoDelay(true);
+        if (sock.setKeepAlive) sock.setKeepAlive(true, 5000);
         sock.on('data', chunk => {
             buffer += chunk;
             let i;
@@ -403,9 +411,43 @@
             Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0;
     }
 
+    // Cuantos cuadros por delante manda este PC sus teclas. Tienen que llegar antes de que
+    // se necesiten: un invitado, ida y vuelta al anfitrion; el anfitrion, ida hasta el invitado
+    // mas lejano. Cada PC decide la suya y la puede cambiar cuando quiera: lo que vale es el
+    // cuadro que reparte el anfitrion, asi que no hace falta ponerse de acuerdo.
+    function worstPing(list) {
+        return list.length ? Math.max.apply(null, list) : 0;
+    }
+
+    function targetDelay() {
+        if (Net.config.delay !== 'auto') return Net.config.delay;
+        let ms;
+        if (Net.role === 'host') {
+            ms = Math.max.apply(null, [0].concat(Net.peers.filter(pp => pp.inSession).map(pp => worstPing(pp.pings)))) / 2;
+        } else {
+            ms = worstPing(Net.pings);
+        }
+        const frames = Math.ceil(ms / STEP_MS) + 2;
+        return Math.max(AUTO_MIN_DELAY, Math.min(MAX_DELAY, frames));
+    }
+
+    // manda las teclas de este cuadro; si la espera sube, rellena los cuadros de en medio con
+    // las mismas teclas (si no, el anfitrion se quedaria esperandolos); si baja, de uno en uno
+    function sendLocalInput() {
+        const bits = localBits();
+        const target = targetDelay();
+        if (target > Net.delay) {
+            for (let d = Net.delay; d <= target; d++) sendInput(Net.frame + d, bits);
+            Net.delay = target;
+            return;
+        }
+        if (target < Net.delay && Net.frame % 30 === 0) Net.delay--;
+        sendInput(Net.frame + Net.delay, bits);
+    }
+
     // un cuadro de juego con las acciones de todos
     function netStep(pkt) {
-        sendInput(Net.frame + INPUT_DELAY, localBits());
+        sendLocalInput();
         Net.allReady = pkt.rs;
         Graphics.frameCount = Net.frameBase + Net.frame;
         window.Date = NetDate;
@@ -454,7 +496,7 @@
             return;
         }
         // 60 cuadros de juego por segundo segun el reloj (no segun el monitor). Los cuadros que
-        // llegan antes de tiempo esperan: son el margen de INPUT_DELAY. Si este PC se ha quedado
+        // llegan antes de tiempo esperan: son el margen de Net.delay. Si este PC se ha quedado
         // atras (hay muchos esperando), recupera alguno de mas.
         const now = performance.now();
         Net.clockAcc += Math.min(250, now - (Net.clockLast || now));
@@ -469,7 +511,7 @@
             Net.clockAcc -= STEP_MS;
             steps++;
         }
-        if (Net.active && steps < MAX_CATCH_UP && framesWaiting() > INPUT_DELAY + 2) runFrame();
+        if (Net.active && steps < MAX_CATCH_UP && framesWaiting() > Net.delay + 2) runFrame();
         this.renderScene();
         this.requestUpdate();
     };
@@ -940,8 +982,9 @@
         Net.pendingExtras = { extras: meta.extras || [], away: meta.away || [], back: meta.back || [] };
         SceneManager.goto(Scene_Map); // sceneSeq + 1, igual en todos
         coop.setCamera('p' + Net.player);
-        // los primeros cuadros despues de la instantanea van sin teclas (margen de INPUT_DELAY)
-        for (let f = meta.f; f < meta.f + INPUT_DELAY; f++) sendInput(f, 0);
+        // los primeros cuadros despues de la instantanea van sin teclas (el margen de la espera)
+        Net.delay = Math.max(Net.delay, targetDelay());
+        for (let f = meta.f; f < meta.f + Net.delay; f++) sendInput(f, 0);
         if (meta.first) {
             banner('Network game: you are P' + Net.player, 'Players: ' + meta.players.map(p => 'P' + p).join(', '), COLOR_NET, 240);
         } else if (meta.reason) {
@@ -1097,7 +1140,7 @@
                 sock.end();
                 return;
             }
-            const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, inSession: false };
+            const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false };
             Net.peers.push(peer);
             send(sock, { t: 'hi', player: player });
             if (Net.active) {
@@ -1110,7 +1153,10 @@
                 if (msg.t === 'in') hostStoreInput(msg.f, player, msg.b | 0, msg.rs);
                 else if (msg.t === 'h') compareHash(player, msg.f, msg.h);
                 else if (msg.t === 'ping') send(sock, { t: 'pong', ts: msg.ts });
-                else if (msg.t === 'pong') peer.ping = Math.round(performance.now() - msg.ts);
+                else if (msg.t === 'pong') {
+                    peer.ping = Math.round(performance.now() - msg.ts);
+                    peer.pings = peer.pings.concat(peer.ping).slice(-PING_KEEP);
+                }
             });
             const gone = () => {
                 if (Net.peers.indexOf(peer) < 0) return;
@@ -1140,7 +1186,10 @@
             if (Net.role !== 'join') return;
             const sock = netlib.connect(Net.config.port, Net.config.host);
             Net.sock = sock;
-            sock.on('connect', () => { Net.connected = true; });
+            sock.on('connect', () => {
+                Net.connected = true;
+                Net.pings = [];
+            });
             readLines(sock, msg => {
                 if (msg.t === 'hi') {
                     Net.player = msg.player;
@@ -1157,6 +1206,7 @@
                     send(sock, { t: 'pong', ts: msg.ts });
                 } else if (msg.t === 'pong') {
                     Net.ping = Math.round(performance.now() - msg.ts);
+                    Net.pings = Net.pings.concat(Net.ping).slice(-PING_KEEP);
                 }
             });
             sock.on('error', () => {});
@@ -1221,15 +1271,18 @@
         if (Net.role === 'off') return '';
         if (Net.role === 'host') {
             const pings = Net.peers.map(pp => 'P' + pp.player + ' ' + pp.ping + 'ms').join(' ');
-            return 'NET host ' + (Net.active ? 'playing' : 'lobby') + ' [' + (pings || 'nobody') + '] buffer ' + framesWaiting();
+            return 'NET host ' + (Net.active ? 'playing' : 'lobby') + ' [' + (pings || 'nobody') + '] delay ' + Net.delay + ' buffer ' + framesWaiting();
         }
         return 'NET P' + (Net.player || '?') + ' ' + (Net.active ? 'playing' : (Net.connected ? 'waiting' : 'connecting')) +
-            ' ping ' + Net.ping + 'ms buffer ' + framesWaiting();
+            ' ping ' + Net.ping + 'ms delay ' + Net.delay + ' buffer ' + framesWaiting();
     });
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'action', 'stop'];
+    const NET_ROWS = ['role', 'host', 'port', 'delay', 'action', 'stop'];
+    const ACTION_ROW = NET_ROWS.indexOf('action');
+    const DELAY_VALUES = ['auto'];
+    for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
     const ROLE_LABELS = { host: 'Host (I am P1)', join: 'Join a host' };
 
     function Window_CoopNet() {
@@ -1248,7 +1301,7 @@
         this._onKey = this.onKey.bind(this);
         window.addEventListener('keydown', this._onKey, true);
         this.refresh();
-        this.select(Net.role === 'off' ? 0 : 3);
+        this.select(Net.role === 'off' ? 0 : ACTION_ROW);
         this.activate();
     };
 
@@ -1275,6 +1328,10 @@
         if (key === 'role') return Net.role === 'off' ? '< ' + ROLE_LABELS[this._cfg.role] + ' >' : ROLE_LABELS[Net.role];
         if (key === 'host') return this._editing === 'host' ? this._text + '_' : (this._cfg.role === 'join' ? this._cfg.host : '-');
         if (key === 'port') return this._editing === 'port' ? this._text + '_' : String(this._cfg.port);
+        if (key === 'delay') {
+            const now = Net.active ? '  (now ' + Net.delay + ')' : '';
+            return '< ' + (this._cfg.delay === 'auto' ? 'Auto (by ping)' : this._cfg.delay + ' frames') + ' >' + now;
+        }
         if (key === 'action') return this.actionInfo().text;
         if (Net.role === 'host') return 'Close the game (stop hosting)';
         if (Net.role === 'join') return 'Disconnect';
@@ -1285,13 +1342,14 @@
         if (key === 'action') return this.actionInfo().on;
         if (key === 'stop') return Net.role !== 'off';
         if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
+        if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         return Net.role === 'off';
     };
 
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', action: '', stop: '' };
+        const names = { role: 'Mode', host: "Host's IP", port: 'Port', delay: 'Input delay', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -1323,12 +1381,26 @@
         this.refresh();
     };
 
+    // espera de las teclas: Auto o un numero fijo de cuadros (se guarda y vale enseguida)
+    Window_CoopNet.prototype.changeDelay = function(step) {
+        const i = DELAY_VALUES.indexOf(this._cfg.delay);
+        this._cfg.delay = DELAY_VALUES[(i + step + DELAY_VALUES.length) % DELAY_VALUES.length];
+        Net.config.delay = this._cfg.delay;
+        writeConfig(Object.assign({}, Net.config));
+        SoundManager.playCursor();
+        this.refresh();
+    };
+
     Window_CoopNet.prototype.cursorRight = function() {
-        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole();
+        if (this._editing) return;
+        if (NET_ROWS[this.index()] === 'role') this.changeRole();
+        if (NET_ROWS[this.index()] === 'delay') this.changeDelay(1);
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
-        if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole();
+        if (this._editing) return;
+        if (NET_ROWS[this.index()] === 'role') this.changeRole();
+        if (NET_ROWS[this.index()] === 'delay') this.changeDelay(-1);
     };
 
     // OK lo procesa la propia ventana (la escena no le da un manejador 'ok')
@@ -1345,6 +1417,8 @@
         }
         if (key === 'role') {
             this.changeRole();
+        } else if (key === 'delay') {
+            this.changeDelay(1);
         } else if (key === 'host' || key === 'port') {
             this._editing = key;
             this._text = '';
@@ -1355,7 +1429,7 @@
             writeConfig(Net.config);
             startNetworking(Net.config.role);
             SoundManager.playOk();
-            this.select(3);
+            this.select(ACTION_ROW);
         } else if (key === 'action') {
             SoundManager.playOk();
             Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
@@ -1367,7 +1441,8 @@
         this.refresh();
     };
 
-    // escribir la IP o el puerto (cifras, punto y retroceso; Enter acepta, Esc cancela)
+    // escribir la IP (o un nombre, p.ej. de DDNS) o el puerto: cifras, letras, punto, guion y
+    // retroceso; Enter acepta, Esc cancela
     Window_CoopNet.prototype.onKey = function(e) {
         if (!this._editing) return;
         e.stopImmediatePropagation();
@@ -1376,9 +1451,11 @@
         if (k >= 48 && k <= 57) this._text += String(k - 48);
         else if (k >= 96 && k <= 105) this._text += String(k - 96);
         else if ((k === 190 || k === 110) && this._editing === 'host') this._text += '.';
+        else if (k >= 65 && k <= 90 && this._editing === 'host') this._text += String.fromCharCode(k).toLowerCase();
+        else if ((k === 189 || k === 109) && this._editing === 'host') this._text += '-';
         else if (k === 8) this._text = this._text.slice(0, -1);
         else if (k === 13) {
-            if (this._editing === 'host' && /^\d{1,3}(\.\d{1,3}){3}$/.test(this._text)) this._cfg.host = this._text;
+            if (this._editing === 'host' && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(this._text)) this._cfg.host = this._text;
             if (this._editing === 'port' && Number(this._text) > 0 && Number(this._text) < 65536) this._cfg.port = Number(this._text);
             this._editing = null;
             SoundManager.playOk();
@@ -1426,7 +1503,7 @@
         if (Net.role === 'host') {
             return ['You are the host (P1). Your IP: ' + (localAddresses().join(', ') || '?') + '  port ' + cfg.port,
                 'Connected: ' + (Net.peers.map(pp => 'P' + pp.player + ' ' + pp.address).join(', ') || 'nobody yet'),
-                Net.active ? 'Players can join or come back during the game.' : 'Tell the others your IP. When they are connected, start.'];
+                Net.active ? 'Players can join or come back during the game.' : 'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).'];
         }
         if (Net.role === 'join') {
             return ['Joining ' + cfg.host + ':' + cfg.port + ' - ' + (Net.connected ? 'connected as P' + (Net.player || '?') : 'connecting...'),

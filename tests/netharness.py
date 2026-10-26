@@ -120,7 +120,7 @@ function __menuPress(role) {
     sc.create();
     var w = sc._netList;
     if (w._cfg.role !== role) w.cursorRight();
-    w.select(3);
+    w.select(w.maxItems() - 2); // la fila de accion
     Input.clear();
     Input._currentState.ok = true;
     Input._latestButton = 'ok';
@@ -167,11 +167,14 @@ class Peer:
 class Net:
     """Fake LAN: pairs sockets between the host and the guests and moves the data."""
 
-    def __init__(self, host, guests):
+    def __init__(self, host, guests, latency=0):
         self.host = host
         self.guests = list(guests)
         self.links = {}  # (peer, sockId) -> (peer, sockId)
         self.next_id = 5000
+        self.latency = latency  # ms one way (0 = at once)
+        self.time = 0.0         # ms, advanced by tick()
+        self.queue = []         # [deliver_at, peer, sockId, data]
 
     def add_guest(self, g):
         self.guests.append(g)
@@ -194,6 +197,15 @@ class Net:
                     if not dest:
                         continue
                     peer, did = dest
+                    if self.latency:
+                        self.queue.append([self.time + self.latency, peer, did, data])
+                        continue
+                    peer.ev('__deliver(%d, %s)' % (did, json.dumps(data)))
+                    moved = True
+            if self.latency:
+                due = [q for q in self.queue if q[0] <= self.time]
+                self.queue = [q for q in self.queue if q[0] > self.time]
+                for _, peer, did, data in due:
                     peer.ev('__deliver(%d, %s)' % (did, json.dumps(data)))
                     moved = True
 
@@ -225,6 +237,7 @@ def check(name, cond, extra=''):
 
 def tick(net, peers, n, ms=1000 / 60):
     for _ in range(n):
+        net.time += ms
         for p in peers:
             p.ev('__tick(%f)' % ms)
             net.pump()
@@ -236,11 +249,12 @@ def frame(p):
 
 def aligned_worlds(net, peers):
     """advance every PC to the same network frame and compare their worlds"""
-    for _ in range(40):
+    for _ in range(200):
         frames = [frame(p) for p in peers]
         target = max(frames)
         if min(frames) == target:
             break
+        net.time += 1000 / 60
         for p in peers:
             if frame(p) < target:
                 p.ev('__tick(%f)' % (1000 / 60))
@@ -553,6 +567,51 @@ tick(net, [host, g2, g3], 120)
 g3.ev('CoopNet.localKeys = 0')
 same, frames = aligned_worlds(net, [host, g2, g3])
 check('three PCs in the same world', same, frames)
+
+# --- over the internet: 100 ms each way (ping 200 ms) ---
+lh = Peer(7, 'host')
+lg = Peer(8, 'join')
+lnet = Net(lh, [lg], latency=100)
+lh.ev(HOST_SETUP)
+lh.ev("CoopNet.open('host')")
+lg.ev("CoopNet.open('join')")
+tick(lnet, [lh, lg], 30)
+check('internet: guest connected', lg.ev('CoopNet.player') == 2)
+lh.ev('CoopNet.startRequested = true')
+tick(lnet, [lh, lg], 240)  # the snapshot travels, pings are measured (once a second)
+check('internet: network game running on both', lh.ev('CoopNet.active') and lg.ev('CoopNet.active'))
+gdelay = lg.ev('CoopNet.delay')
+hdelay = lh.ev('CoopNet.delay')
+check('internet: guest waits for the round trip (ping 200 ms -> >= 13 frames)', gdelay >= 13, gdelay)
+check('internet: host waits for one way (>= 7 frames)', hdelay >= 7, hdelay)
+f0 = frame(lh)
+g0 = frame(lg)
+lh.ev('CoopNet.localKeys = 2')
+lg.ev('CoopNet.localKeys = 8')
+tick(lnet, [lh, lg], 300)
+lh.ev('CoopNet.localKeys = 0')
+lg.ev('CoopNet.localKeys = 0')
+check('internet: 60 frames per second on the host (no stalls)', frame(lh) - f0 >= 285, frame(lh) - f0)
+check('internet: 60 frames per second on the guest', frame(lg) - g0 >= 285, frame(lg) - g0)
+check('internet: the guest moved P2', lh.ev('!!$gamePlayer2 && $gamePlayer2.x') != 0)
+tick(lnet, [lh, lg], 60)
+same, frames = aligned_worlds(lnet, [lh, lg])
+check('internet: same world', same, frames)
+# for comparison: the old fixed delay (3 frames) at this ping stalls
+for p in (lh, lg):
+    p.ev('CoopNet.config.delay = 3')
+tick(lnet, [lh, lg], 120)
+f1 = frame(lh)
+tick(lnet, [lh, lg], 300)
+check('internet: a fixed 3-frame delay would stall (sanity check of the test)', frame(lh) - f1 < 200, frame(lh) - f1)
+for p in (lh, lg):
+    p.ev("CoopNet.config.delay = 'auto'")
+tick(lnet, [lh, lg], 300)
+f2 = frame(lh)
+tick(lnet, [lh, lg], 300)
+check('internet: back to Auto, full speed again', frame(lh) - f2 >= 285, frame(lh) - f2)
+same, frames = aligned_worlds(lnet, [lh, lg])
+check('internet: same world at the end', same, frames)
 
 print('\n'.join(results))
 failed = [r for r in results if r.startswith('FAIL')]

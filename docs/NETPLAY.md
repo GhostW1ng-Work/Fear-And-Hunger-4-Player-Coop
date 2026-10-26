@@ -17,7 +17,7 @@ install.ps1 -GamePath "C:\Games\Fear2" -QuickSave -Net menu
 Everything is in **Options > Co-op > Network game...**
 
 1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
-2. **Guests** (the title screen is enough): Mode = *Join*, *Host's IP* (OK, type the digits and dots, Enter), **Connect to the host**. The host's screen lists them.
+2. **Guests** (the title screen is enough): Mode = *Join*, *Host's IP* (OK, type the IP or a name, Enter), **Connect to the host**. The host's screen lists them.
 3. **Host**: **Start the network game**. Everybody loads the host's game.
 4. On every PC: WASD or arrows (a gamepad only counts in the focused window, so two copies on one PC don't share it; *Options > Co-op > Co-op settings > Local co-op: Off* is handy for testing), Z / Space / Enter, X / Esc / Backspace, Shift, or a gamepad (A, B, X / RT). `G`, `-` / `=` and `F10` stay local.
 
@@ -25,7 +25,7 @@ Everything is in **Options > Co-op > Network game...**
 
 During the network game F6 / F7 (quick save), F9 (player windows) and F5 (reload) are disabled.
 
-**F10** shows the network status next to the FPS: host — ping of every guest; guest — ping to the host; *buffer* = frames received and waiting (0 for a long time = the network is the bottleneck).
+**F10** shows the network status next to the FPS: host — ping of every guest; guest — ping to the host; *delay* = input delay in frames; *buffer* = frames received and waiting (0 for a long time = the network is the bottleneck).
 
 ## Menus
 
@@ -46,6 +46,34 @@ Options that change the game (*Always Dash*, *Command Remember*, battle speed...
 - **Out of sync**: if the fingerprints differ, the host shows *PCs out of sync* and at the next quiet moment sends its world to everybody (*Back in sync*). Details go to `www/coop_net_desync.log` on both PCs.
 - Errors of the network game are written to `www/coop_net_error.log`.
 
+## Over the internet
+
+The game itself works the same; the only question is how the guests reach the host's PC.
+
+### Easiest: a virtual LAN (Radmin VPN, ZeroTier, Hamachi)
+
+Nothing to configure on the router.
+
+1. Everybody installs the same program, e.g. **Radmin VPN** (free): the host creates a network (name + password), the others join it.
+2. The program shows each PC's address in that network (Radmin: `26.x.x.x`; ZeroTier: what you set up).
+3. In the game the host opens it as usual; guests type **the host's VPN address** as *Host's IP*.
+4. Windows firewall: allow the game when it asks (also for "public" networks: VPN networks often count as public).
+
+### Without a VPN: forward the port
+
+1. On the host's router: forward **TCP port 47810** to the host PC's LAN IP (shown in the game's network screen).
+2. Windows firewall on the host: allow the game (or TCP 47810).
+3. Guests type the host's **public IP** (e.g. from whatismyip.com) or a DDNS name - the IP field takes letters too.
+4. If the provider uses CGNAT (the router's "WAN IP" differs from the public IP), port forwarding cannot work: use a VPN instead.
+
+### Input delay
+
+Every keypress travels to the host and the frame comes back, so the game needs to send keys a few frames ahead. **Options > Co-op > Network game > Input delay**:
+- **Auto** (default): each PC measures its ping and picks the delay by itself (guest: round trip to the host; host: one way to the farthest guest), at least 3 frames, up to 20. It changes during play without any hiccup.
+- **2-15 frames**: fixed. Lower = more responsive, but if it is too low for the ping the game runs in slow motion.
+
+F10 shows `ping` and the current `delay` (1 frame = 17 ms). Roughly: ping 30 ms -> delay 4, ping 100 ms -> 8 on the guest, ping 200 ms -> 14. With a ping over ~250 ms the game becomes hard to play.
+
 ## Two copies on one PC
 
 1. Copy the whole game folder (e.g. `C:\Games\Fear2-net2`).
@@ -63,11 +91,11 @@ Options that change the game (*Always Dash*, *Command Remember*, battle speed...
 
 Tests:
 - `tests/netsync.py` runs two independent copies of the engine with the same start and inputs and checks they end identical (1200 frames on Shopping street: in sync).
-- `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, host options shared, menus that don't pause (P1 walks while P2 is in the menu, two menus at once, Skills and back, close and walk), unplugging a guest with its menu open (their character becomes a follower), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game (46 checks).
+- `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, host options shared, menus that don't pause (P1 walks while P2 is in the menu, two menus at once, Skills and back, close and walk), unplugging a guest with its menu open (their character becomes a follower), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game, the host's and P2's choice of character in menus, P1 alone after the guest left, and a 200 ms ping (adaptive delay keeps 60 FPS, a fixed 3-frame delay would not) (70 checks).
 
 ## Known limits of the prototype
 
 - If the **host** disconnects, the game stops for the guests (they keep reconnecting and wait for the host to start again).
 - A resync or a join waits for a quiet moment: during a long cutscene or a battle it happens after it.
-- LAN only for now (fixed input delay of 3 frames); internet play needs adaptive delay.
+- No NAT punching or relay server: over the internet use a VPN or port forwarding (above).
 - One player per PC.
