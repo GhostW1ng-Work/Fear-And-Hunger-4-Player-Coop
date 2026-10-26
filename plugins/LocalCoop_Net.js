@@ -285,7 +285,10 @@
             SceneManager.updateInputData();
             SceneManager.changeScene();
             SceneManager.updateScene();
-            if (Net.frame % HASH_EVERY === 0) checkHash(Net.frame);
+            // durante un cambio de escena no se compara: cada PC termina de cargar el mapa nuevo
+            // (y coloca alli a los jugadores) en un momento distinto, aunque el juego no avanza
+            // hasta que todos estan listos
+            if (Net.frame % HASH_EVERY === 0 && SceneManager._sceneStarted && !SceneManager._nextScene) checkHash(Net.frame);
         } finally {
             window.Date = NativeDate;
         }
