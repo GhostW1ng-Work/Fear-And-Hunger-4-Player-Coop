@@ -2215,8 +2215,27 @@
 
     // ---- LUZ COMPARTIDA: une el hueco de luz de todos los jugadores -----------
 
+    // Si el juego quita la imagen de luz (p.ej. Termina apaga y vuelve a poner el circulo de vision
+    // en una escena) se crea otra nueva: la copia de la vieja se quedaba encima, congelada, con
+    // el hueco donde estaban los jugadores entonces, y tapaba la vista hasta cambiar de mapa.
+    Spriteset_Map.prototype.coopDropStaleLights = function(sources) {
+        if (!this._coopLit) return;
+        this._coopLit = this._coopLit.filter(l => {
+            if (sources.some(d => d.sprite === l)) return true;
+            const st = l._coopLight;
+            if (st) {
+                if (st.out && st.out.parent) st.out.parent.removeChild(st.out);
+                if (st.rt) st.rt.destroy(true);
+                l._coopLight = null;
+            }
+            l.renderable = true;
+            return false;
+        });
+    };
+
     Spriteset_Map.prototype.coopSharedLights = function() {
         const sources = this.coopLightSources();
+        this.coopDropStaleLights(sources);
         const r = getRenderer();
         const W = Graphics.width;
         const H = Graphics.height;
@@ -2556,6 +2575,7 @@
 
         // detectar las luces con la camara principal (centrada en P1) antes de moverla
         const sources = this.coopLightSources();
+        this.coopDropStaleLights(sources);
         const lights = sources.map(d => d.sprite);
 
         const saved = [$gameMap._displayX, $gameMap._displayY, $gameMap._parallaxX, $gameMap._parallaxY];

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Fixes**
+- Termina: when the game removed and put back the vision circle (fog), the co-op copy of the old one stayed on screen, frozen, hiding the players until the next battle or map change.
+
 **Menus**
 - P2-P4: Skill / Equip / Status also let them pick the companions they control in battle (given by the host in *Co-op*, or by turn); with only their own character it still opens directly.
 
