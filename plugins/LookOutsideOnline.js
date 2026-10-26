@@ -3378,35 +3378,55 @@
         }
     };
 
-    // Habilidades / Equipo / Estado: directo al personaje del jugador, sin elegir
+    // Personajes que P2-P4 llevan en su menu (Habilidades / Equipo / Estado): el suyo y los
+    // companeros que manejan en combate (los que el anfitrion les dio en "Co-op" o les tocan
+    // por turno). P1 los ve a todos.
+    function menuActorsOf(n) {
+        const main = menuActorOf(n);
+        if (!main) return null;
+        return [main].concat($gameParty.members().filter(a => a !== main && !mainOwnerOf(a) && battleOwnerOf(a) === n));
+    }
+
+    // Habilidades / Equipo / Estado: directo a su personaje si solo lleva uno; si no, elige entre los suyos
     const _Scene_Menu_commandPersonal = Scene_Menu.prototype.commandPersonal;
     Scene_Menu.prototype.commandPersonal = function() {
-        const actor = menuActorOf(CoopState.menuOwner);
-        if (actor) {
-            $gameParty.setMenuActor(actor);
+        const list = menuActorsOf(CoopState.menuOwner);
+        if (list && list.length === 1) {
+            $gameParty.setMenuActor(list[0]);
             this.onPersonalOk();
             return;
         }
         _Scene_Menu_commandPersonal.call(this);
+        if (list) this._statusWindow.select(Math.max(0, $gameParty.members().indexOf(list[0])));
     };
 
-    // En Habilidades/Equipo/Estado no se puede pasar al personaje de otro (Q/W, flechas del raton)
+    const _Window_MenuStatus_isCurrentItemEnabled = Window_MenuStatus.prototype.isCurrentItemEnabled;
+    Window_MenuStatus.prototype.isCurrentItemEnabled = function() {
+        const list = !this._formationMode && menuActorsOf(CoopState.menuOwner);
+        if (list) return list.indexOf($gameParty.members()[this.index()]) >= 0;
+        return _Window_MenuStatus_isCurrentItemEnabled.call(this);
+    };
+
+    // En Habilidades/Equipo/Estado no se puede pasar al personaje de otro (Q/W, flechas del raton):
+    // solo entre los suyos
+    function stepMenuActor(scene, step) {
+        const list = menuActorsOf(CoopState.menuOwner);
+        if (!list) return false;
+        const at = Math.max(0, list.indexOf($gameParty.menuActor()));
+        $gameParty.setMenuActor(list[(at + step + list.length) % list.length]);
+        scene.updateActor();
+        scene.onActorChange();
+        return true;
+    }
+
     const _Scene_MenuBase_nextActor = Scene_MenuBase.prototype.nextActor;
     Scene_MenuBase.prototype.nextActor = function() {
-        if (menuActorOf(CoopState.menuOwner)) {
-            this.onActorChange();
-            return;
-        }
-        _Scene_MenuBase_nextActor.call(this);
+        if (!stepMenuActor(this, 1)) _Scene_MenuBase_nextActor.call(this);
     };
 
     const _Scene_MenuBase_previousActor = Scene_MenuBase.prototype.previousActor;
     Scene_MenuBase.prototype.previousActor = function() {
-        if (menuActorOf(CoopState.menuOwner)) {
-            this.onActorChange();
-            return;
-        }
-        _Scene_MenuBase_previousActor.call(this);
+        if (!stepMenuActor(this, -1)) _Scene_MenuBase_previousActor.call(this);
     };
 
     // cartel abajo: "P3 MENU - Marina"

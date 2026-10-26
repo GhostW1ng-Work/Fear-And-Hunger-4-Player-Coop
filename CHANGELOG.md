@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+**Menus**
+- P2-P4: Skill / Equip / Status also let them pick the companions they control in battle (given by the host in *Co-op*, or by turn); with only their own character it still opens directly.
+
 **Local co-op on / off**
 - Options > Co-op > Co-op settings > *Local co-op*: Off turns the P2/P3 keys and the gamepads back into normal P1 keys; local players leave (their characters follow the party). The network game still works.
 

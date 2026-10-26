@@ -579,8 +579,14 @@
 
     // como Input.update, pero con las acciones de un jugador (sin teclado ni mandos)
     function updateVirtualInput(bits) {
-        const cur = stateOf(bits);
-        Input._currentState = cur;
+        Input._currentState = stateOf(bits);
+        stepInput();
+    }
+
+    // un paso de Input.update sin leer teclado ni mandos (y sin el Input.clear del co-op local
+    // al cambiar de dueno: borraria la pulsacion y contaria otra vez en el cuadro siguiente)
+    function stepInput() {
+        const cur = Input._currentState;
         if (Input._latestButton && cur[Input._latestButton]) {
             Input._pressedTime++;
         } else {
@@ -711,7 +717,9 @@
         if (!next || subs[owner]) return;
         // la foto del mapa para el fondo del menu (solo dibujo: solo en el PC de quien lo abre)
         if (owner === Net.player) SceneManager.snapForBackground();
-        const sub = { scene: next, stack: stack, menuActor: $gameParty._menuActorId, targetActor: $gameParty._targetActorId,
+        // cada menu empieza en el personaje de su jugador (P1: el lider), no en el ultimo de otro
+        const own = owner === 1 ? $gameParty.leader() : (coop.player(owner) && coop.player(owner).actor());
+        const sub = { scene: next, stack: stack, menuActor: own ? own.actorId() : $gameParty._menuActorId, targetActor: $gameParty._targetActorId,
             input: newVirtualInput(Net.raw[owner] || 0) };
         subs[owner] = sub;
         const again = withSub(owner, sub, () => {
@@ -739,6 +747,16 @@
             if (next) changeSub(n, next);
         });
     }
+
+    // las ventanas llaman a Input.update al aceptar (para "gastar" la pulsacion)
+    const _Input_update = Input.update;
+    Input.update = function() {
+        if (inSub) {
+            stepInput();
+            return;
+        }
+        _Input_update.call(this);
+    };
 
     const _Scene_Map_callMenu = Scene_Map.prototype.callMenu;
     Scene_Map.prototype.callMenu = function() {

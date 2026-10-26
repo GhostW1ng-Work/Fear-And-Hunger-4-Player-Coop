@@ -29,7 +29,7 @@ During the network game F6 / F7 (quick save), F9 (player windows) and F5 (reload
 
 ## Menus
 
-A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu as usual; their character stands still. Several players can be in their menus at once. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
+A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu as usual; their character stands still. Several players can be in their menus at once. Skill / Equip / Status: the host picks any party member; P2-P4 their own character and the companions they control in battle. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
 
 (How: each menu is a scene of its own that runs inside the map on every PC, with that player's keys; only that player's PC draws it.)
 

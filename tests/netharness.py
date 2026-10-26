@@ -378,6 +378,85 @@ check('cancel in Skills goes back to the main menu', p2menu() == 'Scene_Menu', p
 same, frames = aligned_worlds(net, [host, g2])
 check('same world after moving between menu scenes', same, frames)
 
+# --- who you can pick in Skills / Equip ---
+def hpress(bits, frames=6, after=20):
+    host.ev('CoopNet.localKeys = %d' % bits)
+    tick(net, [host, g2], frames)
+    host.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], after)
+
+
+def menu_info(n):
+    return json.loads(host.ev("""(function(){ var s = CoopNet.menus[%d]; if (!s) return 'null';
+        var sc = s.scene, w = sc._statusWindow, c = sc._commandWindow;
+        return JSON.stringify({ scene: sc.constructor.name, actor: sc._actor ? sc._actor.actorId() : 0,
+            choosing: !!(w && w.index && w.active), index: w && w.index ? w.index() : -1,
+            symbol: c && c.currentSymbol ? c.currentSymbol() : null }); })()""" % n))
+
+
+def goto_symbol(press, n, symbol):
+    for _ in range(8):
+        info = menu_info(n)
+        if not info or info['symbol'] == symbol:
+            return
+        press(2)
+
+
+members = json.loads(host.ev('JSON.stringify($gameParty.members().map(function(a){ return a.actorId(); }))'))
+p2main = host.ev('$gamePlayer2._coopActorId')
+
+# P1 (host): chooses who, starting on the leader
+hpress(32)  # open P1 menu
+goto_symbol(hpress, 1, 'skill')
+hpress(16)
+info = menu_info(1)
+check('P1 Skills: chooses the character (not straight to P2s)', info and info['choosing'] and info['scene'] == 'Scene_Menu', info)
+check('P1 choice starts on the leader', info and info['index'] == 0, info)
+hpress(16)
+info = menu_info(1)
+check('P1 opens the leader\'s Skills', info and info['scene'] == 'Scene_Skill' and info['actor'] == members[0], info)
+for _ in range(5):
+    if not host.ev('!!CoopNet.menus[1]'):
+        break
+    hpress(32, frames=6, after=15)
+check('P1 menu closed again', not host.ev('!!CoopNet.menus[1]'))
+same, frames = aligned_worlds(net, [host, g2])
+check('same world after P1 skills', same, frames)
+
+# P2 with a companion: the host gives the third member to P2 in "Co-op"
+companion = [a for a in members if a not in (members[0], p2main)][0]
+for p in (host, g2):
+    p.ev('$gameSystem._coopOwners = {}; $gameSystem._coopOwners[%d] = 2;' % companion)
+goto_symbol(p2press, 2, 'skill')
+p2press(16)
+info = menu_info(2)
+check('P2 with a companion: chooses between them', info and info['choosing'], info)
+check('P2 choice starts on their own character', info and info['index'] == members.index(p2main), info)
+p2press(1)  # up: the leader (P1's) - not allowed
+if members.index(p2main) > 1:
+    p2press(1)
+p2press(16)
+info = menu_info(2)
+check("P2 cannot open P1's character", info and info['scene'] == 'Scene_Menu', info)
+for _ in range(4):
+    info = menu_info(2)
+    if info and info['index'] == members.index(companion):
+        break
+    p2press(2)
+p2press(16)
+info = menu_info(2)
+check("P2 opens their companion's Skills", info and info['scene'] == 'Scene_Skill' and info['actor'] == companion, info)
+p2press(32, frames=6, after=15)
+for p in (host, g2):
+    p.ev('$gameSystem._coopOwners = {};')
+same, frames = aligned_worlds(net, [host, g2])
+check('same world after P2 companion skills', same, frames)
+for _ in range(3):
+    info = menu_info(2)
+    if info and info['scene'] == 'Scene_Menu' and not info['choosing']:
+        break
+    p2press(32, frames=6, after=15)
+
 # P2 closes their menu with cancel and walks again
 g2.ev('CoopNet.localKeys = 32')
 tick(net, [host, g2], 20)
