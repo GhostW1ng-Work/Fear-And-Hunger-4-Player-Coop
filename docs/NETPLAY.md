@@ -29,11 +29,19 @@ During the network game F6 / F7 (quick save), F9 (player windows) and F5 (reload
 
 ## Menus
 
-A menu still pauses the game for everybody (as in local co-op), but **only the player who opened it sees it**; the others see the map and *P2 is in their menu...*. If that player disconnects, P1 gets control of the menu and can close it.
+A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu over the live (dimmed) map; their character stands still. Several players can be in their menus at once. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
+
+(How: each menu is a scene of its own that runs inside the map on every PC, with that player's keys; only that player's PC draws it.)
+
+Menus opened by events (shops...) still pause everybody.
+
+## Options
+
+Options that change the game (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC; volume, keys and camera stay each player's own. A guest's own settings come back when the network game ends (they are not overwritten on disk).
 
 ## Joining, leaving, coming back
 
-- **Disconnect** (or the game closed / crashed): the game goes on for the others; that player's character is *away* (AI in battle, follows P1 on the map). A guest whose game freezes is dropped after 5 s, so the host never hangs.
+- **Disconnect** (or the game closed / crashed): the game goes on for the others; that player's character goes back into the party as a normal follower (in a battle, the AI plays it until the battle ends). A guest whose game freezes is dropped after 5 s, so the host never hangs.
 - **Reconnect / join mid-game**: the guest connects from the menu as at the start. The host waits for the next quiet moment (on the map, no event, dialogue or menu) and sends its world to everybody, like a save; the player gets their character back (a new guest gets the next free number, up to P4).
 - **Out of sync**: if the fingerprints differ, the host shows *PCs out of sync* and at the next quiet moment sends its world to everybody (*Back in sync*). Details go to `www/coop_net_desync.log` on both PCs.
 - Errors of the network game are written to `www/coop_net_error.log`.
@@ -48,14 +56,14 @@ A menu still pauses the game for everybody (as in local co-op), but **only the p
 
 - The game's randomness (`Math.random`) comes from a seed shared at start; drawing-only code (sprites, light, weather) uses its own random numbers because each PC draws a different part of the map.
 - 60 game steps per second by the clock (FluidTimestep is bypassed); the clock (`Date`) and the frame counter are shared during each step.
-- A new scene (map, battle, menu) only starts when every PC has loaded it.
+- A new scene (map, battle) only starts when every PC has loaded it. A new map is also *set up* (player placed, events created) on the same frame everywhere, once every PC has read its file.
 - Animations and message faces don't wait for their images (load speed differs per PC).
 - Events move "near any player" instead of "near this PC's camera".
 - Every 60 frames the PCs compare a fingerprint of the world (scene, players, events, party, switches, variables, random state); a difference triggers a resync (above).
 
 Tests:
 - `tests/netsync.py` runs two independent copies of the engine with the same start and inputs and checks they end identical (1200 frames on Shopping street: in sync).
-- `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, a menu seen only by its owner, unplugging a guest with its menu open (AI takes over, P1 closes the menu), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game (31 checks).
+- `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, host options shared, menus that don't pause (P1 walks while P2 is in the menu, two menus at once, Skills and back, close and walk), unplugging a guest with its menu open (their character becomes a follower), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game (46 checks).
 
 ## Known limits of the prototype
 

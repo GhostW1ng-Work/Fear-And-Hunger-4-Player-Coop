@@ -276,6 +276,9 @@ tick(net, [host, g2], 3)
 check('guest connected as P2 (after "Connect")', g2.ev('CoopNet.player') == 2, g2.ev('CoopNet.player'))
 
 # --- start from the menu (Options > Co-op > Network game > Start) ---
+# different options on each PC: the host's are used in the network game (always dash moves faster)
+host.ev('ConfigManager.alwaysDash = true; ConfigManager.bgmVolume = 30')
+g2.ev('ConfigManager.alwaysDash = false; ConfigManager.bgmVolume = 70')
 host.ev('SceneManager.push(Scene_Options)')
 tick(net, [host, g2], 5)
 host.ev('CoopNet.startRequested = true')
@@ -284,6 +287,8 @@ check('network game active on both', host.ev('CoopNet.active') and g2.ev('CoopNe
 check('both on the map and started', all(p.ev('SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted') for p in (host, g2)))
 check('the menu the host started from is gone', host.ev('SceneManager._stack.length') == 0, host.ev('SceneManager._stack.length'))
 check('P2 exists on both PCs', host.ev('!!$gamePlayer2') and g2.ev('!!$gamePlayer2'))
+check("guest uses the host's game options, keeps its own volume",
+      g2.ev('ConfigManager.alwaysDash') is True and g2.ev('ConfigManager.bgmVolume') == 70)
 f0 = frame(host)
 p2start = host.ev('$gamePlayer2.x')
 
@@ -312,33 +317,97 @@ check('back in sync after the snapshot', same, frames)
 p2after = [p.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') for p in (host, g2)]
 check('P2 kept its place after the snapshot', p2after == [p2before, p2before], '%s %s' % (p2before, p2after))
 
-# --- P2 opens their menu: everybody waits, only P2 sees it ---
+# --- P2 opens their menu: the game goes on for everybody, P2 stands still ---
 g2.ev('CoopNet.localKeys = 32')  # cancel = menu
 tick(net, [host, g2], 6)
 g2.ev('CoopNet.localKeys = 0')
-tick(net, [host, g2], 30)
-check('P2 menu open on both PCs', all(p.ev('SceneManager._scene instanceof Scene_Menu') for p in (host, g2)),
-      [p.ev('SceneManager._scene && SceneManager._scene.constructor.name') for p in (host, g2)])
-check('menu windows visible only on the P2 PC',
-      g2.ev('SceneManager._scene._windowLayer.visible') and not host.ev('SceneManager._scene._windowLayer.visible'))
+tick(net, [host, g2], 20)
+check('P2 menu open (on both PCs), the map is still the scene',
+      all(p.ev('!!CoopNet.menus[2] && SceneManager._scene instanceof Scene_Map') for p in (host, g2)),
+      [p.ev('JSON.stringify([Object.keys(CoopNet.menus), SceneManager._scene.constructor.name])') for p in (host, g2)])
+p1before = host.ev('$gamePlayer.y')
+p2pos = host.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")')
+fmenu = frame(host)
+host.ev('CoopNet.localKeys = 1')  # P1 walks up
+g2.ev('CoopNet.localKeys = 8')    # P2 presses right: moves the menu cursor, not the character
+tick(net, [host, g2], 90)
+host.ev('CoopNet.localKeys = 0')
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 10)
+check('the world goes on while P2 is in the menu', frame(host) > fmenu + 90, frame(host) - fmenu)
+check('P1 walks while P2 is in the menu', host.ev('$gamePlayer.y') != p1before, '%s -> %s' % (p1before, host.ev('$gamePlayer.y')))
+check('P2 stays put while in the menu', host.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') == p2pos)
+same, frames = aligned_worlds(net, [host, g2])
+check('same world with a menu open', same, frames)
 
-# --- the guest is unplugged with the menu open: AI plays P2, P1 can close the menu ---
+# P1 opens their menu too: two menus at once
+host.ev('CoopNet.localKeys = 32')
+tick(net, [host, g2], 6)
+host.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 20)
+check('P1 and P2 in their menus at the same time', host.ev('!!CoopNet.menus[1] && !!CoopNet.menus[2]') and g2.ev('!!CoopNet.menus[1] && !!CoopNet.menus[2]'))
+check('each menu has its owner', host.ev('CoopNet.menus[1].scene !== CoopNet.menus[2].scene'))
+check('no Load / Game End in the network game',
+      host.ev('(function(){ var w = CoopNet.menus[1].scene._commandWindow; return !w || !w._list.some(function(c){ return c.symbol === "load" || c.symbol === "gameEnd"; }); })()'))
+# P1 closes theirs with cancel: it must not open again
+host.ev('CoopNet.localKeys = 32')
+tick(net, [host, g2], 20)
+host.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 20)
+check('P1 closed their menu (and it did not reopen)', not host.ev('!!CoopNet.menus[1]') and host.ev('!!CoopNet.menus[2]'))
+same, frames = aligned_worlds(net, [host, g2])
+check('same world after closing a menu', same, frames)
+
+# P2 goes into Skills and back: cancel returns to the main menu, not to the map
+def p2press(bits, frames=6, after=20):
+    g2.ev('CoopNet.localKeys = %d' % bits)
+    tick(net, [host, g2], frames)
+    g2.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], after)
+
+
+def p2menu():
+    return host.ev('CoopNet.menus[2] ? CoopNet.menus[2].scene.constructor.name : "-"')
+
+
+p2press(2)   # down: Skill
+p2press(16)  # ok
+check('P2 opened Skills inside their menu', p2menu() == 'Scene_Skill', p2menu())
+p2press(32, frames=10)
+check('cancel in Skills goes back to the main menu', p2menu() == 'Scene_Menu', p2menu())
+same, frames = aligned_worlds(net, [host, g2])
+check('same world after moving between menu scenes', same, frames)
+
+# P2 closes their menu with cancel and walks again
+g2.ev('CoopNet.localKeys = 32')
+tick(net, [host, g2], 20)
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 10)
+check('P2 closed their menu (and it did not reopen)', not host.ev('!!CoopNet.menus[2]') and not g2.ev('!!CoopNet.menus[2]'))
+p2x0 = host.ev('$gamePlayer2.x')
+g2.ev('CoopNet.localKeys = 4')  # left
+tick(net, [host, g2], 40)
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 10)
+check('P2 walks again after the menu', host.ev('$gamePlayer2.x') != p2x0, '%s -> %s' % (p2x0, host.ev('$gamePlayer2.x')))
+# and opens it again for the next test
+g2.ev('CoopNet.localKeys = 32')
+tick(net, [host, g2], 6)
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 20)
+check('P2 can open the menu again', host.ev('!!CoopNet.menus[2]'))
+
+# --- the guest is unplugged with the menu open: the menu closes, P2's character follows the party ---
+p2actor = host.ev('$gamePlayer2._coopActorId')
 fcut = frame(host)
 net.cut(g2)
 net.guests.remove(g2)
 tick(net, [host], 30)
-check('P2 is away (AI) on the host', host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
-check('P1 now controls the abandoned menu', host.ev('CoopLocal.menuOwner()') == 1, host.ev('CoopLocal.menuOwner()'))
-for _ in range(3):
-    if host.ev('SceneManager._scene instanceof Scene_Map'):
-        break
-    host.ev('CoopNet.localKeys = 32')
-    tick(net, [host], 8)
-    host.ev('CoopNet.localKeys = 0')
-    tick(net, [host], 30)
-check('P1 closed it: back on the map', host.ev('SceneManager._scene instanceof Scene_Map'), host.ev('SceneManager._scene.constructor.name'))
+check('the menu of the gone player closed', not host.ev('!!CoopNet.menus[2]'))
+check('P2 left: their character is a normal follower', not host.ev('!!$gamePlayer2') and
+      host.ev('$gamePlayer.followers().visibleFollowers().some(function(f){ return f.actor() && f.actor().actorId() === %d; })' % p2actor))
 tick(net, [host], 60)
-check('host keeps playing without P2', frame(host) > fcut + 100, frame(host) - fcut)
+check('host keeps playing without P2', frame(host) > fcut + 80, frame(host) - fcut)
 
 # --- P2 restarts their game (fresh copy at the title) and connects again ---
 g2 = Peer(2, 'join')
@@ -349,7 +418,8 @@ check('restarted guest got P2 back and is playing', g2.ev('CoopNet.player') == 2
 check('no error on the restarted guest', 'coop_net_error' not in g2.ev('JSON.stringify(Object.keys(__files))'),
       g2.ev('JSON.stringify(__files)')[:300])
 tick(net, [host, g2], 60)
-check('P2 no longer away', not host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
+check('P2 has their character again', all(p.ev('!!$gamePlayer2 && $gamePlayer2._coopActorId === %d' % p2actor) for p in (host, g2)),
+      [p.ev('$gamePlayer2 && $gamePlayer2._coopActorId') for p in (host, g2)])
 same, frames = aligned_worlds(net, [host, g2])
 check('same world after the reconnect', same, frames)
 g2.ev('CoopNet.localKeys = 1')  # up
@@ -364,13 +434,13 @@ for _ in range(600):  # 10 s: the host runs, the guest is frozen
     host.ev('__tick(%f)' % (1000 / 60))
     net.pump()
 check('frozen guest dropped after 5 s, host goes on', frame(host) > fz + 200, frame(host) - fz)
-check('frozen guest is away', host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
+check('frozen guest left the game', not host.ev('!!$gamePlayer2'))
 net.guests.remove(g2)
 g2 = Peer(2, 'join')
 net.add_guest(g2)
 g2.ev("CoopNet.open('join')")
 tick(net, [host, g2], 60)
-check('it can come back', g2.ev('CoopNet.active') and not host.ev('CoopLocal.awayPlayers().indexOf(2) >= 0'))
+check('it can come back', g2.ev('CoopNet.active') and host.ev('!!$gamePlayer2'))
 
 # --- a third PC joins in the middle ---
 g3 = Peer(3, 'join')

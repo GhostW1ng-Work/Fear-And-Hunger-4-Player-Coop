@@ -23,8 +23,14 @@
  * Instantaneas: el anfitrion reparte su mundo (como una partida guardada) para empezar,
  * para corregir a los PC que se hayan separado (en el primer momento tranquilo: en el
  * mapa, sin dialogos ni eventos) y para que alguien entre o vuelva a mitad de partida.
- * Si un jugador se desconecta, su personaje pasa a la IA ("ausente") y los demas siguen;
+ * Si un jugador se desconecta, los demas siguen: su personaje vuelve a la fila como un
+ * seguidor normal (si estaba en un combate, hasta el final del combate lo lleva la IA);
  * al volver a conectarse recupera su personaje.
+ *
+ * Menus: el menu de cada jugador no para el juego. Funciona por encima del mapa (en todos
+ * los PC, para que todos calculen lo mismo) y solo lo ve quien lo abrio, con el mapa vivo
+ * detras; su personaje se queda quieto. En un combate los menus se cierran. Cargar partida
+ * y Salir no estan en la partida en red.
  *
  * En www/coop_net.json se guardan el modo elegido, la IP y el puerto (solo como valores
  * por defecto del menu). Los errores de la partida en red van a www/coop_net_error.log.
@@ -125,11 +131,14 @@
         players: [1],           // jugadores de la partida
         frame: 0,               // siguiente cuadro a ejecutar
         frames: {},             // cuadro -> paquete { a: [, p1, p2, p3, p4], rs, ev }
-        applied: {},            // jugador -> acciones aplicadas en el ultimo cuadro
+        applied: {},            // jugador -> acciones que recibe el mapa (sin las de su menu)
+        raw: {},                // jugador -> acciones del cuadro tal como llegan
+        mask: {},               // jugador -> teclas que al cerrar su menu seguian pulsadas
+        left: {},               // jugador -> se fue: su personaje vuelve a la fila en el mapa
         localKeys: 0,
         localPads: {},
         sceneSeq: 0,            // cuantas escenas se han abierto en la partida en red
-        allReady: 0,            // escena que ya han cargado todos (viene en cada cuadro)
+        allReady: 0,            // lo que ya tienen listo todos (ver myReadySeq; viene en cada cuadro)
         clockAcc: 0,
         clockLast: 0,
         timeBase: 0,
@@ -154,6 +163,7 @@
         blockedSince: 0,        // desde cuando se espera la tecla de algun invitado
         blockedOn: [],
         startRequested: false,
+        stopRequested: false,
         // invitado
         sock: null,
         reconnectTimer: null
@@ -303,10 +313,19 @@
     // ---- cuadros ---------------------------------------------------------------------
 
     // escena que este PC ya tiene cargada y lista (si no, la anterior)
+    // Cuanto tiene listo este PC de la escena actual, como un numero que solo crece:
+    // escena * 2 + 1 = el mapa ya esta leido (falta prepararlo), escena * 2 + 2 = lista para empezar.
+    // El mapa se prepara (Scene_Map.onMapLoaded: traslado del jugador, eventos...) cuando
+    // TODOS lo han leido, en el mismo cuadro: si cada PC lo hiciera al terminar de leerlo,
+    // el mundo cambiaria en cuadros distintos.
     function myReadySeq() {
         const sm = SceneManager;
-        if (sm._nextScene || !sm._scene) return Net.sceneSeq - 1;
-        return (sm._sceneStarted || sm._scene.isReady()) ? Net.sceneSeq : Net.sceneSeq - 1;
+        const seq = Net.sceneSeq;
+        if (sm._nextScene || !sm._scene) return seq * 2;
+        if (sm._sceneStarted) return seq * 2 + 2;
+        const scene = sm._scene;
+        if (scene instanceof Scene_Map && !scene._mapLoaded) return DataManager.isMapLoaded() ? seq * 2 + 1 : seq * 2;
+        return scene.isReady() ? seq * 2 + 2 : seq * 2 + 1;
     }
 
     function sendInput(f, bits) {
@@ -317,7 +336,12 @@
     function applyActions(all) {
         for (const p of Net.players) {
             const prev = Net.applied[p] || 0;
-            const cur = all[p] || 0;
+            const raw = all[p] || 0;
+            Net.raw[p] = raw;
+            // con su menu abierto, sus teclas son del menu; al cerrarlo, las que siguen pulsadas
+            // no cuentan en el mapa hasta soltarlas (si no, Cancelar volveria a abrir el menu)
+            Net.mask[p] = (Net.mask[p] || 0) & raw;
+            const cur = subs[p] ? 0 : (raw & ~Net.mask[p]);
             if (prev === cur) continue;
             ACTIONS.forEach((action, i) => {
                 const was = (prev >> i) & 1;
@@ -332,9 +356,19 @@
     function applyEvents(list) {
         (list || []).forEach(ev => {
             if (ev.k === 'away') {
-                coop.setAway(ev.n, true);
-                banner('P' + ev.n + ' disconnected', 'AI plays their character until they come back', '#ffaa44', 240);
+                closeSub(ev.n);
+                coop.setAway(ev.n, true); // si es en un combate, hasta el final lo lleva la IA
+                Net.left[ev.n] = true;
+                banner('P' + ev.n + ' disconnected', 'Their character follows the party until they come back', '#ffaa44', 240);
             }
+        });
+    }
+
+    // quien se fue vuelve a ser un seguidor normal en cuanto se esta en el mapa
+    function processLeft() {
+        Object.keys(Net.left).map(Number).forEach(n => {
+            if (!coop.player(n)) delete Net.left[n];
+            else if (SceneManager._sceneStarted && !SceneManager._nextScene && coop.removePlayer(n)) delete Net.left[n];
         });
     }
 
@@ -346,17 +380,19 @@
         pend.extras.forEach(e => {
             const p = coop.player(e.n);
             if (!p) return;
-            p._coopActorId = e.actor;
+            if (e.actor && $gameParty._actors.indexOf(e.actor) >= 0) p._coopActorId = e.actor;
             p.locate(e.x, e.y);
             p.setDirection(e.d);
         });
+        $gamePlayer.refresh();
         pend.away.forEach(n => { if (pend.back.indexOf(n) < 0) coop.setAway(n, true); });
     }
 
     // momento tranquilo para una instantanea: en el mapa, sin eventos ni dialogos
     function isSafePoint() {
         return SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted && !SceneManager._nextScene &&
-            !$gameMap.isEventRunning() && !$gameMessage.isBusy() && !$gamePlayer.isTransferring() && !Net.pendingExtras;
+            !$gameMap.isEventRunning() && !$gameMessage.isBusy() && !$gamePlayer.isTransferring() && !Net.pendingExtras &&
+            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0;
     }
 
     // un cuadro de juego con las acciones de todos
@@ -372,6 +408,7 @@
             SceneManager.changeScene();
             SceneManager.updateScene();
             applyPendingExtras();
+            processLeft();
             // durante un cambio de escena no se compara: cada PC termina de cargar el mapa nuevo
             // en un momento distinto, aunque el juego no avanza hasta que todos estan listos
             if (Net.frame % HASH_EVERY === 0 && SceneManager._sceneStarted && !SceneManager._nextScene) checkHash(Net.frame);
@@ -399,6 +436,10 @@
         if (Net.startRequested) {
             Net.startRequested = false;
             hostStartSession();
+        }
+        if (Net.stopRequested) {
+            Net.stopRequested = false;
+            stopNetworking();
         }
         if (!Net.active) {
             _SceneManager_updateMain.call(this);
@@ -428,13 +469,23 @@
     // cada escena nueva solo empieza cuando todos la tienen cargada
     const _SceneManager_goto = SceneManager.goto;
     SceneManager.goto = function(sceneClass) {
-        if (Net.active && sceneClass) Net.sceneSeq++;
+        if (Net.active && !inSub && sceneClass) {
+            if (closesMenus(sceneClass)) closeAllSubs();
+            Net.sceneSeq++;
+        }
         _SceneManager_goto.call(this, sceneClass);
     };
 
     const _SceneManager_updateScene = SceneManager.updateScene;
     SceneManager.updateScene = function() {
-        if (Net.active && this._scene && !this._sceneStarted && Net.allReady < Net.sceneSeq) return;
+        if (Net.active && this._scene && !this._sceneStarted) {
+            const scene = this._scene;
+            if (scene instanceof Scene_Map && !scene._mapLoaded) {
+                if (Net.allReady >= Net.sceneSeq * 2 + 1) scene.isReady(); // todos lo han leido: se prepara
+                return;
+            }
+            if (Net.allReady < Net.sceneSeq * 2 + 2) return;
+        }
         _SceneManager_updateScene.call(this);
     };
 
@@ -495,6 +546,249 @@
         if (Net.active) this.clear();
     };
 
+    // ---- menus que no paran el juego ---------------------------------------------------
+    // El menu de cada jugador es una escena aparte que se actualiza dentro del mapa, en todos
+    // los PC igual (lo que se haga en el cambia el mundo). Mientras se actualiza, para el
+    // juego es "la escena actual": SceneManager._scene, su pila de escenas, el dueno del
+    // menu, el personaje del menu y las teclas (Input) son los de ese jugador. Solo el PC
+    // de ese jugador lo dibuja, encima del mapa vivo.
+
+    const subs = {};        // jugador -> { scene, stack, menuActor, targetActor, input }
+    let inSub = false;
+    const INPUT_FIELDS = ['_currentState', '_previousState', '_latestButton', '_pressedTime', '_dir4', '_dir8', '_preferredAxis', '_date'];
+
+    function stateOf(bits) {
+        const st = {};
+        ACTIONS.forEach((a, i) => { st[a] = !!((bits >> i) & 1); });
+        return st;
+    }
+
+    function newVirtualInput(bits) {
+        const st = stateOf(bits); // lo que ya estaba pulsado al abrir no cuenta como pulsacion nueva
+        return { _currentState: st, _previousState: Object.assign({}, st), _latestButton: null, _pressedTime: 0,
+            _dir4: 0, _dir8: 0, _preferredAxis: '', _date: 0 };
+    }
+
+    // como Input.update, pero con las acciones de un jugador (sin teclado ni mandos)
+    function updateVirtualInput(bits) {
+        const cur = stateOf(bits);
+        Input._currentState = cur;
+        if (Input._latestButton && cur[Input._latestButton]) {
+            Input._pressedTime++;
+        } else {
+            Input._latestButton = null;
+        }
+        Object.keys(cur).forEach(name => {
+            if (cur[name] && !Input._previousState[name]) {
+                Input._latestButton = name;
+                Input._pressedTime = 0;
+                Input._date = Date.now();
+            }
+        });
+        Input._previousState = Object.assign({}, cur);
+        Input._updateDirection();
+    }
+
+    // ejecuta fn como si el menu del jugador n fuera la escena actual; devuelve la escena
+    // a la que el menu quiere pasar (o null)
+    function withSub(n, sub, fn) {
+        const sm = SceneManager;
+        const saved = {
+            scene: sm._scene, stack: sm._stack, next: sm._nextScene, owner: coop.menuOwner(),
+            menuActor: $gameParty._menuActorId, targetActor: $gameParty._targetActorId, input: {}
+        };
+        INPUT_FIELDS.forEach(f => {
+            saved.input[f] = Input[f];
+            Input[f] = sub.input[f];
+        });
+        sm._scene = sub.scene;
+        sm._stack = sub.stack;
+        sm._nextScene = null;
+        coop.setMenuOwner(n);
+        $gameParty._menuActorId = sub.menuActor;
+        $gameParty._targetActorId = sub.targetActor;
+        inSub = true;
+        let next = null;
+        try {
+            fn();
+        } finally {
+            inSub = false;
+            next = sm._nextScene;
+            sub.stack = sm._stack;
+            sub.menuActor = $gameParty._menuActorId;
+            sub.targetActor = $gameParty._targetActorId;
+            INPUT_FIELDS.forEach(f => {
+                sub.input[f] = Input[f];
+                Input[f] = saved.input[f];
+            });
+            sm._scene = saved.scene;
+            sm._stack = saved.stack;
+            sm._nextScene = saved.next;
+            coop.setMenuOwner(saved.owner);
+            $gameParty._menuActorId = saved.menuActor;
+            $gameParty._targetActorId = saved.targetActor;
+        }
+        return next;
+    }
+
+    function closeSub(n) {
+        const sub = subs[n];
+        if (!sub) return;
+        delete subs[n];
+        Net.mask[n] = Net.raw[n] || 0;
+        try {
+            withSub(n, sub, () => sub.scene.terminate());
+        } catch (e) {
+            logError('closing the menu of P' + n, e);
+        }
+    }
+
+    function closeAllSubs() {
+        Object.keys(subs).map(Number).forEach(closeSub);
+    }
+
+    // el menu pasa a otra escena (Objetos, Equipo...) o vuelve al mapa
+    function changeSub(n, next) {
+        for (let guard = 0; next && guard < 5; guard++) {
+            const sub = subs[n];
+            if (!sub) return;
+            if (next instanceof Scene_Map) {
+                closeSub(n);
+                return;
+            }
+            if (!(next instanceof Scene_MenuBase)) {
+                // sale del menu a otra cosa (p.ej. fin de partida): se cierra y esa escena va para todos
+                closeSub(n);
+                Net.sceneSeq++;
+                SceneManager._nextScene = next;
+                return;
+            }
+            next = withSub(n, sub, () => {
+                sub.scene.terminate();
+                sub.scene = next;
+                SceneManager._scene = next;
+                next.create();
+                next.start();
+            });
+            // en la escena nueva, lo que sigue pulsado no es una pulsacion nueva (al cambiar de
+            // escena el juego limpia Input, y Cancelar cerraria tambien el menu de detras)
+            sub.input = newVirtualInput(Net.raw[n] || 0);
+        }
+    }
+
+    function openSub(map, n, callOriginal) {
+        // el menu que abriria el juego (con plugins de menu incluidos), sin salir del mapa
+        const sm = SceneManager;
+        const savedStack = sm._stack;
+        const savedNext = sm._nextScene;
+        sm._stack = [];
+        sm._nextScene = null;
+        map.stop = function() {}; // el mapa sigue activo
+        inSub = true;
+        let next = null;
+        let stack = null;
+        try {
+            callOriginal();
+        } finally {
+            inSub = false;
+            delete map.stop;
+            next = sm._nextScene;
+            stack = sm._stack;
+            sm._stack = savedStack;
+            sm._nextScene = savedNext;
+        }
+        const owner = coop.menuOwner() || n;
+        coop.setMenuOwner(0);
+        map.menuCalling = false;
+        if (!next || subs[owner]) return;
+        const sub = { scene: next, stack: stack, menuActor: $gameParty._menuActorId, targetActor: $gameParty._targetActorId,
+            input: newVirtualInput(Net.raw[owner] || 0) };
+        subs[owner] = sub;
+        const again = withSub(owner, sub, () => {
+            next.create();
+            next.start();
+        });
+        if (again) changeSub(owner, again);
+    }
+
+    function updateSubs() {
+        Object.keys(subs).map(Number).sort().forEach(n => {
+            const sub = subs[n];
+            if (!sub) return;
+            let next = null;
+            try {
+                next = withSub(n, sub, () => {
+                    updateVirtualInput(Net.raw[n] || 0);
+                    sub.scene.update();
+                });
+            } catch (e) {
+                logError('menu of P' + n, e);
+                closeSub(n);
+                return;
+            }
+            if (next) changeSub(n, next);
+        });
+    }
+
+    const _Scene_Map_callMenu = Scene_Map.prototype.callMenu;
+    Scene_Map.prototype.callMenu = function() {
+        if (!Net.active || inSub) {
+            _Scene_Map_callMenu.call(this);
+            return;
+        }
+        openSub(this, coop.menuOwner() || 1, () => _Scene_Map_callMenu.call(this));
+    };
+
+    const _Scene_Map_update = Scene_Map.prototype.update;
+    Scene_Map.prototype.update = function() {
+        if (Net.active && !inSub) updateSubs();
+        _Scene_Map_update.call(this);
+    };
+
+    // en un combate (o fin de partida) los menus se cierran
+    function closesMenus(sceneClass) {
+        return sceneClass === Scene_Battle || sceneClass === Scene_Gameover || sceneClass === Scene_Title;
+    }
+
+    // el personaje de quien esta en su menu no se mueve ni interactua
+    coop.setBusy(n => Net.active && !!subs[n]);
+
+    // Cargar partida y Salir no sirven en la partida en red (cada PC tiene sus archivos)
+    const _Window_MenuCommand_makeCommandList = Window_MenuCommand.prototype.makeCommandList;
+    Window_MenuCommand.prototype.makeCommandList = function() {
+        _Window_MenuCommand_makeCommandList.call(this);
+        if (Net.active) this._list = this._list.filter(cmd => cmd.symbol !== 'load' && cmd.symbol !== 'gameEnd');
+    };
+
+    // dibujo: el PC del jugador con menu ve el mapa vivo, oscurecido, y su menu encima
+    let dimSprite = null;
+    const _SceneManager_renderScene = SceneManager.renderScene;
+    SceneManager.renderScene = function() {
+        const sub = Net.active && subs[Net.player];
+        const map = this._scene;
+        if (!sub || !(map instanceof Scene_Map) || !this._sceneStarted) {
+            _SceneManager_renderScene.call(this);
+            return;
+        }
+        if (!dimSprite) {
+            dimSprite = new Sprite(new Bitmap(Graphics.width, Graphics.height));
+            dimSprite.bitmap.fillAll('black');
+            dimSprite.opacity = 120;
+        }
+        const bg = sub.scene._backgroundSprite;
+        const bgVisible = bg ? bg.visible : false;
+        if (bg) bg.visible = false;
+        map.addChild(dimSprite);
+        map.addChild(sub.scene);
+        try {
+            Graphics.render(map);
+        } finally {
+            map.removeChild(sub.scene);
+            map.removeChild(dimSprite);
+            if (bg) bg.visible = bgVisible;
+        }
+    };
+
     // ---- huella del mundo (para detectar que los PC se han separado) -------------------
 
     function fnv(str) {
@@ -507,7 +801,8 @@
     }
 
     function worldParts() {
-        const scene = SceneManager._scene ? SceneManager._scene.constructor.name : '-';
+        const scene = (SceneManager._scene ? SceneManager._scene.constructor.name : '-') +
+            Object.keys(subs).map(n => ' P' + n + ' ' + subs[n].scene.constructor.name).join('');
         const players = coop.allPlayers().map(p => [p._x, p._y, p._direction].join('.')).join('|');
         const events = $gameMap ? $gameMap.events().map(e => e ? [e._eventId, e._x, e._y, e._direction, e._pageIndex].join('.') : '').join('|') : '';
         const party = $gameParty ? $gameParty._actors.join('.') + ':' + $gameParty.members().map(a => a.hp + '/' + a.mp).join('.') : '';
@@ -575,8 +870,30 @@
         SceneManager.clearStack(); // puede venir de un menu (Opciones > Co-op)
     }
 
+    // Opciones: las que cambian el juego (correr siempre, recordar comando, velocidad del
+    // combate...) son las del anfitrion en todos los PC; volumen, teclas y camara, las de cada uno.
+    // Los invitados no guardan las del anfitrion: al terminar vuelven las suyas.
+    function isLocalOption(key) {
+        return /volume/i.test(key) || ['keyMapper', 'wasdMap', 'gamepadInput', 'coopSettings'].indexOf(key) >= 0;
+    }
+
+    function applySharedConfig(hostData) {
+        if (!hostData) return;
+        const local = ConfigManager.makeData();
+        const merged = Object.assign({}, hostData);
+        Object.keys(local).forEach(key => { if (isLocalOption(key)) merged[key] = local[key]; });
+        ConfigManager.applyData(merged);
+    }
+
+    const _ConfigManager_save = ConfigManager.save;
+    ConfigManager.save = function() {
+        if (Net.active && Net.role !== 'host') return;
+        _ConfigManager_save.call(this);
+    };
+
     function enterSession() {
         if (Net.active) return;
+        Net.localConfig = ConfigManager.makeData();
         Net.active = true;
         Math.random = seededRandom;
         Net.clockAcc = 0;
@@ -594,15 +911,21 @@
         Net.frameBase = meta.frameBase;
         Net.timeBase = meta.timeBase;
         Net.sceneSeq = meta.sceneSeq;
+        closeAllSubs();
         Net.applied = {};
+        Net.raw = {};
+        Net.mask = {};
+        Net.left = {};
         Net.history = {};
         Object.keys(Net.frames).forEach(f => { if (Number(f) < meta.f) delete Net.frames[f]; });
         closeSceneNow();
         DataManager.createGameObjects();
         DataManager.extractSaveContents(JsonEx.parse(saveJson));
         $gameSystem.onAfterLoad(); // musica de la partida (si sigue siendo la misma, no se corta)
+        applySharedConfig(meta.config);
         coop.clearInputs();
-        coop.forceRestore(meta.players.filter(p => p !== 1));
+        // vuelven todos menos quien sigue fuera (su personaje va en la fila)
+        coop.forceRestore(meta.players.filter(p => p !== 1 && (meta.gone || []).indexOf(p) < 0));
         Net.pendingExtras = { extras: meta.extras || [], away: meta.away || [], back: meta.back || [] };
         SceneManager.goto(Scene_Map); // sceneSeq + 1, igual en todos
         coop.setCamera('p' + Net.player);
@@ -617,7 +940,9 @@
 
     function endSession(reason) {
         if (!Net.active) return;
+        closeAllSubs();
         Net.active = false;
+        if (Net.localConfig) ConfigManager.applyData(Net.localConfig);
         Math.random = nativeRandom;
         window.Date = NativeDate;
         coop.setPadCapture(null);
@@ -708,10 +1033,14 @@
             frameBase: first ? $gameSystem._framesOnSave : Net.frameBase,
             timeBase: first ? NativeDate.now() : Net.timeBase,
             sceneSeq: Net.sceneSeq,
-            extras: first ? [] : coop.players().map(p => ({ n: p.coopIndex(), actor: p._coopActorId, x: p._x, y: p._y, d: p._direction })),
-            away: first ? [] : coop.awayPlayers().concat(Object.keys(Net.lost).map(Number)),
+            extras: first ? [] : coop.players().map(p => ({ n: p.coopIndex(), actor: p._coopActorId, x: p._x, y: p._y, d: p._direction }))
+                // quien vuelve tras irse: su personaje de antes, junto a P1
+                .concat(back.filter(n => !coop.player(n)).map(n => ({ n: n, actor: coop.lastActor(n), x: $gamePlayer.x, y: $gamePlayer.y, d: $gamePlayer.direction() }))),
+            away: first ? [] : coop.awayPlayers(),
+            gone: Object.keys(Net.lost).map(Number),
             back: back,
-            reason: reason
+            reason: reason,
+            config: ConfigManager.makeData()
         };
         const saveJson = JsonEx.stringify(DataManager.makeSaveContents());
         Net.inputs = {};
@@ -1020,7 +1349,7 @@
             SoundManager.playOk();
             Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
         } else if (key === 'stop') {
-            stopNetworking();
+            Net.stopRequested = true; // (puede estar dentro del menu de la partida en red)
             SoundManager.playCancel();
             this.select(0);
         }
@@ -1159,6 +1488,7 @@
 
     // para pruebas y otros plugins: CoopNet.open('host' / 'join'), CoopNet.close()
     Net.open = startNetworking;
+    Net.menus = subs;
     Net.close = stopNetworking;
     window.CoopNet = Net;
 })();

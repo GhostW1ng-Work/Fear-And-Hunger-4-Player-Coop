@@ -284,6 +284,12 @@
         away: {}            // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
     };
 
+    // otro plugin (el juego en red) puede decir que un jugador esta ocupado (en su menu): no se mueve
+    let externalBusy = null;
+    function busyElsewhere(n) {
+        return !!externalBusy && externalBusy(n);
+    }
+
     function newPlayerKeys() {
         return { left: false, right: false, up: false, down: false, shift: false, ok: false, join: false, menu: false };
     }
@@ -1663,7 +1669,7 @@
 
     // P2/P3 no se mueven durante dialogos, eventos ni menus de seleccion
     Game_CoopPlayer.prototype.canMoveCoop = function() {
-        return !$gameMap.isEventRunning() && !messageBusy() && !CoopState.selecting;
+        return !$gameMap.isEventRunning() && !messageBusy() && !CoopState.selecting && !busyElsewhere(this.coopIndex());
     };
 
     Game_CoopPlayer.prototype.syncActorImage = function() {
@@ -2012,7 +2018,7 @@
 
     const _Game_Player_canMove = Game_Player.prototype.canMove;
     Game_Player.prototype.canMove = function() {
-        if (CoopState.selecting) return false;
+        if (CoopState.selecting || busyElsewhere(1)) return false;
         return _Game_Player_canMove.call(this);
     };
 
@@ -2096,6 +2102,23 @@
         },
         menuOwner() {
             return CoopState.menuOwner;
+        },
+        setMenuOwner(n) {
+            CoopState.menuOwner = n;
+        },
+        setBusy(fn) {
+            externalBusy = fn || null;
+        },
+        lastActor(n) {
+            return CoopState.lastActor[n] || 0;
+        },
+        // quita a un jugador: su personaje vuelve a ser un seguidor normal (solo en el mapa)
+        removePlayer(n) {
+            const scene = SceneManager._scene;
+            if (!(scene instanceof Scene_Map) || !coopPlayer(n)) return false;
+            delete CoopState.away[n];
+            scene.coopRemovePlayer(n);
+            return true;
         },
         awayPlayers() {
             return Object.keys(CoopState.away).map(Number).filter(n => CoopState.away[n]);
@@ -3314,7 +3337,7 @@
         for (let n = 2; n <= MAX_PLAYERS; n++) {
             const keys = playerInput[n];
             if (!keys.menu) continue;
-            if (!coopPlayer(n)) {
+            if (!coopPlayer(n) || busyElsewhere(n)) {
                 keys.menu = false;
                 continue;
             }
