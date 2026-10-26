@@ -19,7 +19,7 @@ Everything is in **Options > Co-op > Network game...**
 1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
 2. **Guests** (the title screen is enough): Mode = *Join*, *Host's IP* (OK, type the digits and dots, Enter), **Connect to the host**. The host's screen lists them.
 3. **Host**: **Start the network game**. Everybody loads the host's game.
-4. On every PC: WASD or arrows, Z / Space / Enter, X / Esc / Backspace, Shift, or a gamepad (A, B, X / RT). `G`, `-` / `=` and `F10` stay local.
+4. On every PC: WASD or arrows (a gamepad only counts in the focused window, so two copies on one PC don't share it; *Options > Co-op > Co-op settings > Local co-op: Off* is handy for testing), Z / Space / Enter, X / Esc / Backspace, Shift, or a gamepad (A, B, X / RT). `G`, `-` / `=` and `F10` stay local.
 
 *Close the game (stop hosting)* / *Disconnect* on the same screen end it. Port: default 47810 (Windows asks to allow it in the firewall the first time).
 
@@ -29,7 +29,7 @@ During the network game F6 / F7 (quick save), F9 (player windows) and F5 (reload
 
 ## Menus
 
-A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu over the live (dimmed) map; their character stands still. Several players can be in their menus at once. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
+A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu as usual; their character stands still. Several players can be in their menus at once. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
 
 (How: each menu is a scene of its own that runs inside the map on every PC, with that player's keys; only that player's PC draws it.)
 

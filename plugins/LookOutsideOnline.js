@@ -221,6 +221,9 @@
     // (Opciones > Co-op); se guardan con la configuracion (config.rpgsave). Ver applyCoopSettings.
     let P3_KEY_SET = ['numpad', 'ijkl'].indexOf(String(params.P3Keys)) >= 0 ? String(params.P3Keys) : 'all';
     let GAMEPADS = String(params.Gamepads) !== 'false';
+    // co-op local apagado (Opciones > Co-op): las teclas de P2/P3 son teclas normales del juego y
+    // los mandos son de P1; el juego en red (LocalCoop_Net) sigue funcionando
+    let LOCAL_COOP = true;
     let AUTO_REJOIN = String(params.AutoRejoin) !== 'false';
     const P2_ACTOR_MODE = String(params.P2ActorMode || 'auto');
     const P2_ACTOR_CHOICES = String(params.P2ActorChoices || '')
@@ -696,6 +699,7 @@
     }
 
     function coopKeyOf(e) {
+        if (!LOCAL_COOP && !e.__net) return null;
         return CODE_TO_KEY[codeOf(e)] || null;
     }
 
@@ -745,7 +749,7 @@
     const _Input_onKeyDown = Input._onKeyDown;
     Input._onKeyDown = function(event) {
         // X en el mapa antes de que P2 se una = unirse (no abre el menu)
-        if (!coopOn() && event.keyCode === KEY_JOIN && isMapIdle()) {
+        if (LOCAL_COOP && !coopOn() && event.keyCode === KEY_JOIN && isMapIdle()) {
             return;
         }
         const k = coopKeyOf(event);
@@ -805,7 +809,7 @@
         if (e.keyCode === KEY_CAMERA && !e.repeat && coopOn()) {
             CoopView.cycleCamera();
         }
-        if (e.keyCode === KEY_JOIN && onMap && !coopOn()) {
+        if (LOCAL_COOP && e.keyCode === KEY_JOIN && onMap && !coopOn()) {
             playerInput[2].join = true;
         }
 
@@ -3307,7 +3311,7 @@
         resetCoop();
         _DataManager_extractSaveContents.call(this, contents);
         const saved = $gameSystem && $gameSystem._coopSession;
-        if (AUTO_REJOIN && saved && saved.players && saved.players.length > 0) {
+        if (AUTO_REJOIN && LOCAL_COOP && saved && saved.players && saved.players.length > 0) {
             CoopState.restore = { players: saved.players.slice(), pads: Object.assign({}, saved.pads) };
         }
     };
@@ -3612,6 +3616,8 @@
     // =========================================================================
 
     const SETTINGS_ROWS = [
+        { key: 'localCoop', name: 'Local co-op', values: [true, false], labels: ['On', 'Off'],
+            help: 'Off: arrows, Enter, numpad and gamepads are normal keys for P1 (nobody joins). The network game still works.' },
         { key: 'camera', name: 'Camera', values: ['auto', 'shared', 'split'], labels: ['Auto', 'Shared', 'Split screen'],
             help: 'Auto: shared while everyone is close, split screen when someone walks away. G changes it while playing.' },
         { key: 'splitZoom', name: 'Split screen view', values: ['far', 'medium', 'near'], labels: ['Far (full view)', 'Medium', 'Close'],
@@ -3637,6 +3643,7 @@
         splitZoom: ['medium', 'near'].indexOf(String(params.SplitZoom)) >= 0 ? String(params.SplitZoom) : 'far',
         splitDirection: SPLIT_VERTICAL ? 'vertical' : 'horizontal',
         split3Layout: SPLIT3_LAYOUT,
+        localCoop: true,
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
         autoRejoin: AUTO_REJOIN
@@ -3647,8 +3654,12 @@
         SPLIT_VERTICAL = st.splitDirection !== 'horizontal';
         SPLIT3_LAYOUT = st.split3Layout;
         AUTO_REJOIN = !!st.autoRejoin;
-        if (GAMEPADS !== !!st.gamepads || P3_KEY_SET !== st.p3Keys) {
-            GAMEPADS = !!st.gamepads;
+        const wasLocal = LOCAL_COOP;
+        LOCAL_COOP = st.localCoop !== false;
+        if (wasLocal && !LOCAL_COOP) dropLocalPlayers();
+        const pads = !!st.gamepads && LOCAL_COOP;
+        if (GAMEPADS !== pads || P3_KEY_SET !== st.p3Keys || wasLocal !== LOCAL_COOP) {
+            GAMEPADS = pads;
             P3_KEY_SET = st.p3Keys;
             if (!GAMEPADS) Object.keys(padOwner).forEach(index => unbindPad(Number(index)));
             rebuildKeyTables();
@@ -3660,6 +3671,17 @@
             cameraMode = CAM_BY_NAME[st.camera];
             resetAutoCamera();
         }
+    }
+
+    // al apagar el co-op local se van P2-P4 (no en la partida en red: esos juegan desde su PC)
+    function dropLocalPlayers() {
+        if (window.CoopNet && window.CoopNet.active) return;
+        for (let n = MAX_PLAYERS; n >= 2; n--) {
+            if (!coopPlayer(n)) continue;
+            const map = SceneManager._scene instanceof Scene_Map ? SceneManager._scene : { _spriteset: null };
+            Scene_Map.prototype.coopRemovePlayer.call(map, n);
+        }
+        CoopState.restore = null;
     }
 
     const _ConfigManager_makeData = ConfigManager.makeData;

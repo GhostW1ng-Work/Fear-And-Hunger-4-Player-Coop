@@ -28,8 +28,8 @@
  * al volver a conectarse recupera su personaje.
  *
  * Menus: el menu de cada jugador no para el juego. Funciona por encima del mapa (en todos
- * los PC, para que todos calculen lo mismo) y solo lo ve quien lo abrio, con el mapa vivo
- * detras; su personaje se queda quieto. En un combate los menus se cierran. Cargar partida
+ * los PC, para que todos calculen lo mismo) y solo lo ve quien lo abrio, como siempre;
+ * su personaje se queda quieto. En un combate los menus se cierran. Cargar partida
  * y Salir no estan en la partida en red.
  *
  * En www/coop_net.json se guardan el modo elegido, la IP y el puerto (solo como valores
@@ -294,6 +294,11 @@
     });
 
     function capturePad(gamepad) {
+        // el mando solo cuenta en la ventana activa (dos copias del juego en un PC leen el mismo mando)
+        if (typeof document !== 'undefined' && document.hasFocus && !document.hasFocus()) {
+            Net.localPads[gamepad.index] = 0;
+            return;
+        }
         const b = gamepad.buttons;
         const pressed = i => !!b[i] && (b[i].pressed || b[i].value > 0.5);
         const ax = gamepad.axes || [];
@@ -551,7 +556,7 @@
     // los PC igual (lo que se haga en el cambia el mundo). Mientras se actualiza, para el
     // juego es "la escena actual": SceneManager._scene, su pila de escenas, el dueno del
     // menu, el personaje del menu y las teclas (Input) son los de ese jugador. Solo el PC
-    // de ese jugador lo dibuja, encima del mapa vivo.
+    // de ese jugador lo dibuja (como un menu normal, con la foto del mapa de fondo).
 
     const subs = {};        // jugador -> { scene, stack, menuActor, targetActor, input }
     let inSub = false;
@@ -701,6 +706,8 @@
         coop.setMenuOwner(0);
         map.menuCalling = false;
         if (!next || subs[owner]) return;
+        // la foto del mapa para el fondo del menu (solo dibujo: solo en el PC de quien lo abre)
+        if (owner === Net.player) SceneManager.snapForBackground();
         const sub = { scene: next, stack: stack, menuActor: $gameParty._menuActorId, targetActor: $gameParty._targetActorId,
             input: newVirtualInput(Net.raw[owner] || 0) };
         subs[owner] = sub;
@@ -760,33 +767,16 @@
         if (Net.active) this._list = this._list.filter(cmd => cmd.symbol !== 'load' && cmd.symbol !== 'gameEnd');
     };
 
-    // dibujo: el PC del jugador con menu ve el mapa vivo, oscurecido, y su menu encima
-    let dimSprite = null;
+    // dibujo: el PC del jugador con menu ve su menu como siempre (con la foto del mapa de fondo);
+    // el juego sigue igual por detras
     const _SceneManager_renderScene = SceneManager.renderScene;
     SceneManager.renderScene = function() {
         const sub = Net.active && subs[Net.player];
-        const map = this._scene;
-        if (!sub || !(map instanceof Scene_Map) || !this._sceneStarted) {
+        if (!sub || !(this._scene instanceof Scene_Map) || !this._sceneStarted) {
             _SceneManager_renderScene.call(this);
             return;
         }
-        if (!dimSprite) {
-            dimSprite = new Sprite(new Bitmap(Graphics.width, Graphics.height));
-            dimSprite.bitmap.fillAll('black');
-            dimSprite.opacity = 120;
-        }
-        const bg = sub.scene._backgroundSprite;
-        const bgVisible = bg ? bg.visible : false;
-        if (bg) bg.visible = false;
-        map.addChild(dimSprite);
-        map.addChild(sub.scene);
-        try {
-            Graphics.render(map);
-        } finally {
-            map.removeChild(sub.scene);
-            map.removeChild(dimSprite);
-            if (bg) bg.visible = bgVisible;
-        }
+        Graphics.render(sub.scene);
     };
 
     // ---- huella del mundo (para detectar que los PC se han separado) -------------------

@@ -637,7 +637,7 @@ var cfg = ConfigManager.makeData();
 check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
 var setScene = new Scene_CoopSettings(); setScene.create();
 var setList = setScene._coopList;
-function selectSetting(key) { setList.select(['camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin'].indexOf(key)); }
+function selectSetting(key) { setList.select(['localCoop', 'camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin'].indexOf(key)); }
 // P3 solo con teclado numerico: I/J/K/L ya no son de P3
 SceneManager._scene = scene;
 selectSetting('p3Keys'); setList.cursorRight();
@@ -698,6 +698,40 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     for (k = 0; k < 40; k++) frame();
     check('T29d after the shot the switches are restored', $gameSwitches.value(242) === false && [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); }).join(',') === story.join(','));
     p2a.forceChangeEquip(0, null);
+})();
+
+// --- T30: co-op local apagado (Opciones > Co-op > Local co-op: Off) ---
+(function() {
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    SceneManager._scene = scene;
+    for (var k = 0; k < 10; k++) frame();
+    var hadP2 = !!$gamePlayer2;
+    var offScene = new Scene_CoopSettings(); offScene.create();
+    var lst = offScene._coopList;
+    lst.select(0); lst.cursorRight();
+    SceneManager._scene = scene;
+    check('T30 local co-op off: saved in the config', ConfigManager.makeData().coopSettings.localCoop === false);
+    check('T30b local players leave (their characters follow the party)', hadP2 && !$gamePlayer2 && !$gamePlayer3 && !$gamePlayer4);
+    // Enter y X ya no unen a P2
+    for (k = 0; k < 5; k++) frame();
+    down('Enter', 13); frame(); up('Enter', 13); frame();
+    down('KeyX', 88); frame(); up('KeyX', 88); frame();
+    for (k = 0; k < 5; k++) frame();
+    check('T30c Enter / X do not join P2', !$gamePlayer2 && !CoopLocal.isOn());
+    // las flechas son de P1 (como en el juego normal)
+    SceneManager._scene = scene;
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    down('ArrowUp', 38); frame();
+    check('T30d arrows are P1 keys again', Input.isPressed('up'));
+    up('ArrowUp', 38); frame();
+    // un mando libre no une a nadie
+    var padE = makePad(6); __pads = []; __pads[6] = padE;
+    padBtn(padE, 9, true); frame(); padBtn(padE, 9, false); frame(); frame();
+    check('T30e gamepad Start does not join', !$gamePlayer2 && !$gamePlayer4);
+    __pads = [];
+    lst.cursorRight();
+    SceneManager._scene = scene;
+    check('T30f local co-op on again', ConfigManager.makeData().coopSettings.localCoop === true);
 })();
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');
