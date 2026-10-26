@@ -1,4 +1,4 @@
-# Network game (prototype, branch `netplay`)
+# Network game (experimental, v1.2)
 
 Every player runs **their own copy of the game** on their own PC. Only the inputs travel over the network: every frame all PCs get the actions of all players and compute exactly the same frame, each with the camera on its own player. The host (P1) collects the inputs and hands out the frames.
 
@@ -6,11 +6,9 @@ Plugin: `plugins/LocalCoop_Net.js`. Nothing connects when the game opens: everyt
 
 ## Install
 
-```
-install.ps1 -GamePath "C:\Games\Fear2" -QuickSave -Net menu
-```
+The normal installer (`install.bat` / `install.ps1`) already installs it, on every PC; without using it, it does nothing.
 
-`-Net host` / `-Net join -NetHost 192.168.1.20` (`-NetPort`) only preselect the mode, IP and port in the menu (saved in `www/coop_net.json`).
+`-Net host` / `-Net join -NetHost 192.168.1.20` (`-NetPort`) only preselect the mode, IP and port in the menu (saved in `www/coop_net.json`). `-NoNet` leaves it out.
 
 ## Play
 
@@ -18,6 +16,8 @@ Everything is in **Options > Co-op > Network game...**
 
 1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
 2. **Guests** (the title screen is enough): Mode = *Join*, *Host's IP* (OK, type the IP or a name, Enter), **Connect to the host**. The host's screen lists them.
+   - *Password* (optional): if the host sets one, guests must type the same.
+   - When someone connects, the host checks the mod version, the game version and the active plugins: if they differ the guest is told what (e.g. *Different game version*) and not let in.
 3. **Host**: **Start the network game**. Everybody loads the host's game.
 4. On every PC: WASD or arrows (a gamepad only counts in the focused window, so two copies on one PC don't share it; *Options > Co-op > Co-op settings > Local co-op: Off* is handy for testing), Z / Space / Enter, X / Esc / Backspace, Shift, or a gamepad (A, B, X / RT). `G`, `-` / `=` and `F10` stay local.
 
@@ -78,7 +78,7 @@ F10 shows `ping` and the current `delay` (1 frame = 17 ms). Roughly: ping 30 ms 
 
 1. Copy the whole game folder (e.g. `C:\Games\Fear2-net2`).
 2. In the copy's `package.json` change `"name": ""` to `"name": "termina-net2"` and add `"single-instance": false` (otherwise Windows opens the first copy again instead of a second one).
-3. Install both with `-Net menu`; in the copy join `127.0.0.1`.
+3. Install both; in the copy join `127.0.0.1`.
 
 ## How it stays in sync
 
@@ -93,7 +93,7 @@ Tests:
 - `tests/netsync.py` runs two independent copies of the engine with the same start and inputs and checks they end identical (1200 frames on Shopping street: in sync).
 - `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, host options shared, menus that don't pause (P1 walks while P2 is in the menu, two menus at once, Skills and back, close and walk), unplugging a guest with its menu open (their character becomes a follower), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game, the host's and P2's choice of character in menus, P1 alone after the guest left, and a 200 ms ping (adaptive delay keeps 60 FPS, a fixed 3-frame delay would not) (70 checks).
 
-## Known limits of the prototype
+## Known limits
 
 - If the **host** disconnects, the game stops for the guests (they keep reconnecting and wait for the host to start again).
 - A resync or a join waits for a quiet moment: during a long cutscene or a battle it happens after it.

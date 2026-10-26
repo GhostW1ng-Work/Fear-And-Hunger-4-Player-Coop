@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.1.0 [PRUEBAS] F6 = guardado rapido, F7 = carga rapida, en una ranura aparte. Para probar el co-op sin buscar donde guardar. Desactivar para jugar normal.
+ * @plugindesc v1.2.0 [PRUEBAS] F6 = guardado rapido, F7 = carga rapida, en una ranura aparte. Para probar el co-op sin buscar donde guardar. Desactivar para jugar normal.
  * @author TheTiranix
  *
  * @param Slot

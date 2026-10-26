@@ -37,4 +37,16 @@ def load_ctx(plugins=True):
         ctx.eval('Input.initialize();')
         for f in ['LookOutsideOnline', 'LocalCoop_FearHunger', 'LocalCoop_QuickSave']:
             ctx.eval(read(os.path.join(PLUGINS, f + '.js')))
+        if os.environ.get('WITH_NET'):
+            # el plugin de red instalado pero sin usar no debe cambiar nada del co-op local
+            ctx.eval('var setInterval = function() { return 0; }; var process = { mainModule: { filename: "/game/www/index.html" } };'
+                     'var require = function(n) {'
+                     ' if (n === "fs") return { existsSync: function() { return false; }, readFileSync: function() { return ""; },'
+                     '   writeFileSync: function() {}, appendFileSync: function() {} };'
+                     ' if (n === "path") return { dirname: function(p) { return p.replace(/\/[^\/]*$/, ""); }, join: function() { return Array.prototype.slice.call(arguments).join("/"); } };'
+                     ' if (n === "os") return { networkInterfaces: function() { return {}; } };'
+                     ' if (n === "net") return { createServer: function() { return { listen: function() {}, on: function() {}, close: function() {} }; }, connect: function() { return null; } };'
+                     '};')
+            ctx.eval(read(os.path.join(PLUGINS, 'LocalCoop_Net.js')))
+            ctx.eval('require = undefined; process = undefined;')  # el resto de pruebas, como en un navegador
     return ctx

@@ -568,6 +568,33 @@ g3.ev('CoopNet.localKeys = 0')
 same, frames = aligned_worlds(net, [host, g2, g3])
 check('three PCs in the same world', same, frames)
 
+# --- who may come in: password and versions ---
+ph = Peer(11, 'host')
+pnet = Net(ph, [])
+ph.ev(HOST_SETUP)
+ph.ev("CoopNet.config.password = 'wolf'; CoopNet.open('host')")
+bad = Peer(12, 'join')
+pnet.add_guest(bad)
+bad.ev("CoopNet.config.password = 'cat'; CoopNet.open('join')")
+tick(pnet, [ph, bad], 30)
+check('wrong password: not let in', bad.ev('CoopNet.player') == 0 and ph.ev('CoopNet.peers.length') == 0,
+      [bad.ev('CoopNet.player'), ph.ev('CoopNet.peers.length')])
+check('wrong password: the guest is told why', bad.ev('CoopNet.rejected') == 'Wrong password', bad.ev('CoopNet.rejected'))
+tick(pnet, [ph, bad], 400)  # 6 s: it must not keep knocking
+check('a rejected guest does not retry by itself', bad.ev('!CoopNet.sock && !CoopNet.reconnectTimer'))
+old = Peer(13, 'join')
+pnet.add_guest(old)
+old.ev("CoopNet.config.password = 'wolf'; $dataSystem.versionId = 12345; CoopNet.open('join')")
+tick(pnet, [ph, old], 30)
+check('different game version: not let in, with the reason', old.ev('CoopNet.player') == 0 and 'game version' in old.ev('CoopNet.rejected'),
+      old.ev('CoopNet.rejected'))
+good = Peer(14, 'join')
+pnet.add_guest(good)
+good.ev("CoopNet.config.password = 'wolf'; CoopNet.open('join')")
+tick(pnet, [ph, good], 30)
+check('right password and same versions: let in as P2', good.ev('CoopNet.player') == 2 and ph.ev('CoopNet.peers.length') == 1,
+      [good.ev('CoopNet.player'), ph.ev('CoopNet.peers.length')])
+
 # --- over the internet: 100 ms each way (ping 200 ms) ---
 lh = Peer(7, 'host')
 lg = Peer(8, 'join')

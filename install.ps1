@@ -3,9 +3,10 @@
   Uso:  .\install.ps1 -GamePath "D:\Juegos\Fear & Hunger 2"
   Copia los plugins, registra los plugins en js\plugins.js (con copia de seguridad) y listo.
   -QuickSave instala tambien el plugin de pruebas F6/F7 (guardado rapido).
-  -Net host | -Net join -NetHost 192.168.1.20  instala el PROTOTIPO de juego en red y
-   escribe www\coop_net.json (puerto: -NetPort, por defecto 47810).
-  -Net menu  instala el prototipo sin configurarlo: se elige en Opciones > Co-op > Network game...
+  El juego en red (experimental) se instala siempre: sin usarlo no hace nada, se abre en
+   Opciones > Co-op > Network game... -NoNet no lo instala (y lo quita si estaba).
+  -Net host | -Net join -NetHost 192.168.1.20  deja elegidos el modo y la IP en ese menu
+   (www\coop_net.json; puerto: -NetPort, por defecto 47810).
 #>
 param(
     [Parameter(Mandatory = $true)][string]$GamePath,
@@ -14,8 +15,9 @@ param(
     [ValidateSet('auto', 'lookoutside', 'fearhunger', 'generic')][string]$Profile = 'auto',
     # plugin de pruebas: F6 = guardado rapido, F7 = carga rapida
     [switch]$QuickSave,
-    # prototipo de juego en red (lockstep): host = este PC es P1, join = se conecta a -NetHost
+    # juego en red: valores por defecto del menu (host = este PC es P1, join = se conecta a -NetHost)
     [ValidateSet('', 'host', 'join', 'menu')][string]$Net = '',
+    [switch]$NoNet,
     [string]$NetHost = '127.0.0.1',
     [int]$NetPort = 47810
 )
@@ -69,8 +71,12 @@ if ($Profile -eq 'auto') {
 $names = @('LookOutsideOnline')
 if ($Profile -eq 'fearhunger') { $names += 'LocalCoop_FearHunger' }
 if ($QuickSave) { $names += 'LocalCoop_QuickSave' }
-if ($Net) { $names += 'LocalCoop_Net' }
+if (-not $NoNet) { $names += 'LocalCoop_Net' }
 $text = [IO.File]::ReadAllText($pluginsJs)
+if ($NoNet -and -not $Uninstall) {
+    $text = [regex]::Replace($text, ',?\s*\{\s*"name"\s*:\s*"LocalCoop_Net".*?\}\s*(?=[,\]])', '', 'Singleline')
+    Remove-Item (Join-Path $pluginDir 'LocalCoop_Net.js') -ErrorAction SilentlyContinue
+}
 
 if ($Uninstall) {
     Copy-Item $pluginsJs "$pluginsJs.coop-uninstall.bak" -Force
@@ -112,8 +118,9 @@ Copy-Item (Join-Path $PSScriptRoot 'extras\coop_view.html') $viewPage -Force
 if ($Net -eq 'host' -or $Net -eq 'join') {
     $cfg = if ($Net -eq 'host') { "{ ""role"": ""host"", ""port"": $NetPort }" } else { "{ ""role"": ""join"", ""host"": ""$NetHost"", ""port"": $NetPort }" }
     [IO.File]::WriteAllText($netConfig, $cfg)
-    Write-Host "Juego en red (prototipo): $netConfig -> $cfg"
+    Write-Host "Juego en red: $netConfig -> $cfg"
 }
 [IO.File]::WriteAllText($pluginsJs, $text)
 Write-Host "Listo. Copia de seguridad: $bak"
 Write-Host 'Abre el juego: en el mapa X une a P2, U / Numpad 0 a P3 y Start en un mando une al siguiente jugador.'
+if (-not $NoNet) { Write-Host 'Juego en red (experimental): Opciones > Co-op > Network game... (ver NETPLAY.md)' }

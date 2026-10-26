@@ -1,10 +1,10 @@
 /*:
  * @target MV
- * @plugindesc v0.2 [PROTOTIPO] Co-op en red local: cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.2.0 [EXPERIMENTAL] Co-op en red (LAN o internet): cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @help
- * PROTOTIPO. Todo se hace en Opciones > Co-op > Network game...: el anfitrion abre la
+ * EXPERIMENTAL. Todo se hace en Opciones > Co-op > Network game...: el anfitrion abre la
  * partida ("Host") y la empieza cuando los demas estan conectados; los invitados escriben
  * la IP del anfitrion y pulsan "Connect". Nada se conecta solo al abrir el juego.
  *
@@ -78,7 +78,7 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto' };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '' };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
@@ -86,7 +86,8 @@
                 role: cfg.role === 'join' ? 'join' : 'host',
                 host: String(cfg.host || '127.0.0.1'),
                 port: Number(cfg.port) || DEFAULT_PORT,
-                delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto'
+                delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto',
+                password: String(cfg.password || '')
             };
         } catch (e) {
             console.error('LocalCoop_Net: coop_net.json no valido', e);
@@ -152,6 +153,7 @@
         pendingExtras: null,    // tras una instantanea: posiciones de P2-P4 a recolocar
         lastDesync: -9999,
         connected: false,
+        rejected: '',           // por que el anfitrion no nos dejo entrar (no se reintenta)
         ping: 0,
         pings: [],              // ultimos pings al anfitrion (invitado)
         delay: DEFAULT_DELAY,   // cuadros por delante a los que este PC manda sus teclas
@@ -1008,6 +1010,42 @@
         banner('Network game stopped', reason || '', '#ffaa44', 300);
     }
 
+    // ---- presentacion --------------------------------------------------------------------
+    // Al conectarse, el invitado dice que tiene: version del mod, version del juego, plugins
+    // activos y la contrasena. Con algo distinto la partida se separaria sin saber por que:
+    // el anfitrion no le deja entrar y le dice que es lo que no coincide.
+
+    const LOCAL_ONLY_PLUGINS = ['LocalCoop_QuickSave', 'LocalCoop_NetAutotest'];
+
+    function activePlugins() {
+        if (typeof $plugins === 'undefined' || !Array.isArray($plugins)) return [];
+        return $plugins.filter(pl => pl && pl.status && LOCAL_ONLY_PLUGINS.indexOf(pl.name) < 0).map(pl => pl.name);
+    }
+
+    function gameVersion() {
+        return ($dataSystem && $dataSystem.versionId) || 0;
+    }
+
+    function helloMessage() {
+        return { t: 'hello', mod: coop.version, game: gameVersion(), plugins: activePlugins(), pw: Net.config.password || '' };
+    }
+
+    // devuelve por que no puede entrar (o '' si todo coincide)
+    function helloProblem(msg) {
+        if (Net.config.password && msg.pw !== Net.config.password) return 'Wrong password';
+        if (msg.mod !== coop.version) return 'Different mod version: host ' + coop.version + ', you ' + msg.mod;
+        if (msg.game !== gameVersion()) return 'Different game version (update both copies of the game)';
+        const mine = activePlugins();
+        const theirs = Array.isArray(msg.plugins) ? msg.plugins : [];
+        const missing = mine.filter(n => theirs.indexOf(n) < 0);
+        const extra = theirs.filter(n => mine.indexOf(n) < 0);
+        if (missing.length || extra.length) {
+            return 'Different plugins' + (missing.length ? ' - missing: ' + missing.slice(0, 3).join(', ') : '') +
+                (extra.length ? ' - extra: ' + extra.slice(0, 3).join(', ') : '');
+        }
+        return '';
+    }
+
     // ---- anfitrion ----------------------------------------------------------------------
 
     function hostStoreInput(f, player, bits, readySeq) {
@@ -1129,49 +1167,78 @@
         return true;
     }
 
+    // un invitado ya presentado: se le da numero de jugador (o se le dice que esta lleno)
+    function acceptPeer(sock) {
+        const used = Net.peers.map(pp => pp.player);
+        // vuelve alguien que se habia ido: recupera su numero; si no, el primero libre
+        const lostOnes = Object.keys(Net.lost).map(Number).filter(n => used.indexOf(n) < 0).sort();
+        const player = lostOnes[0] || [2, 3, 4].find(n => used.indexOf(n) < 0 && Net.players.indexOf(n) < 0);
+        if (!player) {
+            send(sock, { t: 'full' });
+            sock.end();
+            return null;
+        }
+        const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false };
+        Net.peers.push(peer);
+        send(sock, { t: 'hi', player: player });
+        if (Net.active) {
+            Net.joinQueue.push(player);
+            banner('P' + player + ' connected', 'Joining at the next quiet moment...', COLOR_NET, 200);
+        } else {
+            banner('P' + player + ' connected', peer.address + '  -  Options > Co-op > Network game to start', COLOR_NET, 240);
+        }
+        return peer;
+    }
+
+    function peerGone(peer) {
+        if (Net.peers.indexOf(peer) < 0) return;
+        const player = peer.player;
+        Net.peers = Net.peers.filter(pp => pp !== peer);
+        Net.joinQueue = Net.joinQueue.filter(n => n !== player);
+        if (Net.active && Net.players.indexOf(player) >= 0) {
+            // su personaje vuelve a la fila en todos los PC a la vez (viaja con el proximo cuadro)
+            Net.lost[player] = true;
+            Net.pendingEvents.push({ k: 'away', n: player });
+            hostBuildFrames();
+        } else {
+            banner('P' + player + ' disconnected', '', '#ffaa44', 180);
+        }
+    }
+
     function startHost() {
         Net.server = netlib.createServer(sock => {
-            const used = Net.peers.map(pp => pp.player);
-            // vuelve alguien que se habia ido: recupera su numero; si no, el primero libre
-            const lostOnes = Object.keys(Net.lost).map(Number).filter(n => used.indexOf(n) < 0).sort();
-            const player = lostOnes[0] || [2, 3, 4].find(n => used.indexOf(n) < 0 && Net.players.indexOf(n) < 0);
-            if (!player) {
-                send(sock, { t: 'full' });
-                sock.end();
-                return;
-            }
-            const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false };
-            Net.peers.push(peer);
-            send(sock, { t: 'hi', player: player });
-            if (Net.active) {
-                Net.joinQueue.push(player);
-                banner('P' + player + ' connected', 'Joining at the next quiet moment...', COLOR_NET, 200);
-            } else {
-                banner('P' + player + ' connected', peer.address + '  -  Options > Co-op > Network game to start', COLOR_NET, 240);
-            }
+            let peer = null;
+            let rejected = false;
+            // quien no se presenta (otra version antigua, otro programa...) se va a los 5 s
+            const helloTimer = setTimeout(() => { if (!peer) sock.destroy(); }, 5000);
             readLines(sock, msg => {
-                if (msg.t === 'in') hostStoreInput(msg.f, player, msg.b | 0, msg.rs);
-                else if (msg.t === 'h') compareHash(player, msg.f, msg.h);
+                if (rejected) return;
+                if (!peer) {
+                    if (msg.t !== 'hello') return;
+                    clearTimeout(helloTimer);
+                    const problem = helloProblem(msg);
+                    if (problem) {
+                        rejected = true;
+                        send(sock, { t: 'reject', reason: problem });
+                        sock.end();
+                        banner('A player could not join (' + sock.remoteAddress + ')', problem, '#ffaa44', 300);
+                        return;
+                    }
+                    peer = acceptPeer(sock);
+                    return;
+                }
+                if (msg.t === 'in') hostStoreInput(msg.f, peer.player, msg.b | 0, msg.rs);
+                else if (msg.t === 'h') compareHash(peer.player, msg.f, msg.h);
                 else if (msg.t === 'ping') send(sock, { t: 'pong', ts: msg.ts });
                 else if (msg.t === 'pong') {
                     peer.ping = Math.round(performance.now() - msg.ts);
                     peer.pings = peer.pings.concat(peer.ping).slice(-PING_KEEP);
                 }
             });
-            const gone = () => {
-                if (Net.peers.indexOf(peer) < 0) return;
-                Net.peers = Net.peers.filter(pp => pp !== peer);
-                Net.joinQueue = Net.joinQueue.filter(n => n !== player);
-                if (Net.active && Net.players.indexOf(player) >= 0) {
-                    // su personaje pasa a la IA en todos los PC a la vez (viaja con el proximo cuadro)
-                    Net.lost[player] = true;
-                    Net.pendingEvents.push({ k: 'away', n: player });
-                    hostBuildFrames();
-                } else {
-                    banner('P' + player + ' disconnected', '', '#ffaa44', 180);
-                }
-            };
-            sock.on('close', gone);
+            sock.on('close', () => {
+                clearTimeout(helloTimer);
+                if (peer) peerGone(peer);
+            });
             sock.on('error', () => {});
         });
         Net.server.on('error', e => banner('Network: cannot open port ' + Net.config.port, String(e.code || e), '#ff5555', 400));
@@ -1189,6 +1256,7 @@
             sock.on('connect', () => {
                 Net.connected = true;
                 Net.pings = [];
+                send(sock, helloMessage());
             });
             readLines(sock, msg => {
                 if (msg.t === 'hi') {
@@ -1196,6 +1264,9 @@
                     banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
                     banner('The network game is full', '', '#ffaa44', 300);
+                } else if (msg.t === 'reject') {
+                    Net.rejected = String(msg.reason || 'Rejected');
+                    banner('The host did not let you in', Net.rejected, '#ff5555', 400);
                 } else if (msg.t === 'snap') {
                     applySnapshot(msg.meta, msg.save);
                 } else if (msg.t === 'fr') {
@@ -1215,7 +1286,7 @@
                 Net.sock = null;
                 Net.connected = false;
                 if (Net.active) endSession('Lost the connection to the host - reconnecting...');
-                if (Net.role === 'join') Net.reconnectTimer = setTimeout(tryConnect, 3000);
+                if (Net.role === 'join' && !Net.rejected) Net.reconnectTimer = setTimeout(tryConnect, 3000);
             });
         };
         tryConnect();
@@ -1244,6 +1315,7 @@
 
     function startNetworking(role) {
         stopNetworking();
+        Net.rejected = '';
         Net.role = role;
         Net.player = Net.role === 'host' ? 1 : 0;
         if (Net.role === 'host') startHost();
@@ -1279,7 +1351,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'delay', 'action', 'stop'];
+    const NET_ROWS = ['role', 'host', 'port', 'password', 'delay', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -1321,6 +1393,7 @@
             return { text: 'Start the network game (P' + [1].concat(Net.peers.map(pp => pp.player)).join(', P') + ')', on: true };
         }
         if (Net.active) return { text: 'Playing as P' + Net.player, on: false };
+        if (Net.rejected) return { text: 'Not let in: ' + Net.rejected, on: false };
         return { text: Net.connected ? 'Connected as P' + (Net.player || '?') + ' - waiting for the host' : 'Connecting to ' + Net.config.host + '...', on: false };
     };
 
@@ -1328,6 +1401,10 @@
         if (key === 'role') return Net.role === 'off' ? '< ' + ROLE_LABELS[this._cfg.role] + ' >' : ROLE_LABELS[Net.role];
         if (key === 'host') return this._editing === 'host' ? this._text + '_' : (this._cfg.role === 'join' ? this._cfg.host : '-');
         if (key === 'port') return this._editing === 'port' ? this._text + '_' : String(this._cfg.port);
+        if (key === 'password') {
+            if (this._editing === 'password') return this._text + '_';
+            return this._cfg.password ? '*'.repeat(this._cfg.password.length) : '(none)';
+        }
         if (key === 'delay') {
             const now = Net.active ? '  (now ' + Net.delay + ')' : '';
             return '< ' + (this._cfg.delay === 'auto' ? 'Auto (by ping)' : this._cfg.delay + ' frames') + ' >' + now;
@@ -1349,7 +1426,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', delay: 'Input delay', action: '', stop: '' };
+        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', delay: 'Input delay', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -1419,7 +1496,7 @@
             this.changeRole();
         } else if (key === 'delay') {
             this.changeDelay(1);
-        } else if (key === 'host' || key === 'port') {
+        } else if (key === 'host' || key === 'port' || key === 'password') {
             this._editing = key;
             this._text = '';
             SoundManager.playOk();
@@ -1451,12 +1528,13 @@
         if (k >= 48 && k <= 57) this._text += String(k - 48);
         else if (k >= 96 && k <= 105) this._text += String(k - 96);
         else if ((k === 190 || k === 110) && this._editing === 'host') this._text += '.';
-        else if (k >= 65 && k <= 90 && this._editing === 'host') this._text += String.fromCharCode(k).toLowerCase();
-        else if ((k === 189 || k === 109) && this._editing === 'host') this._text += '-';
+        else if (k >= 65 && k <= 90 && this._editing !== 'port') this._text += String.fromCharCode(k).toLowerCase();
+        else if ((k === 189 || k === 109) && this._editing !== 'port') this._text += '-';
         else if (k === 8) this._text = this._text.slice(0, -1);
         else if (k === 13) {
             if (this._editing === 'host' && /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(this._text)) this._cfg.host = this._text;
             if (this._editing === 'port' && Number(this._text) > 0 && Number(this._text) < 65536) this._cfg.port = Number(this._text);
+            if (this._editing === 'password') this._cfg.password = this._text.slice(0, 24); // vacio = sin contrasena
             this._editing = null;
             SoundManager.playOk();
         } else if (k === 27) {

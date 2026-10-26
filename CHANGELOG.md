@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## v1.2.0
+
+**Network game (experimental)** - every player on their own PC with their own copy of the game, over the LAN or the internet. See [docs/NETPLAY.md](docs/NETPLAY.md).
+- Options > Co-op > *Network game...*: the host opens the game and starts it, guests type the host's IP (or a name) and connect. Nothing connects by itself.
+- Lockstep: only the keys travel; every PC computes the same game (shared randomness, clock and frame counter, scenes and new maps start on the same frame everywhere, the host's game options). Every second the PCs compare the world; if they ever differ, the host sends its world to everybody and the game goes on.
+- Join or come back in the middle of the game; a player who leaves goes back into the party as a follower; a frozen guest is dropped after 5 s.
+- Menus don't pause the game: each player's menu runs on its own over the live map and only its owner sees it.
+- Adaptive input delay by ping (Auto, or 2-15 frames), password, and a check of mod version, game version and plugins when someone connects.
+- F10 shows ping, input delay and frames waiting.
+
 
 **Fixes**
 - Termina: when the game removed and put back the vision circle (fog), the co-op copy of the old one stayed on screen, frozen, hiding the players until the next battle or map change.
