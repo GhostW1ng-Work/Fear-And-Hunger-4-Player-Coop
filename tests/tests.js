@@ -652,7 +652,7 @@ var cfg = ConfigManager.makeData();
 check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
 var setScene = new Scene_CoopSettings(); setScene.create();
 var setList = setScene._coopList;
-function selectSetting(key) { setList.select(['localCoop', 'camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin'].indexOf(key)); }
+function selectSetting(key) { setList.select(['localCoop', 'camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin', 'updateCheck'].indexOf(key)); }
 // P3 solo con teclado numerico: I/J/K/L ya no son de P3
 SceneManager._scene = scene;
 selectSetting('p3Keys'); setList.cursorRight();
@@ -748,5 +748,12 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     SceneManager._scene = scene;
     check('T30f local co-op on again', ConfigManager.makeData().coopSettings.localCoop === true);
 })();
+
+// --- T31: aviso de nueva version ---
+check('T31 newer version: 1.4.0 > 1.3.0', CoopLocal.versionNewer('1.4.0', '1.3.0'));
+check('T31b same version is not newer', !CoopLocal.versionNewer('1.3.0', '1.3.0'));
+check('T31c 1.10.0 > 1.9.2 (numbers, not text)', CoopLocal.versionNewer('1.10.0', '1.9.2'));
+check('T31d older is not newer', !CoopLocal.versionNewer('1.2.5', '1.3.0'));
+check('T31e update check saved with the config (on by default)', ConfigManager.makeData().coopSettings.updateCheck === true);
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

@@ -3690,7 +3690,9 @@
         { key: 'p3Keys', name: 'P3 keyboard', values: ['all', 'numpad', 'ijkl'], labels: ['Numpad + IJKL', 'Numpad', 'IJKL'],
             help: 'Keys P3 can use on the keyboard.' },
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
-            help: 'On: players that were playing come back by themselves when a save is loaded.' }
+            help: 'On: players that were playing come back by themselves when a save is loaded.' },
+        { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
+            help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
 
     function cameraSettingName() {
@@ -3705,7 +3707,8 @@
         localCoop: true,
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
-        autoRejoin: AUTO_REJOIN
+        autoRejoin: AUTO_REJOIN,
+        updateCheck: true
     };
 
     function applyCoopSettings(changedKey) {
@@ -3760,6 +3763,73 @@
         }
         applyCoopSettings();
     };
+
+    // ---- NUEVA VERSION DEL MOD -------------------------------------------------------
+    // Una vez al arrancar se mira en GitHub cual es la ultima version publicada; si es mas
+    // nueva que esta, se avisa en la pantalla de titulo. Sin conexion no pasa nada.
+
+    const RELEASES_API = 'https://api.github.com/repos/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases/latest';
+    const RELEASES_PAGE = 'github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases';
+    const update = { checked: false, newer: null, shown: false };
+
+    // a mas nueva que b ("1.10.0" > "1.9.2")
+    function versionNewer(a, b) {
+        const pa = String(a).split('.').map(n => parseInt(n, 10) || 0);
+        const pb = String(b).split('.').map(n => parseInt(n, 10) || 0);
+        for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+            const d = (pa[i] || 0) - (pb[i] || 0);
+            if (d !== 0) return d > 0;
+        }
+        return false;
+    }
+
+    // con XMLHttpRequest del navegador (Chromium y los certificados de Windows): el modulo https
+    // del Node de NW.js 0.29 es de 2018 y puede no fiarse de los certificados de hoy
+    function checkForUpdate() {
+        if (update.checked || !coopSettings.updateCheck || typeof XMLHttpRequest === 'undefined') return;
+        update.checked = true;
+        try {
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', RELEASES_API);
+            xhr.timeout = 8000;
+            xhr.onload = () => {
+                if (xhr.status !== 200) return;
+                try {
+                    const tag = String(JSON.parse(xhr.responseText).tag_name || '').replace(/^v/i, '');
+                    if (tag && versionNewer(tag, COOP_VERSION)) update.newer = tag;
+                } catch (e) {
+                    // respuesta rara: nada
+                }
+            };
+            xhr.send();
+        } catch (e) {
+            // sin red: nada
+        }
+    }
+
+    function showUpdateNotice() {
+        if (!update.newer || update.shown) return;
+        update.shown = true;
+        CoopUI.banner('Co-op mod v' + update.newer + ' is available', 'You have v' + COOP_VERSION + '  -  ' + RELEASES_PAGE, '#7fb3ff', 600);
+    }
+
+    // la configuracion (con este ajuste) ya esta leida al empezar Scene_Boot
+    const _Scene_Boot_start = Scene_Boot.prototype.start;
+    Scene_Boot.prototype.start = function() {
+        _Scene_Boot_start.call(this);
+        checkForUpdate();
+    };
+
+    // el aviso sale en el titulo (o en el mapa si no hubo titulo); la respuesta puede llegar
+    // ya en el. Por Scene_Base: algunos plugins de titulo (UPP_TitlePlus) reemplazan su update.
+    const _Scene_Base_update = Scene_Base.prototype.update;
+    Scene_Base.prototype.update = function() {
+        _Scene_Base_update.call(this);
+        // (no en las escenas antes del titulo, p.ej. Scene_PretitleMap de Termina: el aviso se perderia)
+        if (update.newer && !update.shown && (this instanceof Scene_Title || this.constructor === Scene_Map)) showUpdateNotice();
+    };
+
+    CoopView.versionNewer = versionNewer;
 
     function Window_CoopText() {
         this.initialize.apply(this, arguments);

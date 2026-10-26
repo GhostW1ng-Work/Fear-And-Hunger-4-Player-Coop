@@ -54,7 +54,7 @@ The installer checks the game (title, RPG Maker version, Termina data version it
 
 ## Settings
 
-In the game: **Options > Co-op > Co-op settings...** - local co-op on / off (off: arrows, Enter, numpad and gamepads are normal P1 keys), camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading. They are saved with the game config (like the volume) and apply to every save.
+In the game: **Options > Co-op > Co-op settings...** - local co-op on / off (off: arrows, Enter, numpad and gamepads are normal P1 keys), camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading, check for updates (a notice on the title screen when a newer version is out). They are saved with the game config (like the volume) and apply to every save.
 
 ## Parameters (`LookOutsideOnline`)
 
