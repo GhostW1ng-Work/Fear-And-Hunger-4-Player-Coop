@@ -51,6 +51,8 @@
     const INPUT_DELAY = 3;      // cuadros de margen para que lleguen las teclas de todos
     const HASH_EVERY = 60;      // cada cuantos cuadros se compara la huella del mundo
     const MAX_CATCH_UP = 3;     // cuadros que se recuperan de golpe si un PC se queda atras
+    const STEP_MS = 1000 / 60;  // el juego va a 60 cuadros por segundo, sea cual sea el monitor
+    const LOG_KEEP = 12;        // huellas completas que se guardan para el registro de desync
     const ACTIONS = coop.actions;
     const KEY_START = 122;      // F11: el anfitrion empieza la partida en red
 
@@ -95,6 +97,9 @@
         inputs: {},             // cuadro -> { jugador: acciones }
         nextBuild: 0,
         ownHashes: {},          // cuadro -> huella del anfitrion
+        clockAcc: 0,            // tiempo acumulado para el siguiente cuadro
+        clockLast: 0,
+        history: {},            // cuadro -> huella completa (para el registro)
         // invitado
         sock: null,
         lastDesync: -9999
@@ -251,15 +256,39 @@
         }
     }
 
+    // ---- tiempo comun -------------------------------------------------------------------
+    // Algunas cosas del juego cuentan con el reloj o con los cuadros dibujados, que en cada PC
+    // van distinto: el dia/noche de TerraxLighting (new Date), VE_BasicModule en combate y el
+    // tiempo de juego (Graphics.frameCount). Durante cada cuadro de red el reloj y el contador
+    // son los de la partida en red: iguales en todos los PC.
+    const NativeDate = Date;
+    function netTimeMs() {
+        return Net.timeBase + Math.floor(Net.frame * STEP_MS);
+    }
+    function NetDate() {
+        if (arguments.length === 0) return new NativeDate(netTimeMs());
+        return new (Function.prototype.bind.apply(NativeDate, [null].concat(Array.prototype.slice.call(arguments))))();
+    }
+    NetDate.prototype = NativeDate.prototype;
+    NetDate.now = netTimeMs;
+    NetDate.UTC = NativeDate.UTC;
+    NetDate.parse = NativeDate.parse;
+
     // un cuadro de juego con las acciones de todos
     function netStep(pkt) {
         sendLocalInput(Net.frame + INPUT_DELAY);
         Net.allReady = pkt.rs;
-        applyActions(pkt.a);
-        SceneManager.updateInputData();
-        SceneManager.changeScene();
-        SceneManager.updateScene();
-        if (Net.frame % HASH_EVERY === 0) checkHash(Net.frame);
+        Graphics.frameCount = Net.frameBase + Net.frame;
+        window.Date = NetDate;
+        try {
+            applyActions(pkt.a);
+            SceneManager.updateInputData();
+            SceneManager.changeScene();
+            SceneManager.updateScene();
+            if (Net.frame % HASH_EVERY === 0) checkHash(Net.frame);
+        } finally {
+            window.Date = NativeDate;
+        }
         Net.frame++;
     }
 
@@ -269,16 +298,38 @@
             _SceneManager_updateMain.call(this);
             return;
         }
-        // un cuadro por cada uno que llegue de la red (y alguno mas si este PC va atrasado)
-        for (let i = 0; i < MAX_CATCH_UP && Net.frames[Net.frame]; i++) {
-            const pkt = Net.frames[Net.frame];
-            delete Net.frames[Net.frame];
-            netStep(pkt);
-            if (!Net.frames[Net.frame + 1]) break;
+        // 60 cuadros de juego por segundo segun el reloj (no segun el monitor). Los cuadros que
+        // llegan antes de tiempo esperan: son el margen de INPUT_DELAY. Si este PC se ha quedado
+        // atras (hay muchos esperando), recupera alguno de mas.
+        const now = performance.now();
+        Net.clockAcc += Math.min(250, now - (Net.clockLast || now));
+        Net.clockLast = now;
+        let steps = 0;
+        while (Net.clockAcc >= STEP_MS && steps < MAX_CATCH_UP) {
+            if (!Net.frames[Net.frame]) {
+                Net.clockAcc = Math.min(Net.clockAcc, STEP_MS); // esperando a la red: no se acumula tiempo
+                break;
+            }
+            runFrame();
+            Net.clockAcc -= STEP_MS;
+            steps++;
         }
+        if (steps < MAX_CATCH_UP && framesWaiting() > INPUT_DELAY + 2) runFrame();
         this.renderScene();
         this.requestUpdate();
     };
+
+    function runFrame() {
+        const pkt = Net.frames[Net.frame];
+        delete Net.frames[Net.frame];
+        netStep(pkt);
+    }
+
+    function framesWaiting() {
+        let n = 0;
+        while (n < 30 && Net.frames[Net.frame + n]) n++;
+        return n;
+    }
 
     // cada escena nueva solo empieza cuando todos la tienen cargada
     const _SceneManager_goto = SceneManager.goto;
@@ -348,8 +399,29 @@
     }
     const PART_NAMES = ['scene/map', 'players', 'events', 'party', 'switches', 'variables', 'random'];
 
+    function logFile() {
+        return path.join(path.dirname(process.mainModule.filename), 'coop_net_desync.log');
+    }
+
+    function writeDesyncLog(f, who, diff) {
+        const full = Net.history[f];
+        if (!full) return;
+        const lines = ['=== frame ' + f + '  (' + who + ')  ' + new NativeDate().toISOString() + '  different: ' + diff.join(', ')];
+        PART_NAMES.forEach((name, i) => {
+            if (diff.indexOf(name) >= 0) lines.push('[' + name + '] ' + full[i]);
+        });
+        try {
+            fs.appendFileSync(logFile(), lines.join('\n') + '\n');
+        } catch (e) {
+            console.error('LocalCoop_Net: no se pudo escribir el registro', e);
+        }
+    }
+
     function checkHash(f) {
-        const parts = worldParts().map(fnv);
+        const full = worldParts();
+        Net.history[f] = full;
+        delete Net.history[f - HASH_EVERY * LOG_KEEP];
+        const parts = full.map(fnv);
         if (Net.role === 'host') {
             Net.ownHashes[f] = parts;
         } else {
@@ -366,13 +438,15 @@
         if (f - Net.lastDesync > 600) {
             Net.lastDesync = f;
             banner('DESYNC with P' + player + ' (frame ' + f + ')', 'Different: ' + diff.join(', '), '#ff5555', 300);
+            writeDesyncLog(f, 'host, vs P' + player, diff);
         }
         Net.peers.forEach(peer => send(peer.sock, { t: 'desync', player: player, f: f, diff: diff }));
     }
 
     // ---- empezar / terminar la partida en red ----------------------------------------------
 
-    function beginSession(seed, saveJson, players) {
+    function beginSession(seed, saveJson, players, timeBase) {
+        Net.timeBase = Number(timeBase) || 0;
         Net.players = players.slice();
         Net.frame = 0;
         Net.frames = {};
@@ -389,10 +463,24 @@
         DataManager.createGameObjects();
         DataManager.extractSaveContents(JsonEx.parse(saveJson));
         $gameSystem.onAfterLoad();
+        Net.frameBase = Graphics.frameCount; // = tiempo de juego guardado, igual en todos
         coop.forceRestore(players.filter(p => p !== 1));
         coop.setCamera('p' + Net.player);
         Net.active = true;
+        Net.clockAcc = 0;
+        Net.clockLast = 0;
+        Net.history = {};
         coop.setPadCapture(capturePad);
+        // La escena de antes (el mapa del anfitrion, el titulo de los invitados) se cierra ya:
+        // si se dejara terminar su fundido, la del anfitrion seguiria moviendo el mundo unos
+        // cuadros que los invitados no tendrian.
+        const old = SceneManager._scene;
+        if (old) {
+            old.terminate();
+            old.detachReservation();
+        }
+        SceneManager._scene = null;
+        SceneManager._sceneStarted = false;
         SceneManager.goto(Scene_Map);
         // los primeros cuadros van sin teclas (margen de INPUT_DELAY)
         for (let f = 0; f < INPUT_DELAY; f++) {
@@ -491,8 +579,9 @@
         $gameSystem.onBeforeSave();
         const saveJson = JsonEx.stringify(DataManager.makeSaveContents());
         const seed = (nativeRandom() * 4294967296) | 0;
-        Net.peers.forEach(peer => send(peer.sock, { t: 'start', seed: seed, save: saveJson, players: players }));
-        beginSession(seed, saveJson, players);
+        const timeBase = NativeDate.now();
+        Net.peers.forEach(peer => send(peer.sock, { t: 'start', seed: seed, save: saveJson, players: players, time: timeBase }));
+        beginSession(seed, saveJson, players, timeBase);
     }
 
     window.addEventListener('keydown', e => {
@@ -512,12 +601,13 @@
                 } else if (msg.t === 'full') {
                     banner('The network game is full or already started', '', '#ffaa44', 300);
                 } else if (msg.t === 'start') {
-                    beginSession(msg.seed, msg.save, msg.players);
+                    beginSession(msg.seed, msg.save, msg.players, msg.time);
                 } else if (msg.t === 'fr') {
                     Net.frames[msg.f] = msg;
                 } else if (msg.t === 'desync') {
                     if (msg.player === Net.player && msg.f - Net.lastDesync > 600) {
                         Net.lastDesync = msg.f;
+                        writeDesyncLog(msg.f, 'P' + Net.player, msg.diff);
                         banner('DESYNC with the host (frame ' + msg.f + ')', 'Different: ' + msg.diff.join(', '), '#ff5555', 300);
                     }
                 } else if (msg.t === 'stop') {
