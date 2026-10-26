@@ -918,6 +918,12 @@
         return now;
     }
 
+    // teclas de P1 con las que el modo en red repite sus acciones (ver injectAction)
+    const P1_NET_KEYS = {
+        up: ['KeyW', 87], down: ['KeyS', 83], left: ['KeyA', 65], right: ['KeyD', 68],
+        ok: ['KeyZ', 90], cancel: ['KeyX', 88], shift: ['ShiftLeft', 16, 1]
+    };
+
     function sendPadKey(input, n, action, down) {
         const ev = fakeKeyEvent(padCode(n, action));
         if (down) {
@@ -1009,7 +1015,14 @@
     }
 
     const _Input_updateGamepadState = Input._updateGamepadState;
+    // el modo en red (LocalCoop_Net) se queda los mandos para mandarlos por la red
+    let padCapture = null;
+
     Input._updateGamepadState = function(gamepad) {
+        if (padCapture) {
+            padCapture(gamepad);
+            return;
+        }
         if (!GAMEPADS) {
             _Input_updateGamepadState.call(this, gamepad);
             return;
@@ -2046,6 +2059,35 @@
         },
         banner(title, sub, color, duration) {
             CoopUI.banner(title, sub, color, duration);
+        },
+        // ---- para el modo en red (LocalCoop_Net) ----
+        actions: KEY_ACTIONS,
+        // pulsa / suelta una accion (up, down, left, right, ok, cancel, shift) del jugador n, igual
+        // que si viniera de su teclado o mando: P1 con sus teclas, P2-P4 como su mando
+        injectAction(n, action, down) {
+            let ev;
+            if (n === 1) {
+                const k = P1_NET_KEYS[action];
+                if (!k) return;
+                ev = { code: k[0], keyCode: k[1], location: k[2] || 0, key: '', repeat: false, preventDefault: function() {}, __net: true };
+            } else {
+                ev = fakeKeyEvent(padCode(n, action));
+                ev.__net = true;
+            }
+            if (down) {
+                Input._onKeyDown(ev);
+                coopKeyDown(ev);
+            } else {
+                Input._onKeyUp(ev);
+                coopKeyUp(ev);
+            }
+        },
+        setPadCapture(fn) {
+            padCapture = fn || null;
+        },
+        // al empezar una partida en red: estos jugadores entran solos al cargar el mapa
+        forceRestore(players) {
+            CoopState.restore = { players: players.slice(), pads: {} };
         },
         setCamera(name) {
             if (CAM_BY_NAME[name] !== undefined) cameraMode = CAM_BY_NAME[name];
