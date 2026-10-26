@@ -991,6 +991,11 @@
         if (!this._editing && NET_ROWS[this.index()] === 'role') this.changeRole();
     };
 
+    // OK lo procesa la propia ventana (la escena no le da un manejador 'ok')
+    Window_CoopNet.prototype.isOkEnabled = function() {
+        return true;
+    };
+
     Window_CoopNet.prototype.processOk = function() {
         if (this._editing) return;
         const key = NET_ROWS[this.index()];

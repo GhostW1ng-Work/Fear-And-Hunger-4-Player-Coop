@@ -114,6 +114,21 @@ var require = function(name) {
     if (name === 'net') return __netlib;
     throw new Error('no ' + name);
 };
+function __menuPress(role) {
+    if (!$gameParty) DataManager.createGameObjects(); // como al arrancar el juego (Scene_Boot)
+    var sc = new Scene_CoopNet();
+    sc.create();
+    var w = sc._netList;
+    if (w._cfg.role !== role) w.cursorRight();
+    w.select(3);
+    Input.clear();
+    Input._currentState.ok = true;
+    Input._latestButton = 'ok';
+    Input._pressedTime = 0;
+    w.processHandling();
+    Input.clear();
+    sc.terminate();
+}
 function __tick(ms) { __now += ms; __tickTimers(); SceneManager.updateMain(); }
 function __world() {
     var players = CoopLocal.allPlayers().map(function(p) { return p ? [p._x, p._y, p._direction].join('.') : 'null'; }).join('|');
@@ -253,8 +268,10 @@ check('host is on the map before starting', host.ev('SceneManager._scene instanc
 tick(net, [host, g2], 3)
 check('nothing connects by itself when the game opens',
       host.ev('CoopNet.role') == 'off' and g2.ev('CoopNet.role') == 'off' and not g2.ev('CoopNet.connected'))
-host.ev("CoopNet.open('host')")
-g2.ev("CoopNet.open('join')")
+# the buttons of Options > Co-op > Network game, pressed with a real OK (Input)
+host.ev("__menuPress('host')")
+g2.ev("__menuPress('join')")
+check('menu buttons open the game / connect', host.ev('CoopNet.role') == 'host' and g2.ev('CoopNet.role') == 'join')
 tick(net, [host, g2], 3)
 check('guest connected as P2 (after "Connect")', g2.ev('CoopNet.player') == 2, g2.ev('CoopNet.player'))
 
