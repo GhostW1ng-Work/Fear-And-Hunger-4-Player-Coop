@@ -964,9 +964,23 @@
         return mine.length > 0 ? mine : list;
     };
 
+    // la pagina lleva "Procesar combate" (o llama a un evento comun que lo lleva: asi lo hacen
+    // los enemigos de Termina)
+    function listStartsBattle(list, depth) {
+        if (!list || depth > 3) return false;
+        return list.some(c => {
+            if (!c) return false;
+            if (c.code === 301) return true;
+            if (c.code === 117) {
+                const ce = $dataCommonEvents[c.parameters[0]];
+                return !!ce && listStartsBattle(ce.list, depth + 1);
+            }
+            return false;
+        });
+    }
+
     function pageStartsBattle(ev) {
-        const list = ev.list ? ev.list() : null;
-        return !!list && list.some(c => c && c.code === 301);
+        return listStartsBattle(ev.list ? ev.list() : null, 0);
     }
 
     // los que luchan tienen las teclas del combate (cada uno las suyas, se usan las del que elige)
@@ -1030,7 +1044,7 @@
         _BattleManager_startInput.call(this);
     };
 
-    // OK al lado de uno que lucha (mirandole) = unirse
+    // OK al lado de uno que lucha (en cualquiera de las 8 casillas de alrededor) = unirse
     function checkJoinPresses() {
         const OK = 1 << ACTIONS.indexOf('ok');
         Net.players.forEach(n => {
@@ -1040,11 +1054,9 @@
             if (!pressed || inSeparateBattle(n) || subs[n]) return;
             const p = coop.player(n);
             if (!p) return;
-            const x2 = $gameMap.roundXWithDirection(p.x, p.direction());
-            const y2 = $gameMap.roundYWithDirection(p.y, p.direction());
             const next = battle.involved.some(m => {
                 const q = coop.player(m);
-                return q && ((q.x === x2 && q.y === y2) || (q.x === p.x && q.y === p.y));
+                return q && Math.abs($gameMap.deltaX(q.x, p.x)) <= 1 && Math.abs($gameMap.deltaY(q.y, p.y)) <= 1;
             });
             if (next) queueJoin(n);
         });
@@ -1189,7 +1201,8 @@
         if (inSeparateBattle(n)) {
             this._starting = false;
             this.unlock();
-        } else if (pageStartsBattle(this)) {
+        } else if (pageStartsBattle(this) || (battle.interp && battle.interp._eventId === this.eventId() && battle.interp._mapId === $gameMap.mapId())) {
+            // un enemigo (o el mismo con el que ya luchan): entra en ese combate
             this._starting = false;
             this.unlock();
             queueJoin(n);
