@@ -78,7 +78,7 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '' };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '', battles: 'together' };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
@@ -87,7 +87,8 @@
                 host: String(cfg.host || '127.0.0.1'),
                 port: Number(cfg.port) || DEFAULT_PORT,
                 delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto',
-                password: String(cfg.password || '')
+                password: String(cfg.password || ''),
+                battles: cfg.battles === 'separate' ? 'separate' : 'together'
             };
         } catch (e) {
             console.error('LocalCoop_Net: coop_net.json no valido', e);
@@ -157,6 +158,10 @@
         ping: 0,
         pings: [],              // ultimos pings al anfitrion (invitado)
         delay: DEFAULT_DELAY,   // cuadros por delante a los que este PC manda sus teclas
+        separate: false,        // combates aparte (lo decide el anfitrion al empezar)
+        battleSeq: 0,           // cuantos combates aparte ha habido (igual en todos los PC)
+        battleReadyAll: 0,      // combate aparte que ya han cargado todos (viene en cada cuadro)
+        prevRaw: {},            // acciones del cuadro anterior (para ver pulsaciones nuevas)
         // anfitrion
         server: null,
         peers: [],              // { sock, player, ready, address, ping, inSession }
@@ -343,9 +348,15 @@
         return scene.isReady() ? seq * 2 + 2 : seq * 2 + 1;
     }
 
+    // combate aparte que este PC ya tiene cargado (sus imagenes): empieza cuando lo tienen todos
+    function myBattleReady() {
+        if (!battle || battle.started) return Net.battleSeq;
+        return battle.scene.isReady() ? battle.seq : battle.seq - 1;
+    }
+
     function sendInput(f, bits) {
-        if (Net.role === 'host') hostStoreInput(f, 1, bits, myReadySeq());
-        else send(Net.sock, { t: 'in', f: f, b: bits, rs: myReadySeq() });
+        if (Net.role === 'host') hostStoreInput(f, 1, bits, myReadySeq(), myBattleReady());
+        else send(Net.sock, { t: 'in', f: f, b: bits, rs: myReadySeq(), br: myBattleReady() });
     }
 
     function applyActions(all) {
@@ -356,7 +367,7 @@
             // con su menu abierto, sus teclas son del menu; al cerrarlo, las que siguen pulsadas
             // no cuentan en el mapa hasta soltarlas (si no, Cancelar volveria a abrir el menu)
             Net.mask[p] = (Net.mask[p] || 0) & raw;
-            const cur = subs[p] ? 0 : (raw & ~Net.mask[p]);
+            const cur = (subs[p] || inSeparateBattle(p)) ? 0 : (raw & ~Net.mask[p]);
             if (prev === cur) continue;
             ACTIONS.forEach((action, i) => {
                 const was = (prev >> i) & 1;
@@ -382,6 +393,7 @@
     // quien se fue vuelve a ser un seguidor normal en cuanto se esta en el mapa
     function processLeft() {
         Object.keys(Net.left).map(Number).forEach(n => {
+            if (inSeparateBattle(n)) return; // su personaje acaba el combate con la IA
             if (!coop.player(n)) delete Net.left[n];
             else if (SceneManager._sceneStarted && !SceneManager._nextScene && coop.removePlayer(n)) {
                 delete Net.left[n];
@@ -410,7 +422,7 @@
     function isSafePoint() {
         return SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted && !SceneManager._nextScene &&
             !$gameMap.isEventRunning() && !$gameMessage.isBusy() && !$gamePlayer.isTransferring() && !Net.pendingExtras &&
-            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0;
+            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0 && !battle;
     }
 
     // Cuantos cuadros por delante manda este PC sus teclas. Tienen que llegar antes de que
@@ -451,6 +463,7 @@
     function netStep(pkt) {
         sendLocalInput();
         Net.allReady = pkt.rs;
+        if (pkt.br !== undefined) Net.battleReadyAll = pkt.br;
         Graphics.frameCount = Net.frameBase + Net.frame;
         window.Date = NetDate;
         try {
@@ -813,7 +826,10 @@
 
     const _Scene_Map_update = Scene_Map.prototype.update;
     Scene_Map.prototype.update = function() {
-        if (Net.active && !inSub) updateSubs();
+        if (Net.active && !inSub) {
+            updateBattle();
+            updateSubs();
+        }
         _Scene_Map_update.call(this);
     };
 
@@ -823,7 +839,8 @@
     }
 
     // el personaje de quien esta en su menu no se mueve ni interactua
-    coop.setBusy(n => Net.active && !!subs[n]);
+    coop.setBusy(n => Net.active && (!!subs[n] || inSeparateBattle(n)));
+    coop.setHidden(n => Net.active && inSeparateBattle(n));
 
     // Cargar partida y Salir no sirven en la partida en red (cada PC tiene sus archivos)
     const _Window_MenuCommand_makeCommandList = Window_MenuCommand.prototype.makeCommandList;
@@ -836,12 +853,347 @@
     // el juego sigue igual por detras
     const _SceneManager_renderScene = SceneManager.renderScene;
     SceneManager.renderScene = function() {
+        // quien lucha ve su combate (tambien mientras los demas cargan otro mapa: sin "Loading")
+        if (Net.active && battle && battle.started && inSeparateBattle(Net.player)) {
+            Graphics.render(battle.scene);
+            return;
+        }
         const sub = Net.active && subs[Net.player];
         if (!sub || !(this._scene instanceof Scene_Map) || !this._sceneStarted) {
             _SceneManager_renderScene.call(this);
             return;
         }
         Graphics.render(sub.scene);
+    };
+
+    // ---- combates aparte ------------------------------------------------------------------
+    // Con "Battles: Separate", un combate que empieza un jugador (un enemigo le toca, o habla
+    // con el) es solo suyo: lo luchan su personaje y los companeros que maneja; los demas
+    // siguen en el mapa. Como los menus, el combate es una escena aparte que se actualiza en
+    // todos los PC (cambia el mundo) y solo la ven los que luchan. Tiene sus propios mensajes,
+    // pantalla (destellos, imagenes) y eventos comunes pendientes, para no mezclarse con el
+    // mapa. Mientras dura:
+    //  - el evento que lo empezo espera, pero el mapa no se para (los demas andan);
+    //  - los eventos que los demas activen esperan a que termine (no hay dos dialogos a la vez);
+    //  - los enemigos no ven a los que luchan;
+    //  - otro jugador se une si un enemigo le toca o si pulsa OK al lado de uno que lucha
+    //    (entra al empezar el siguiente turno);
+    //  - un combate que empieza sin jugador (escena, evento comun) es para todos, como siempre.
+
+    let battle = null;      // { scene, stack, involved, inputs, started, seq, screen, message, temp, inBattle, interp, joins }
+    let inBattleCtx = false;
+    const AUDIO_CALLS = ['playBgm', 'playBgs', 'playMe', 'playSe', 'playStaticSe', 'replayBgm', 'replayBgs', 'fadeOutBgm',
+        'fadeOutBgs', 'fadeOutMe', 'fadeInBgm', 'fadeInBgs', 'stopBgm', 'stopBgs', 'stopMe', 'stopSe', 'stopAll'];
+
+    function inSeparateBattle(n) {
+        return !!battle && battle.involved.indexOf(n) >= 0;
+    }
+
+    // de quien son las teclas en el combate (si es de alguien que no lucha, del primero que lucha)
+    function battleInputOwner() {
+        const n = coop.inputOwner();
+        return battle.involved.indexOf(n) >= 0 ? n : battle.involved[0];
+    }
+
+    // ejecuta fn como si el combate fuera la escena actual (ver withSub)
+    function withBattle(fn) {
+        const sm = SceneManager;
+        const b = battle;
+        const saved = {
+            scene: sm._scene, stack: sm._stack, next: sm._nextScene, message: $gameMessage, screen: $gameScreen,
+            temp: $gameTemp, inBattle: $gameParty._inBattle, owner: coop.menuOwner(), timer: $gameTimer.update, input: {}, audio: {}
+        };
+        sm._scene = b.scene;
+        sm._stack = b.stack;
+        sm._nextScene = null;
+        $gameMessage = b.message;
+        $gameScreen = b.screen;
+        $gameTemp = b.temp;
+        $gameParty._inBattle = b.inBattle;
+        coop.setMenuOwner(0);
+        $gameTimer.update = function() {}; // el mapa ya lo avanza
+        // el sonido del combate solo en los PC de los que luchan (es solo sonido)
+        const muted = b.involved.indexOf(Net.player) < 0;
+        if (muted) {
+            AUDIO_CALLS.forEach(name => {
+                saved.audio[name] = AudioManager[name];
+                AudioManager[name] = function() {};
+            });
+        }
+        inSub = true;
+        inBattleCtx = true;
+        const owner = battleInputOwner();
+        const vin = b.inputs[owner] || (b.inputs[owner] = newVirtualInput(Net.raw[owner] || 0));
+        INPUT_FIELDS.forEach(f => {
+            saved.input[f] = Input[f];
+            Input[f] = vin[f];
+        });
+        let next = null;
+        try {
+            fn();
+        } finally {
+            INPUT_FIELDS.forEach(f => {
+                vin[f] = Input[f];
+                Input[f] = saved.input[f];
+            });
+            inSub = false;
+            inBattleCtx = false;
+            next = sm._nextScene;
+            b.stack = sm._stack;
+            b.inBattle = $gameParty._inBattle;
+            sm._scene = saved.scene;
+            sm._stack = saved.stack;
+            sm._nextScene = saved.next;
+            $gameMessage = saved.message;
+            $gameScreen = saved.screen;
+            $gameTemp = saved.temp;
+            $gameParty._inBattle = saved.inBattle;
+            coop.setMenuOwner(saved.owner);
+            $gameTimer.update = saved.timer;
+            if (muted) AUDIO_CALLS.forEach(name => { AudioManager[name] = saved.audio[name]; });
+        }
+        return next;
+    }
+
+    // en el combate aparte solo luchan los personajes de los que estan en el
+    const _Game_Party_battleMembers = Game_Party.prototype.battleMembers;
+    Game_Party.prototype.battleMembers = function() {
+        const list = _Game_Party_battleMembers.call(this);
+        if (!inBattleCtx || !battle) return list;
+        const mine = list.filter(a => battle.involved.indexOf(coop.battleOwnerOf(a)) >= 0);
+        return mine.length > 0 ? mine : list;
+    };
+
+    function pageStartsBattle(ev) {
+        const list = ev.list ? ev.list() : null;
+        return !!list && list.some(c => c && c.code === 301);
+    }
+
+    // los que luchan tienen las teclas del combate (cada uno las suyas, se usan las del que elige)
+    function stepBattleInputs() {
+        battle.involved.forEach(n => {
+            const vin = battle.inputs[n] || (battle.inputs[n] = newVirtualInput(Net.raw[n] || 0));
+            const saved = {};
+            INPUT_FIELDS.forEach(f => {
+                saved[f] = Input[f];
+                Input[f] = vin[f];
+            });
+            updateVirtualInput(Net.raw[n] || 0);
+            INPUT_FIELDS.forEach(f => {
+                vin[f] = Input[f];
+                Input[f] = saved[f];
+            });
+        });
+    }
+
+    function battleStartAudio() {
+        // como Scene_Map.launchBattle, solo el sonido
+        BattleManager.saveBgmAndBgs();
+        AudioManager.stopBgs();
+        AudioManager.stopMe();
+        SoundManager.playBattleStart();
+    }
+
+    function queueJoin(n) {
+        if (!battle || inSeparateBattle(n) || battle.joins.indexOf(n) >= 0) return;
+        if (n !== 1 && !coop.player(n)) return;
+        battle.joins.push(n);
+        if (!battle.started) applyJoins();
+    }
+
+    function applyJoins() {
+        const b = battle;
+        const joins = b.joins.splice(0);
+        if (joins.length === 0) return;
+        const before = $gameParty.battleMembers();
+        joins.forEach(n => {
+            closeSub(n);
+            b.involved.push(n);
+            b.inputs[n] = newVirtualInput(Net.raw[n] || 0);
+            banner('P' + n + ' joins the battle', '', COLOR_NET, 160);
+            if (n === Net.player) {
+                battleStartAudio();
+                BattleManager.playBattleBgm();
+            }
+        });
+        if (b.started) {
+            const after = $gameParty.battleMembers();
+            after.filter(a => before.indexOf(a) < 0).forEach(a => a.onBattleStart());
+            if (b.scene._statusWindow && b.scene._statusWindow.refresh) b.scene._statusWindow.refresh();
+        }
+    }
+
+    // los que se unen entran al empezar un turno (no a mitad de las acciones)
+    const _BattleManager_startInput = BattleManager.startInput;
+    BattleManager.startInput = function() {
+        if (inBattleCtx && battle && battle.joins.length > 0) applyJoins();
+        _BattleManager_startInput.call(this);
+    };
+
+    // OK al lado de uno que lucha (mirandole) = unirse
+    function checkJoinPresses() {
+        const OK = 1 << ACTIONS.indexOf('ok');
+        Net.players.forEach(n => {
+            const raw = Net.raw[n] || 0;
+            const pressed = (raw & OK) && !((Net.prevRaw[n] || 0) & OK);
+            Net.prevRaw[n] = raw;
+            if (!pressed || inSeparateBattle(n) || subs[n]) return;
+            const p = coop.player(n);
+            if (!p) return;
+            const x2 = $gameMap.roundXWithDirection(p.x, p.direction());
+            const y2 = $gameMap.roundYWithDirection(p.y, p.direction());
+            const next = battle.involved.some(m => {
+                const q = coop.player(m);
+                return q && ((q.x === x2 && q.y === y2) || (q.x === p.x && q.y === p.y));
+            });
+            if (next) queueJoin(n);
+        });
+    }
+
+    function closeBattle() {
+        const b = battle;
+        if (!b) return;
+        try {
+            withBattle(() => b.scene.terminate());
+        } catch (e) {
+            logError('closing the separate battle', e);
+        }
+        battle = null;
+        // un evento comun que el combate dejo pendiente sigue en el mapa
+        if (b.temp.isCommonEventReserved()) $gameTemp.reserveCommonEvent(b.temp._commonEventId);
+        b.involved.forEach(n => { Net.mask[n] = Net.raw[n] || 0; });
+    }
+
+    function changeBattle(next) {
+        if (next instanceof Scene_Map) {
+            closeBattle();
+            return;
+        }
+        // fin de partida, titulo...: se cierra el combate y esa escena va para todos
+        closeBattle();
+        Net.sceneSeq++;
+        SceneManager._nextScene = next;
+    }
+
+    function updateBattle() {
+        if (!battle) return;
+        checkJoinPresses();
+        if (!battle.started) {
+            if (Net.battleReadyAll < battle.seq) return; // alguien aun lo esta cargando
+            battle.started = true;
+            const first = withBattle(() => battle.scene.start());
+            if (first) changeBattle(first);
+            return;
+        }
+        stepBattleInputs();
+        let next = null;
+        try {
+            next = withBattle(() => battle.scene.update());
+        } catch (e) {
+            logError('separate battle', e);
+            closeBattle();
+            return;
+        }
+        if (next) changeBattle(next);
+    }
+
+    // "Procesar combate" de un evento que empezo un jugador: combate aparte
+    const _Game_Interpreter_command301 = Game_Interpreter.prototype.command301;
+    Game_Interpreter.prototype.command301 = function() {
+        if (!Net.active || !Net.separate || inSub) return _Game_Interpreter_command301.call(this);
+        if (battle) return false; // ya hay un combate aparte: este espera (no caben dos a la vez)
+        const starter = this._coopStarter;
+        const map = SceneManager._scene;
+        if (!(map instanceof Scene_Map) || !starter || (starter !== 1 && !coop.player(starter)) || $gameParty.inBattle()) {
+            return _Game_Interpreter_command301.call(this);
+        }
+        const b = {
+            scene: null, stack: null, involved: [starter], inputs: {}, started: false, seq: Net.battleSeq + 1, joins: [],
+            screen: new Game_Screen(), message: new Game_Message(), temp: new Game_Temp(), inBattle: false, interp: this
+        };
+        b.screen._tone = $gameScreen._tone.slice(); // el tono del mapa (noche, interiores...)
+        // el combate se prepara con sus propios mensajes y pantalla, sin salir del mapa
+        const sm = SceneManager;
+        const saved = { stack: sm._stack, next: sm._nextScene, message: $gameMessage, screen: $gameScreen, temp: $gameTemp };
+        sm._stack = [];
+        sm._nextScene = null;
+        $gameMessage = b.message;
+        $gameScreen = b.screen;
+        $gameTemp = b.temp;
+        map.stop = function() {};
+        inSub = true;
+        let result = true;
+        let next = null;
+        try {
+            result = _Game_Interpreter_command301.call(this);
+        } finally {
+            inSub = false;
+            delete map.stop;
+            next = sm._nextScene;
+            b.stack = sm._stack;
+            sm._stack = saved.stack;
+            sm._nextScene = saved.next;
+            $gameMessage = saved.message;
+            $gameScreen = saved.screen;
+            $gameTemp = saved.temp;
+        }
+        if (!(next instanceof Scene_Battle)) return result;
+        b.scene = next;
+        b.inputs[starter] = newVirtualInput(Net.raw[starter] || 0);
+        Net.battleSeq = b.seq;
+        battle = b;
+        closeSub(starter);
+        this._waitMode = 'coopBattle';
+        if (starter === Net.player) battleStartAudio();
+        else banner('P' + starter + ' is in a battle', 'Stand next to them and press OK to join', '#ffaa44', 240);
+        try {
+            withBattle(() => {
+                b.scene.create();
+                // los filtros de pantalla del mapa (FilterController) los lleva el mapa
+                if (typeof b.scene.updateTKMfilters === 'function') b.scene.updateTKMfilters = function() {};
+            });
+        } catch (e) {
+            logError('starting the separate battle', e);
+            battle = null;
+            this._waitMode = '';
+        }
+        return result;
+    };
+
+    // el evento que empezo el combate espera a que termine (y luego sigue: "si gana", etc.)
+    const _Game_Interpreter_updateWaitMode = Game_Interpreter.prototype.updateWaitMode;
+    Game_Interpreter.prototype.updateWaitMode = function() {
+        if (this._waitMode === 'coopBattle') {
+            if (battle && battle.interp === this) return true;
+            this._waitMode = '';
+            return false;
+        }
+        return _Game_Interpreter_updateWaitMode.call(this);
+    };
+
+    // ... pero no para el mapa: para los demas no hay "evento en marcha" (andan, abren su menu)
+    const _Game_Map_isEventRunning = Game_Map.prototype.isEventRunning;
+    Game_Map.prototype.isEventRunning = function() {
+        const running = _Game_Map_isEventRunning.call(this);
+        if (running && battle && !inBattleCtx && this._interpreter === battle.interp && this._interpreter._waitMode === 'coopBattle') return false;
+        return running;
+    };
+
+    // eventos durante un combate aparte: los que luchan no estan; un enemigo que toca a otro
+    // jugador le mete en el combate (en vez de empezar otro)
+    const _Game_Event_start = Game_Event.prototype.start;
+    Game_Event.prototype.start = function() {
+        _Game_Event_start.call(this);
+        if (!battle || !this._starting) return;
+        const n = this._coopStarter || 1;
+        if (inSeparateBattle(n)) {
+            this._starting = false;
+            this.unlock();
+        } else if (pageStartsBattle(this)) {
+            this._starting = false;
+            this.unlock();
+            queueJoin(n);
+        }
     };
 
     // ---- huella del mundo (para detectar que los PC se han separado) -------------------
@@ -857,7 +1209,8 @@
 
     function worldParts() {
         const scene = (SceneManager._scene ? SceneManager._scene.constructor.name : '-') +
-            Object.keys(subs).map(n => ' P' + n + ' ' + subs[n].scene.constructor.name).join('');
+            Object.keys(subs).map(n => ' P' + n + ' ' + subs[n].scene.constructor.name).join('') +
+            (battle ? ' battle[' + battle.involved.join(',') + (battle.started ? '' : ' loading') + ']' : '');
         const players = coop.allPlayers().map(p => [p._x, p._y, p._direction].join('.')).join('|');
         const events = $gameMap ? $gameMap.events().map(e => e ? [e._eventId, e._x, e._y, e._direction, e._pageIndex].join('.') : '').join('|') : '';
         const party = $gameParty ? $gameParty._actors.join('.') + ':' + $gameParty.members().map(a => a.hp + '/' + a.mp).join('.') : '';
@@ -966,7 +1319,11 @@
         Net.frameBase = meta.frameBase;
         Net.timeBase = meta.timeBase;
         Net.sceneSeq = meta.sceneSeq;
+        Net.battleSeq = meta.battleSeq || 0;
+        Net.battleReadyAll = Net.battleSeq;
+        Net.separate = !!meta.separate;
         closeAllSubs();
+        if (battle) closeBattle();
         Net.applied = {};
         Net.raw = {};
         Net.mask = {};
@@ -997,6 +1354,7 @@
     function endSession(reason) {
         if (!Net.active) return;
         closeAllSubs();
+        if (battle) closeBattle();
         Net.active = false;
         if (Net.localConfig) ConfigManager.applyData(Net.localConfig);
         Math.random = nativeRandom;
@@ -1048,14 +1406,19 @@
 
     // ---- anfitrion ----------------------------------------------------------------------
 
-    function hostStoreInput(f, player, bits, readySeq) {
+    function hostStoreInput(f, player, bits, readySeq, battleReady) {
         if (!Net.active || f < Net.nextBuild) return;
         if (!Net.inputs[f]) Net.inputs[f] = {};
         Net.inputs[f][player] = bits;
-        if (player === 1) Net.hostReady = readySeq;
-        else {
+        if (player === 1) {
+            Net.hostReady = readySeq;
+            Net.hostBattleReady = battleReady;
+        } else {
             const peer = Net.peers.find(pp => pp.player === player);
-            if (peer) peer.ready = readySeq;
+            if (peer) {
+                peer.ready = readySeq;
+                peer.battleReady = battleReady;
+            }
         }
         hostBuildFrames();
     }
@@ -1082,6 +1445,8 @@
             Net.players.forEach(p => { a[p] = Net.lost[p] ? 0 : got[p]; });
             const ready = [Net.hostReady].concat(sessionPeers().map(pp => pp.ready));
             const pkt = { t: 'fr', f: f, a: a, rs: Math.min.apply(null, ready.map(r => (r === undefined ? -1 : r))) };
+            const bready = [Net.hostBattleReady].concat(sessionPeers().map(pp => pp.battleReady));
+            pkt.br = Math.min.apply(null, bready.map(r => (r === undefined ? -1 : r)));
             if (Net.pendingEvents.length > 0) pkt.ev = Net.pendingEvents.splice(0);
             Net.frames[f] = pkt;
             sessionPeers().forEach(peer => send(peer.sock, pkt));
@@ -1114,7 +1479,12 @@
         Net.players.sort();
         const reason = first ? '' : (Net.joinQueue.length > 0 ? 'P' + Net.joinQueue.join(', P') + ' joined' : 'Back in sync');
         const peersNow = Net.peers.filter(pp => Net.players.indexOf(pp.player) >= 0);
-        peersNow.forEach(pp => { pp.inSession = true; pp.ready = -1; });
+        peersNow.forEach(pp => {
+            pp.inSession = true;
+            pp.ready = -1;
+            pp.battleReady = Net.battleSeq;
+        });
+        Net.hostBattleReady = Net.battleSeq;
         Net.blockedSince = 0;
         $gameSystem.onBeforeSave();
         const meta = {
@@ -1125,6 +1495,8 @@
             frameBase: first ? $gameSystem._framesOnSave : Net.frameBase,
             timeBase: first ? NativeDate.now() : Net.timeBase,
             sceneSeq: Net.sceneSeq,
+            battleSeq: Net.battleSeq,
+            separate: Net.config.battles === 'separate',
             extras: first ? [] : coop.players().map(p => ({ n: p.coopIndex(), actor: p._coopActorId, x: p._x, y: p._y, d: p._direction }))
                 // quien vuelve tras irse: su personaje de antes, junto a P1
                 .concat(back.filter(n => !coop.player(n)).map(n => ({ n: n, actor: coop.lastActor(n), x: $gamePlayer.x, y: $gamePlayer.y, d: $gamePlayer.direction() }))),
@@ -1227,7 +1599,7 @@
                     peer = acceptPeer(sock);
                     return;
                 }
-                if (msg.t === 'in') hostStoreInput(msg.f, peer.player, msg.b | 0, msg.rs);
+                if (msg.t === 'in') hostStoreInput(msg.f, peer.player, msg.b | 0, msg.rs, msg.br);
                 else if (msg.t === 'h') compareHash(peer.player, msg.f, msg.h);
                 else if (msg.t === 'ping') send(sock, { t: 'pong', ts: msg.ts });
                 else if (msg.t === 'pong') {
@@ -1351,7 +1723,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'password', 'delay', 'action', 'stop'];
+    const NET_ROWS = ['role', 'host', 'port', 'password', 'delay', 'battles', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -1405,6 +1777,10 @@
             if (this._editing === 'password') return this._text + '_';
             return this._cfg.password ? '*'.repeat(this._cfg.password.length) : '(none)';
         }
+        if (key === 'battles') {
+            const label = this._cfg.battles === 'separate' ? 'Separate (experimental)' : 'Together';
+            return Net.role === 'join' ? "(the host's)" : '< ' + label + ' >';
+        }
         if (key === 'delay') {
             const now = Net.active ? '  (now ' + Net.delay + ')' : '';
             return '< ' + (this._cfg.delay === 'auto' ? 'Auto (by ping)' : this._cfg.delay + ' frames') + ' >' + now;
@@ -1420,13 +1796,14 @@
         if (key === 'stop') return Net.role !== 'off';
         if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
+        if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         return Net.role === 'off';
     };
 
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', delay: 'Input delay', action: '', stop: '' };
+        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -1472,12 +1849,27 @@
         if (this._editing) return;
         if (NET_ROWS[this.index()] === 'role') this.changeRole();
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(1);
+        if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
         if (this._editing) return;
         if (NET_ROWS[this.index()] === 'role') this.changeRole();
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(-1);
+        if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
+    };
+
+    // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    Window_CoopNet.prototype.changeBattles = function() {
+        if (!this.isRowEnabled('battles')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        this._cfg.battles = this._cfg.battles === 'separate' ? 'together' : 'separate';
+        Net.config.battles = this._cfg.battles;
+        writeConfig(Object.assign({}, Net.config));
+        SoundManager.playCursor();
+        this.refresh();
     };
 
     // OK lo procesa la propia ventana (la escena no le da un manejador 'ok')
@@ -1496,6 +1888,8 @@
             this.changeRole();
         } else if (key === 'delay') {
             this.changeDelay(1);
+        } else if (key === 'battles') {
+            this.changeBattles();
         } else if (key === 'host' || key === 'port' || key === 'password') {
             this._editing = key;
             this._text = '';
@@ -1655,6 +2049,7 @@
     // para pruebas y otros plugins: CoopNet.open('host' / 'join'), CoopNet.close()
     Net.open = startNetworking;
     Net.menus = subs;
+    Net.battle = () => battle;
     Net.close = stopNetworking;
     window.CoopNet = Net;
 })();

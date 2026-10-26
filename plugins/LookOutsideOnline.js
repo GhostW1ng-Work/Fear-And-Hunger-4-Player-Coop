@@ -292,6 +292,12 @@
     function busyElsewhere(n) {
         return !!externalBusy && externalBusy(n);
     }
+    // ... y que un jugador no esta en el mapa para los eventos (lucha en un combate aparte):
+    // los enemigos no lo persiguen ni lo tocan
+    let externalHidden = null;
+    function hiddenFromEvents(n) {
+        return !!externalHidden && externalHidden(n);
+    }
 
     function newPlayerKeys() {
         return { left: false, right: false, up: false, down: false, shift: false, ok: false, join: false, menu: false };
@@ -435,8 +441,9 @@
     // =========================================================================
 
     // Personaje principal de un jugador (el que lleva por el mapa): 0 = no es de nadie
+    // (con toda la partida: en un combate aparte members() son solo los que luchan)
     function mainOwnerOf(actor) {
-        const members = $gameParty.members();
+        const members = $gameParty.allMembers();
         if (members[0] === actor) return 1;
         for (let n = 2; n <= MAX_PLAYERS; n++) {
             const p = coopPlayer(n);
@@ -457,7 +464,7 @@
     // Quien controla al personaje en combate: el suyo para cada jugador, los demas segun el
     // reparto del anfitrion y, si no lo hay, por turnos (2 jugadores: 1,3,5 -> P1 ; 2,4 -> P2)
     function battleOwnerOf(actor) {
-        const idx = $gameParty.members().indexOf(actor);
+        const idx = $gameParty.allMembers().indexOf(actor);
         if (idx < 0) return 1;
         const main = mainOwnerOf(actor);
         if (main) return main;
@@ -1823,8 +1830,9 @@
         let nearest = null;
 
         if (coopOn() && !this.coopIsPlayerOnly()) {
-            let best = $gameMap.distance(this.x, this.y, $gamePlayer.x, $gamePlayer.y);
+            let best = hiddenFromEvents(1) ? Infinity : $gameMap.distance(this.x, this.y, $gamePlayer.x, $gamePlayer.y);
             for (const p of extraPlayers()) {
+                if (hiddenFromEvents(p.coopIndex())) continue;
                 const d = $gameMap.distance(this.x, this.y, p.x, p.y);
                 if (d < best) {
                     best = d;
@@ -1862,6 +1870,7 @@
 
         for (const p of extraPlayers()) {
             if ($gameMap.isEventRunning()) break;
+            if (hiddenFromEvents(p.coopIndex())) continue;
             if (this._trigger === 1 || this._trigger === 2) {
                 if (p.x === x && p.y === y) {
                     if (!this.isJumping() && this.isNormalPriority()) {
@@ -2112,6 +2121,16 @@
         },
         setBusy(fn) {
             externalBusy = fn || null;
+        },
+        setHidden(fn) {
+            externalHidden = fn || null;
+        },
+        battleOwnerOf(actor) {
+            return battleOwnerOf(actor);
+        },
+        // de quien son ahora las teclas (combate: el dueno del personaje que elige)
+        inputOwner() {
+            return coopInputOwner();
         },
         lastActor(n) {
             return CoopState.lastActor[n] || 0;

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: **separate battles** (experimental, *Battles: Separate*): only the player an enemy touches (and their companions) fight; the others keep playing and can join by pressing OK next to them.
+
 ## v1.2.0
 
 **Network game (experimental)** - every player on their own PC with their own copy of the game, over the LAN or the internet. See [docs/NETPLAY.md](docs/NETPLAY.md).

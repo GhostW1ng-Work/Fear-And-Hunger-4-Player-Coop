@@ -35,7 +35,17 @@ A player's menu **does not pause the game**: the world and the other players go 
 
 Menus opened by events (shops...) still pause everybody.
 
-## Options
+## Separate battles (experimental)
+
+*Options > Co-op > Network game > Battles*: **Together** (default, as in local co-op) or **Separate**. The host's choice counts; set it before starting.
+
+With *Separate*, a battle that a player starts (an enemy touches them, or they touch it) is only theirs: their character and the companions they control in battle fight; everybody else stays on the map and keeps walking. Only the fighters see the battle (and hear its music).
+- Enemies on the map don't chase or touch players who are in a battle.
+- **Joining**: stand next to a fighting player, face them and press OK - or let an enemy touch you. You enter at the start of the next turn.
+- While a battle is on, events the others start (talking, doors, items) wait until it ends: there is only one message window.
+- One battle at a time: a second enemy battle waits for the first (or the player joins it).
+- Battles without a player (cutscenes, common events) are for everybody, as before.
+
 
 Options that change the game (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC; volume, keys and camera stay each player's own. A guest's own settings come back when the network game ends (they are not overwritten on disk).
 
