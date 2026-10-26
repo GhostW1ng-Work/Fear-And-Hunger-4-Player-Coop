@@ -931,10 +931,7 @@
     }
 
     // teclas de P1 con las que el modo en red repite sus acciones (ver injectAction)
-    const P1_NET_KEYS = {
-        up: ['KeyW', 87], down: ['KeyS', 83], left: ['KeyA', 65], right: ['KeyD', 68],
-        ok: ['KeyZ', 90], cancel: ['KeyX', 88], shift: ['ShiftLeft', 16, 1]
-    };
+    const P1_NET_BUTTON = { up: 'up', down: 'down', left: 'left', right: 'right', ok: 'ok', cancel: 'escape', shift: 'shift' };
 
     function sendPadKey(input, n, action, down) {
         const ev = fakeKeyEvent(padCode(n, action));
@@ -2074,14 +2071,15 @@
         },
         // ---- para el modo en red (LocalCoop_Net) ----
         actions: KEY_ACTIONS,
-        // pulsa / suelta una accion (up, down, left, right, ok, cancel, shift) del jugador n, igual
-        // que si viniera de su teclado o mando: P1 con sus teclas, P2-P4 como su mando
+        // pulsa / suelta una accion (up, down, left, right, ok, cancel, shift) del jugador n:
+        // P1 directamente en Input (sin pasar por el mapa de teclas, que cambia segun haya co-op o no:
+        // sin otros jugadores W/S no mueven y X uniria a P2), P2-P4 como su mando
         injectAction(n, action, down) {
             let ev;
             if (n === 1) {
-                const k = P1_NET_KEYS[action];
-                if (!k) return;
-                ev = { code: k[0], keyCode: k[1], location: k[2] || 0, key: '', repeat: false, preventDefault: function() {}, __net: true };
+                const name = P1_NET_BUTTON[action];
+                if (name) Input._currentState[name] = !!down;
+                return;
             } else {
                 ev = fakeKeyEvent(padCode(n, action));
                 ev.__net = true;

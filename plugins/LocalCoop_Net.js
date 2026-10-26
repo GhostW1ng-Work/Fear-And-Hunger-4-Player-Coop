@@ -373,7 +373,10 @@
     function processLeft() {
         Object.keys(Net.left).map(Number).forEach(n => {
             if (!coop.player(n)) delete Net.left[n];
-            else if (SceneManager._sceneStarted && !SceneManager._nextScene && coop.removePlayer(n)) delete Net.left[n];
+            else if (SceneManager._sceneStarted && !SceneManager._nextScene && coop.removePlayer(n)) {
+                delete Net.left[n];
+                Net.applied = {}; // al quitarlo se limpia Input: las teclas que siguen pulsadas se vuelven a aplicar
+            }
         });
     }
 
