@@ -1,8 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.3.0
 
-- Network game: **separate battles** (experimental, *Battles: Separate*): only the player an enemy touches (and their companions) fight; the others keep playing and can join by pressing OK next to them.
+- Network game: **separate battles** (experimental, *Battles: Separate*): only the player an enemy touches (and their companions) fight; the others keep playing and can join by pressing OK next to a fighter or by touching an enemy. Off by default (*Battles: Together*). A short log of each battle goes to `www/coop_net_battle.log`.
 
 ## v1.2.0
 
