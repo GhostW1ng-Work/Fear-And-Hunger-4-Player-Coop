@@ -1,6 +1,6 @@
 /*:
  * @target MV
- * @plugindesc v1.8.0 [EXPERIMENTAL] Co-op en red (LAN o internet): cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.8.1 [EXPERIMENTAL] Co-op en red (LAN o internet): cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @help
@@ -306,6 +306,11 @@
     }
 
     if (typeof Filter_Controller !== 'undefined') visualOnly(Filter_Controller.prototype, 'updateFilter');
+    // ruido y "glitch" de Olivia_HorrorEffects, tono de la voz de los mensajes (DhoomMessageSE),
+    // primer cuadro de los proyectiles (UltraMode7)
+    ['updateHorrorNoise', 'updateHorrorGlitchEffect'].forEach(name => visualOnly(Sprite.prototype, name));
+    visualOnly(Window_Message.prototype, 'updateMessageSE');
+    if (typeof Sprite_MapProjectile !== 'undefined') visualOnly(Sprite_MapProjectile.prototype, 'setBitmap');
     // (la clase de la luz no es global: se toma de la primera que se crea)
     if (Spriteset_Map.prototype.createLightmask) {
         const _createLightmask = Spriteset_Map.prototype.createLightmask;
