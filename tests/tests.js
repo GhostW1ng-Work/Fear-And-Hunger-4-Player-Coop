@@ -834,6 +834,53 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T32e after the solo part P3 is back with its character', leadIsMine || (!!$gamePlayer3 && $gamePlayer3._coopActorId === mine),
             ($gamePlayer3 && $gamePlayer3._coopActorId) + ' party=' + $gameParty._actors);
     }
+
+    // ---- muerte de P3 y resurreccion con una piedra de alma ----
+    if (window.CoopRevive && CoopRevive.soulStone()) {
+        for (k = 0; k < 10; k++) frame();
+        if (!$gamePlayer3 && $gameParty._actors.indexOf(mine) < 0) $gameParty.addActor(mine);
+        for (k = 0; k < 10; k++) frame();
+        // (tras la parte en solitario el lider puede ser el de P3: entonces se prueba con P2)
+        var who = [3, 2, 4].filter(function(n) { return CoopLocal.player(n) && CoopLocal.player(n)._coopActorId !== $gameParty._actors[0]; })[0];
+        if (!who) {
+            var free = [3, 4, 5, 6, 7].filter(function(id) { return $dataActors[id] && id !== $gameParty._actors[0]; })[0];
+            if ($gameParty._actors.indexOf(free) < 0) $gameParty.addActor(free);
+            SceneManager._scene.spawnPlayer(2, free, true);
+            for (k = 0; k < 10; k++) frame();
+            who = 2;
+        }
+        var whoP = function() { return CoopLocal.player(who); };
+        mine = whoP()._coopActorId;
+        var dead = $gameActors.actor(mine);
+        var fx = CoopRevive.deathEffectsOf(mine);
+        check('T33 the death effects of the game are known (deathCheck)', fx.switches.length > 0, JSON.stringify(fx));
+        dead.addState(dead.deathStateId());
+        check('T33b P3 died: no game over (the party goes on)', !$gameParty.isAllDead());
+        fx.switches.forEach(function(id) { $gameSwitches.setValue(id, true); });
+        $gameParty.removeActor(mine); // lo que hace deathCheck
+        for (k = 0; k < 10; k++) frame();
+        var body = CoopRevive.corpses().filter(function(c) { return c.actorId === mine; })[0];
+        check('T33c the body stays on the map, P3 waits', !!body && !whoP(), JSON.stringify(body));
+        if (!body) return;
+        var stone = CoopRevive.soulStone();
+        $gameParty.gainItem(stone, 1);
+        body.x = $gamePlayer.x;
+        body.y = $gamePlayer.y;
+        $gamePlayer.checkEventTriggerHere([0]);
+        check('T33d OK on the body: the "bring them back?" question', $gameMap._interpreter.isRunning() && $gameMap._interpreter._coopRevive === $gameMap._interpreter._list);
+        $gameMap._interpreter.clear();
+        var leader = $gameParty.leader();
+        leader.setMp(leader.mmp);
+        CoopRevive.revive(mine, 1);
+        for (k = 0; k < 10; k++) frame();
+        check('T33e back in the party with 30% HP and mind, the stone is gone',
+            $gameParty._actors.indexOf(mine) >= 0 && dead.isAlive() && dead.hp === Math.max(1, Math.round(dead.mhp * 0.3)) && !$gameParty.hasItem(stone),
+            dead.hp + '/' + dead.mhp + ' stones=' + $gameParty.numItems(stone));
+        check('T33f the game no longer sees them dead (switches off)', fx.switches.every(function(id) { return !$gameSwitches.value(id); }));
+        check('T33g the one who did it lost mind', leader.mp === leader.mmp - Math.round(leader.mmp * 0.3), leader.mp + '/' + leader.mmp);
+        check('T33h P3 plays their character again', !!whoP() && whoP()._coopActorId === mine, (whoP() && whoP()._coopActorId));
+        check('T33i the body is gone', CoopRevive.corpses().length === 0);
+    }
 })();
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

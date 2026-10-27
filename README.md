@@ -28,7 +28,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
 | **Quick save (testing)** | Optional plugin: `F6` save screen (choose the slot) / `F7` load screen; `Shift+F6` / `Shift+F7` instant save / load in slot 99. |
 
-Game over rule (as in the original mod): if any player's character dies in combat, it's game over.
+**Death and soul stones (Fear & Hunger 1 and Termina).** Only the death of P1 ends the game. When another character dies (a player's or a companion), the body stays where they died and that player waits: the host can give them a free character in **Co-op** (*"Pn plays it"*), otherwise they watch. Any player with a filled soul stone (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK: *bring them back?* - the stone is used up, the character returns with 30% HP and mind, and whoever did it loses 30% of their mind (both in *Co-op settings*). **Co-op** also has a cheat that gives one soul stone. *When P2-P4 die: Game over* brings back the original rule (any player's death is game over).
 
 ## Network game
 

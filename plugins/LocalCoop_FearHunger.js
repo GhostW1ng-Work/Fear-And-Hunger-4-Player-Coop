@@ -396,6 +396,273 @@
         }
     });
 
+
+    // =========================================================================
+    // RESURRECCION CON UN CAMARADA DE ALMA (Soul stone / Lesser soul)
+    // =========================================================================
+    // Quien muere (de un jugador o un companero) deja su cuerpo donde estaba. Con una piedra de
+    // alma llena (Termina: "Soul stone"; Fear & Hunger 1: "Lesser soul") cualquier jugador que
+    // se ponga junto al cuerpo y pulse OK puede devolverlo: la piedra se gasta, vuelve con parte
+    // de la vida y la mente (Opciones > Co-op) y quien lo hace pierde mente. El juego, al morir
+    // alguien, lo saca del grupo y enciende sus interruptores de "muerto" (evento comun
+    // "deathCheck"); al volver se apagan y, en Termina, desaparece el cadaver que el juego deja.
+
+    coop.addSettings([
+        { key: 'reviveHp', name: 'Revived with', values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], default: 2,
+            labels: ['10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'],
+            help: 'HP and mind of a character brought back from the dead with a soul stone.' },
+        { key: 'reviveCost', name: 'Mind cost of reviving', values: [0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100], default: 3,
+            labels: ['None', '10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'],
+            help: 'Whoever uses the soul stone on a body loses this much of their max mind.' }
+    ], true);
+
+    const SOUL_STONE_ID = 116; // los dos juegos: la piedra con un alma dentro
+
+    function soulStone() {
+        if (typeof $dataItems === 'undefined' || !$dataItems) return null;
+        const it = $dataItems[SOUL_STONE_ID];
+        if (it && /soul/i.test(it.name) && !/not_use/i.test(it.name)) return it;
+        return $dataItems.find(i => i && /^(lesser soul|soul stone)$/i.test(i.name)) || null;
+    }
+
+    // (si el unico otro jugador murio ya no hay co-op en marcha, pero su cuerpo sigue ahi)
+    function reviveOn() {
+        return (coop.isOn() || Object.keys(coop.waiting()).length > 0 || ($gameSystem && ($gameSystem._coopCorpses || []).length > 0)) &&
+            coop.setting('deathRule') !== 'gameover' && !!gameProfile() && !!soulStone();
+    }
+
+    // lo que el juego hace al morir cada personaje (para deshacerlo al volver)
+    let deathEffects = null;
+    function deathEffectsOf(actorId) {
+        if (!deathEffects) {
+            deathEffects = {};
+            const ce = ($dataCommonEvents || []).find(e => e && /^deathCheck$/i.test(e.name));
+            let cur = null;
+            let indent = 0;
+            (ce ? ce.list : []).forEach(c => {
+                const p = c.parameters;
+                if (cur && c.indent <= indent && c.code !== 0) cur = null;
+                if (c.code === 111 && p[0] === 4 && p[2] === 6 && p[3] === 1) {
+                    cur = deathEffects[p[1]] = { switches: [], vars: [], spawn: 0 };
+                    indent = c.indent;
+                    return;
+                }
+                if (!cur) return;
+                if (c.code === 121 && p[2] === 0) {
+                    for (let id = p[0]; id <= p[1]; id++) cur.switches.push(id);
+                } else if (c.code === 122 && p[2] === 2 && p[3] === 0) {
+                    for (let id = p[0]; id <= p[1]; id++) cur.vars.push({ id: id, value: Number(p[4]) || 0 });
+                } else if (c.code === 355 || c.code === 655) {
+                    const m = /SPAWN\.event\((\d+)/.exec(p[0]);
+                    if (m) cur.spawn = Number(m[1]);
+                }
+            });
+        }
+        return deathEffects[actorId] || { switches: [], vars: [], spawn: 0 };
+    }
+
+    function corpses() {
+        if (!$gameSystem._coopCorpses) $gameSystem._coopCorpses = [];
+        return $gameSystem._coopCorpses;
+    }
+
+    function corpseAt(x, y) {
+        const mapId = $gameMap.mapId();
+        return corpses().find(c => c.mapId === mapId && c.x === x && c.y === y && !$gameParty._actors.includes(c.actorId)) || null;
+    }
+
+    // al morir, el juego lo saca del grupo: ahi queda su cuerpo
+    const _Game_Party_removeActor = Game_Party.prototype.removeActor;
+    Game_Party.prototype.removeActor = function(actorId) {
+        const actor = $gameActors.actor(actorId);
+        if (this._actors.includes(actorId) && actor && actor.isDead() && reviveOn() && $gameMap && $gameMap.mapId() > 0) {
+            // en Termina el cadaver del juego sale donde esta P1; en Fear & Hunger 1 (sin cadaver)
+            // donde estaba el jugador que lo llevaba
+            let pos = $gamePlayer;
+            if (!deathEffectsOf(actorId).spawn) {
+                const who = coop.players().find(pl => pl._coopActorId === actorId);
+                if (who) pos = who;
+            }
+            const list = corpses().filter(c => c.actorId !== actorId);
+            list.push({ actorId: actorId, mapId: $gameMap.mapId(), x: pos.x, y: pos.y });
+            $gameSystem._coopCorpses = list;
+        }
+        _Game_Party_removeActor.call(this, actorId);
+    };
+
+    function reviveEventList(c, n) {
+        const actor = $gameActors.actor(c.actorId);
+        const stone = soulStone();
+        return [
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: [actor.name() + "'s body."] },
+            { code: 401, indent: 0, parameters: ['Use the ' + stone.name + ' to bring ' + actor.name() + ' back?'] },
+            { code: 102, indent: 0, parameters: [['Yes', 'No'], 1, 0, 2, 0] },
+            { code: 402, indent: 0, parameters: [0, 'Yes'] },
+            { code: 355, indent: 1, parameters: ['CoopRevive.revive(' + c.actorId + ', ' + n + ')'] },
+            { code: 0, indent: 1, parameters: [] },
+            { code: 402, indent: 0, parameters: [1, 'No'] },
+            { code: 0, indent: 1, parameters: [] },
+            { code: 404, indent: 0, parameters: [] },
+            { code: 0, indent: 0, parameters: [] }
+        ];
+    }
+
+    // OK junto a un cuerpo (encima o delante): true = la pulsacion fue para el cuerpo
+    function tryCorpse(character, n, there) {
+        if (!reviveOn() || !(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning()) return false;
+        const x = there ? $gameMap.roundXWithDirection(character.x, character.direction()) : character.x;
+        const y = there ? $gameMap.roundYWithDirection(character.y, character.direction()) : character.y;
+        const c = corpseAt(x, y);
+        if (!c) return false;
+        const actor = $gameActors.actor(c.actorId);
+        const stone = soulStone();
+        if (!$gameParty.hasItem(stone)) {
+            coop.banner(actor.name() + "'s body", 'A ' + stone.name + ' could bring them back', '#9fb6ff', 150);
+            return !deathEffectsOf(c.actorId).spawn; // (en Termina el cadaver del juego sigue a lo suyo)
+        }
+        const it = $gameMap._interpreter;
+        const list = reviveEventList(c, n);
+        it.setup(list, 0);
+        it._coopStarter = n; // elige la respuesta quien lo pidio
+        it._coopRevive = list;
+        return true;
+    }
+
+    function reviveRunning() {
+        const it = $gameMap._interpreter;
+        return it.isRunning() && it._coopRevive === it._list;
+    }
+
+    function hookTriggers(proto, playerOf) {
+        ['checkEventTriggerHere', 'checkEventTriggerThere'].forEach(name => {
+            const orig = proto[name];
+            if (!orig) return;
+            proto[name] = function(triggers) {
+                if (reviveRunning()) return;
+                if (triggers && triggers.includes(0) && tryCorpse(this, playerOf(this), name === 'checkEventTriggerThere')) return;
+                orig.call(this, triggers);
+            };
+        });
+    }
+    hookTriggers(Game_Player.prototype, () => 1);
+    if (window.Game_CoopPlayer) hookTriggers(Game_CoopPlayer.prototype, pl => pl.coopIndex());
+
+    function revive(actorId, n) {
+        const c = corpses().find(k => k.actorId === actorId);
+        const actor = $gameActors.actor(actorId);
+        const stone = soulStone();
+        if (!c || !actor || !stone || $gameParty._actors.includes(actorId)) return;
+        if (!$gameParty.hasItem(stone)) {
+            coop.banner('No ' + stone.name, '', '#ff7766', 120);
+            return;
+        }
+        $gameParty.loseItem(stone, 1);
+        $gameSystem._coopCorpses = corpses().filter(k => k !== c);
+        // lo que el juego hizo al morir
+        const fx = deathEffectsOf(actorId);
+        fx.switches.forEach(id => $gameSwitches.setValue(id, false));
+        fx.vars.forEach(v => $gameVariables.setValue(v.id, $gameVariables.value(v.id) + v.value));
+        if (fx.spawn && typeof Galv !== 'undefined' && Galv.SPAWN && Galv.SPAWN.unspawn) {
+            $gameMap.events().filter(e => e && e.isSpawnEvent && e._spawnEventId === fx.spawn &&
+                Math.abs(e.x - c.x) + Math.abs(e.y - c.y) <= 1).forEach(e => Galv.SPAWN.unspawn(e));
+        }
+        // vuelve con parte de la vida y la mente
+        const part = (Number(coop.setting('reviveHp')) || 30) / 100;
+        actor.removeState(actor.deathStateId());
+        actor.setHp(Math.max(1, Math.round(actor.mhp * part)));
+        actor.setMp(Math.round(actor.mmp * part));
+        $gameParty.addActor(actorId);
+        // y quien lo trajo lo paga con la mente
+        const helper = n === 1 ? $gameParty.leader() : coop.actorOf(coop.player(n));
+        const cost = (Number(coop.setting('reviveCost')) || 0) / 100;
+        if (helper && helper !== actor && cost > 0) helper.setMp(helper.mp - Math.round(helper.mmp * cost));
+        $gameScreen.startFlash([170, 200, 255, 170], 45);
+        SoundManager.playRecovery();
+        coop.banner(actor.name() + ' is back from the dead', (helper && cost > 0 ? helper.name() + ' paid with their mind' : ''), '#9fb6ff', 200);
+        $gamePlayer.refresh();
+        $gameMap.requestRefresh();
+    }
+
+    // truco en el menu "Co-op": una piedra con alma
+    coop.addAssignAction({
+        name() {
+            const stone = soulStone();
+            return 'Cheat: get 1 ' + (stone ? stone.name : 'soul stone');
+        },
+        run() {
+            const stone = soulStone();
+            if (!stone) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            $gameParty.gainItem(stone, 1);
+            SoundManager.playShop();
+        }
+    });
+
+    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf };
+
+    // ---- el cuerpo en el mapa (Fear & Hunger 1 y quien no tiene cadaver propio en Termina) ----
+    function Game_CoopCorpse(c) {
+        Game_Character.prototype.initialize.call(this);
+        const actor = $gameActors.actor(c.actorId);
+        this._coopCorpse = c;
+        this.setPosition(c.x, c.y);
+        if (actor) this.setImage(actor.characterName(), actor.characterIndex());
+        this.setDirection(2);
+        this.setThrough(true);
+        this._priorityType = 0;
+    }
+    Game_CoopCorpse.prototype = Object.create(Game_Character.prototype);
+    Game_CoopCorpse.prototype.constructor = Game_CoopCorpse;
+
+    function bodiesHere() {
+        const mapId = $gameMap.mapId();
+        return corpses().filter(c => c.mapId === mapId && !deathEffectsOf(c.actorId).spawn && !$gameParty._actors.includes(c.actorId));
+    }
+
+    Spriteset_Map.prototype.coopSyncCorpses = function() {
+        if (!this._tilemap) return;
+        const list = reviveOn() ? bodiesHere() : [];
+        const key = list.map(c => c.actorId + '@' + c.x + ',' + c.y).join(';');
+        if (key === this._coopCorpseKey) return;
+        this._coopCorpseKey = key;
+        (this._coopCorpseSprites || []).forEach(sp => {
+            if (sp.parent) sp.parent.removeChild(sp);
+            const i = this._characterSprites.indexOf(sp);
+            if (i >= 0) this._characterSprites.splice(i, 1);
+        });
+        this._coopCorpseSprites = list.map(c => {
+            const sp = new Sprite_Character(new Game_CoopCorpse(c));
+            this._characterSprites.push(sp);
+            this._tilemap.addChild(sp);
+            return sp;
+        });
+    };
+
+    const _Spriteset_Map_update_corpses = Spriteset_Map.prototype.update;
+    Spriteset_Map.prototype.update = function() {
+        _Spriteset_Map_update_corpses.call(this);
+        if (Graphics.frameCount % 20 === 0 || this._coopCorpseKey === undefined) this.coopSyncCorpses();
+    };
+
+    // tumbado de lado y sin color
+    const _Sprite_Character_updatePosition = Sprite_Character.prototype.updatePosition;
+    Sprite_Character.prototype.updatePosition = function() {
+        _Sprite_Character_updatePosition.call(this);
+        if (!this._character || !this._character._coopCorpse) return;
+        this.anchor.x = 0.5;
+        this.anchor.y = 0.5;
+        this.rotation = Math.PI / 2;
+        this.y -= Math.round($gameMap.tileHeight() / 2) - 6;
+        this.z = 1;
+        if (!this._coopTinted) {
+            this._coopTinted = true;
+            this.setColorTone([-40, -60, -60, 160]);
+        }
+    };
+
     if (!hasTerrax) {
         console.warn('LocalCoop_FearHunger: TerraxLighting no encontrado; P2/P3 no tendran luz propia.');
     }

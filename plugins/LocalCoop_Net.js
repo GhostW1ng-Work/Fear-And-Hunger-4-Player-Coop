@@ -1433,6 +1433,13 @@
         const local = ConfigManager.makeData();
         const merged = Object.assign({}, hostData);
         Object.keys(local).forEach(key => { if (isLocalOption(key)) merged[key] = local[key]; });
+        // de los ajustes del co-op, los que cambian el juego (muerte, resurreccion...) son del anfitrion
+        if (local.coopSettings && hostData.coopSettings) {
+            merged.coopSettings = Object.assign({}, local.coopSettings);
+            coop.ruleKeys().forEach(key => {
+                if (hostData.coopSettings[key] !== undefined) merged.coopSettings[key] = hostData.coopSettings[key];
+            });
+        }
         ConfigManager.applyData(merged);
     }
 

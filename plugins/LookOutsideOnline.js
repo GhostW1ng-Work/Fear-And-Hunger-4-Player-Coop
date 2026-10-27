@@ -2087,6 +2087,26 @@
         //   lightSources(spriteset) -> fuentes de luz extra (ver coopLightSources)
         registerHook(h) { coopHooks.push(h); },
         hooks: coopHooks,
+        // ajustes de un plugin de juego (Opciones > Co-op), antes de "Check for updates";
+        // rule: true = cambia el juego (en red, el del anfitrion)
+        addSettings(rows, rule) {
+            rows.forEach(row => {
+                if (SETTINGS_ROWS.some(r => r.key === row.key)) return;
+                SETTINGS_ROWS.splice(SETTINGS_ROWS.length - 1, 0, row);
+                if (coopSettings[row.key] === undefined) coopSettings[row.key] = row.values[row.default || 0];
+                if (rule && RULE_KEYS.indexOf(row.key) < 0) RULE_KEYS.push(row.key);
+            });
+        },
+        setting(key) { return coopSettings[key]; },
+        // jugadores que esperan a su personaje (muerto, fuera del grupo...): { n: actorId }
+        waiting() {
+            const out = {};
+            Object.keys(CoopState.parked).forEach(n => { if (!coopPlayer(Number(n))) out[n] = CoopState.parked[n].actorId || 0; });
+            return out;
+        },
+        ruleKeys() { return RULE_KEYS.slice(); },
+        // filas extra al final del menu "Co-op": { name() -> texto, run() } (p.ej. trucos)
+        addAssignAction(action) { assignActions.push(action); },
         maxPlayers: MAX_PLAYERS,
         player(n) { return coopPlayer(n); },
         version: COOP_VERSION,
@@ -3166,7 +3186,8 @@
     Game_Interpreter.prototype.command129 = function() {
         const actorId = this._params[0];
         const n = this._params[1] === 1 && coopOn() && coopSettings.keepCharacters ? playerOfActor(actorId) : 0;
-        if (n && !isSoloPartList(this._list) && $gameParty._actors.indexOf(actorId) >= 0) {
+        const dead = $gameActors.actor(actorId) && $gameActors.actor(actorId).isDead(); // (el juego quita a los muertos)
+        if (n && !dead && !isSoloPartList(this._list) && $gameParty._actors.indexOf(actorId) >= 0) {
             const actor = $gameActors.actor(actorId);
             CoopUI.banner((actor ? actor.name() : 'The character') + ' stays with Player ' + n, 'The story removed them from the party', colorOf(n), 160);
             return true;
@@ -3581,6 +3602,8 @@
         return _Game_Actor_isAutoBattle.call(this);
     };
 
+    const assignActions = [];
+
     function Window_CoopAssignHelp() {
         this.initialize.apply(this, arguments);
     }
@@ -3595,7 +3618,7 @@
         this.drawText('Who controls each character in combat', 0, 0, cw, 'center');
         this.contents.fontSize = 18;
         this.changeTextColor('#cfcfcf');
-        this.drawText('Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it)', 0, 36, cw, 'center');
+        this.drawText('Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it;  "Pn plays it": for who waits)', 0, 36, cw, 'center');
         this.resetTextColor();
     };
 
@@ -3615,8 +3638,26 @@
     };
 
     Window_CoopAssign.prototype.maxItems = function() {
-        return $gameParty.members().length;
+        return $gameParty.members().length + assignActions.length;
     };
+
+    Window_CoopAssign.prototype.actionAt = function(index) {
+        return assignActions[index - $gameParty.members().length] || null;
+    };
+
+    // jugadores que esperan a su personaje (muerto, fuera del grupo...) y no estan jugando
+    function waitingPlayers() {
+        const list = [];
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            if (CoopState.parked[n] && !coopPlayer(n)) list.push(n);
+        }
+        return list;
+    }
+
+    // jugador en espera al que se le dio este personaje (0 = nadie)
+    function givenTo(actor) {
+        return waitingPlayers().find(n => CoopState.parked[n].actorId === actor.actorId() && CoopState.parked[n].own !== actor.actorId()) || 0;
+    }
 
     Window_CoopAssign.prototype.itemHeight = function() {
         return 48;
@@ -3631,8 +3672,30 @@
     }
 
     Window_CoopAssign.prototype.drawItem = function(index) {
+        const action = this.actionAt(index);
+        if (action) {
+            const r = this.itemRect(index);
+            this.changeTextColor('#e0c070');
+            this.drawText(action.name(), r.x, r.y + Math.floor((r.height - this.lineHeight()) / 2), r.width, 'center');
+            this.resetTextColor();
+            return;
+        }
         const actor = this.actorAt(index);
         if (!actor) return;
+        const given = mainOwnerOf(actor) ? 0 : givenTo(actor);
+        if (given) {
+            const r = this.itemRect(index);
+            const pd = this.itemPadding ? this.itemPadding() : this.textPadding();
+            const yy = r.y + Math.floor((r.height - this.lineHeight()) / 2);
+            this.changeTextColor(colorOf(given));
+            this.drawText('< P' + given + ' >', r.x + pd, yy, 90, 'center');
+            this.resetTextColor();
+            this.drawText(actor.name(), r.x + pd + 110, yy, r.width - pd * 2 - 330, 'left');
+            this.changeTextColor('#9a9a9a');
+            this.drawText('P' + given + ' plays it (was waiting)', r.x + r.width - pd - 220, yy, 220, 'right');
+            this.resetTextColor();
+            return;
+        }
         const rect = this.itemRect(index);
         const pad = this.itemPadding ? this.itemPadding() : this.textPadding();
         const y = rect.y + Math.floor((rect.height - this.lineHeight()) / 2);
@@ -3681,26 +3744,45 @@
             this.redrawItem(this.index());
             return;
         }
-        const choices = ownerChoices();
-        const current = isAiControlled(actor) ? 0 : battleOwnerOf(actor);
+        // ... P1, P2 (en combate), la IA y, para quien espera a su personaje, "Pn lo juega" (-n)
+        const waiting = waitingPlayers();
+        const choices = ownerChoices().concat(waiting.map(n => -n));
+        const given = givenTo(actor);
+        const current = given ? -given : (isAiControlled(actor) ? 0 : battleOwnerOf(actor));
         const i = Math.max(0, choices.indexOf(current));
         const next = choices[(i + step + choices.length) % choices.length];
-        $gameSystem._coopOwners = $gameSystem._coopOwners || {};
-        $gameSystem._coopOwners[actor.actorId()] = next;
+        if (given) {
+            const park = CoopState.parked[given];
+            park.actorId = park.own;
+        }
+        if (next < 0) {
+            const park = CoopState.parked[-next];
+            if (park.own === undefined) park.own = park.actorId;
+            park.actorId = actor.actorId(); // al volver al mapa entra con este (ver coopUpdateParked)
+        } else {
+            $gameSystem._coopOwners = $gameSystem._coopOwners || {};
+            $gameSystem._coopOwners[actor.actorId()] = next;
+        }
         SoundManager.playCursor();
-        this.redrawItem(this.index());
+        this.refresh();
     };
 
     Window_CoopAssign.prototype.processOk = function() {
+        const action = this.actionAt(this.index());
+        if (action) {
+            action.run();
+            this.refresh();
+            return;
+        }
         this.changeOwner(1);
     };
 
     Window_CoopAssign.prototype.cursorRight = function() {
-        this.changeOwner(1);
+        if (!this.actionAt(this.index())) this.changeOwner(1);
     };
 
     Window_CoopAssign.prototype.cursorLeft = function() {
-        this.changeOwner(-1);
+        if (!this.actionAt(this.index())) this.changeOwner(-1);
     };
 
     function Scene_CoopAssign() {
@@ -3769,6 +3851,8 @@
             help: 'Keys P3 can use on the keyboard.' },
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
             help: 'On: players that were playing come back by themselves when a save is loaded.' },
+        { key: 'deathRule', name: 'When P2-P4 die', values: ['goOn', 'gameover'], labels: ['The party goes on', 'Game over'],
+            help: 'The party goes on: only the death of P1 ends the game; the others wait for their character (or play a free one).' },
         { key: 'keepCharacters', name: "Keep players' characters", values: [true, false], labels: ['On', 'Off (story decides)'],
             help: "On: if the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply)." },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
@@ -3789,8 +3873,12 @@
         p3Keys: P3_KEY_SET,
         autoRejoin: AUTO_REJOIN,
         keepCharacters: true,
+        deathRule: 'goOn',
         updateCheck: true
     };
+
+    // ajustes que cambian el juego: en la partida en red son los del anfitrion en todos los PC
+    const RULE_KEYS = ['keepCharacters', 'deathRule'];
 
     function applyCoopSettings(changedKey) {
         const st = coopSettings;
@@ -4085,11 +4173,12 @@
     // GAME OVER CONDICIONAL
     // =========================================================================
 
-    // Igual que el mod original: si muere el personaje de cualquier jugador, se pierde
+    // "When P2-P4 die: Game over" (como el mod original): si muere el personaje de cualquier
+    // jugador, se pierde. "The party goes on": las reglas del juego (pierde P1, el lider).
     const _Game_Party_isAllDead = Game_Party.prototype.isAllDead;
 
     Game_Party.prototype.isAllDead = function() {
-        if (coopOn()) {
+        if (coopOn() && coopSettings.deathRule === 'gameover') {
             const members = $gameParty.members();
 
             if (members.length > 1) {
@@ -4098,6 +4187,15 @@
         }
 
         return _Game_Party_isAllDead.call(this);
+    };
+
+    // Un combate perdido sin que muera P1 (en red, un combate aparte de otros jugadores): no es el
+    // fin, se vuelve al mapa y los muertos quedan como muertos (el juego los saca del grupo)
+    const _BattleManager_processDefeat = BattleManager.processDefeat;
+    BattleManager.processDefeat = function() {
+        const leader = $gameParty._actors.length ? $gameActors.actor($gameParty._actors[0]) : null;
+        if (coopOn() && coopSettings.deathRule !== 'gameover' && leader && leader.isAlive()) this._canLose = true;
+        _BattleManager_processDefeat.call(this);
     };
 
 })();
