@@ -12,7 +12,7 @@ The normal installer (`install.bat` / `install.ps1`) already installs it, on eve
 
 ## Play
 
-Everything is in **Options > Co-op > Network game...**
+Everything is in **Options > Co-op > Network game...** Shortcuts: **Host online** / **Join online** on the title screen (Host online: pick a save, and once loaded the game is open; Join online: the network menu on the list of games found) and **Online** in P1's game menu.
 
 1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
 2. **Guests** (the title screen is enough): Mode = *Join*, then either pick the game in **Games found** (left / right: the menu looks for open games on your networks every few seconds, OK searches again) or type it in *Host's IP* (OK, type the IP or a name, Enter); then **Connect to the host**. The host's screen lists them.

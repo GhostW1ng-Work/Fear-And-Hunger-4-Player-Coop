@@ -2105,10 +2105,19 @@
         window.addEventListener('keydown', this._onKey, true);
         this._foundIndex = 0;
         this._searchTimer = 0;
+        const joinNow = Net.openAs === 'join' && Net.role === 'off';
+        Net.openAs = null;
+        if (joinNow) this._cfg.role = 'join';
         this.refresh();
-        this.select(Net.role === 'off' ? 0 : ACTION_ROW);
+        this.select(joinNow ? NET_ROWS.indexOf('found') : (Net.role === 'off' ? 0 : ACTION_ROW));
         this.activate();
     };
+
+    // En la partida en red el menu de P1 (y este) se ejecuta en todos los PC: lo que toca la red o
+    // la configuracion de este PC solo lo hace el PC del jugador que tiene el menu
+    function isMyMenu() {
+        return !inSub || coop.menuOwner() === Net.player;
+    }
 
     // la partida encontrada que esta elegida (y su IP / puerto pasan a ser los del anfitrion)
     Window_CoopNet.prototype.pickFound = function(step) {
@@ -2236,8 +2245,10 @@
     Window_CoopNet.prototype.changeDelay = function(step) {
         const i = DELAY_VALUES.indexOf(this._cfg.delay);
         this._cfg.delay = DELAY_VALUES[(i + step + DELAY_VALUES.length) % DELAY_VALUES.length];
-        Net.config.delay = this._cfg.delay;
-        writeConfig(Object.assign({}, Net.config));
+        if (isMyMenu()) {
+            Net.config.delay = this._cfg.delay;
+            writeConfig(Object.assign({}, Net.config));
+        }
         SoundManager.playCursor();
         this.refresh();
     };
@@ -2323,9 +2334,9 @@
             this.select(ACTION_ROW);
         } else if (key === 'action') {
             SoundManager.playOk();
-            Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
+            if (isMyMenu()) Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
         } else if (key === 'stop') {
-            Net.stopRequested = true; // (puede estar dentro del menu de la partida en red)
+            if (isMyMenu()) Net.stopRequested = true; // (puede estar dentro del menu de la partida en red)
             SoundManager.playCancel();
             this.select(0);
         }
@@ -2431,6 +2442,75 @@
     };
 
     window.Scene_CoopNet = Scene_CoopNet;
+
+    // ---- atajos: "Host online" / "Join online" en el titulo y "Online" en el menu de P1 -------
+    // Host online: elegir partida, y al cargarla la partida queda abierta para los demas.
+    // Join online: el menu de red ya en modo "unirse", en la lista de partidas encontradas.
+
+    const _Window_TitleCommand_makeCommandList = Window_TitleCommand.prototype.makeCommandList;
+    Window_TitleCommand.prototype.makeCommandList = function() {
+        _Window_TitleCommand_makeCommandList.call(this);
+        const cmds = [
+            { name: 'Host online', symbol: 'coopHost', enabled: DataManager.isAnySavefileExists(), ext: null },
+            { name: 'Join online', symbol: 'coopJoin', enabled: true, ext: null }
+        ];
+        const at = this._list.findIndex(c => c.symbol === 'options');
+        if (at >= 0) this._list.splice.apply(this._list, [at, 0].concat(cmds));
+        else this._list = this._list.concat(cmds);
+    };
+
+    const _Scene_Title_createCommandWindow = Scene_Title.prototype.createCommandWindow;
+    Scene_Title.prototype.createCommandWindow = function() {
+        _Scene_Title_createCommandWindow.call(this);
+        this._commandWindow.setHandler('coopHost', () => {
+            Net.hostAfterLoad = true;
+            this._commandWindow.close();
+            SceneManager.push(Scene_Load);
+        });
+        this._commandWindow.setHandler('coopJoin', () => {
+            Net.openAs = 'join';
+            this._commandWindow.close();
+            SceneManager.push(Scene_CoopNet);
+        });
+    };
+
+    // de vuelta en el titulo (Cargar cancelado): ya no se abre la partida al cargar
+    const _Scene_Title_start = Scene_Title.prototype.start;
+    Scene_Title.prototype.start = function() {
+        _Scene_Title_start.call(this);
+        Net.hostAfterLoad = false;
+    };
+
+    const _Scene_Map_start = Scene_Map.prototype.start;
+    Scene_Map.prototype.start = function() {
+        _Scene_Map_start.call(this);
+        if (!Net.hostAfterLoad) return;
+        Net.hostAfterLoad = false;
+        if (Net.role !== 'host') {
+            Net.config.role = 'host';
+            writeConfig(Object.assign({}, Net.config));
+            startNetworking('host');
+        }
+        banner('Online game open  -  your IP: ' + (localAddresses().join(', ') || '?'),
+            'Friends: Join online. When they are in: Menu > Online > Start', COLOR_NET, 420);
+    };
+
+    // "Online" en el menu de P1 (antes de Opciones / Salir): el menu de red
+    const _Window_MenuCommand_makeCommandList2 = Window_MenuCommand.prototype.makeCommandList;
+    Window_MenuCommand.prototype.makeCommandList = function() {
+        _Window_MenuCommand_makeCommandList2.call(this);
+        if (coop.menuOwner() >= 2 || this._list.some(c => c.symbol === 'coopOnline')) return;
+        const command = { name: 'Online', symbol: 'coopOnline', enabled: true, ext: null };
+        const at = this._list.findIndex(c => c.symbol === 'options' || c.symbol === 'gameEnd');
+        if (at >= 0) this._list.splice(at, 0, command);
+        else this._list.push(command);
+    };
+
+    const _Scene_Menu_createCommandWindow = Scene_Menu.prototype.createCommandWindow;
+    Scene_Menu.prototype.createCommandWindow = function() {
+        _Scene_Menu_createCommandWindow.call(this);
+        this._commandWindow.setHandler('coopOnline', () => SceneManager.push(Scene_CoopNet));
+    };
 
     // entrada en Opciones > Co-op (YEP_OptionsCore) o una linea mas en Opciones
     if (typeof Yanfly !== 'undefined' && Yanfly.Param && Array.isArray(Yanfly.Param.OptionsCategories)) {

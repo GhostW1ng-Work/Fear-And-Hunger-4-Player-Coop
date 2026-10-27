@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Network game shortcuts: **Host online** on the title screen (load a save and the game is open for the others) and **Join online** (the network menu, straight on the list of games found); **Online** in P1's game menu (who is connected, start, stop).
 - Network game: **games found** - the network menu lists the games open on your networks (LAN, Radmin VPN / ZeroTier, or another copy on this PC): pick one with left / right instead of typing the IP (UDP port 47811). Typing the IP still works.
 
 ## v1.6.0

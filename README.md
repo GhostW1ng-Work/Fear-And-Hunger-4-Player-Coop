@@ -34,9 +34,9 @@ Game over rule (as in the original mod): if any player's character dies in comba
 
 Experimental. Every PC needs the game and the same version of the mod (the installer adds the network part; the game checks versions when someone connects).
 
-1. **Host**: load a save, *Options > Co-op > Network game...*, Mode *Host*, **Open the game for other players** - the screen shows your IP.
-2. **Guests** (the title screen is enough): Mode *Join*, pick the game in **Games found** (or type the host's IP), **Connect to the host**.
-3. **Host**: **Start the network game**. Everybody plays from the host's world, each with the camera on their own character.
+1. **Host**: **Host online** on the title screen and pick a save (or later: *Options > Co-op > Network game...*, Mode *Host*, **Open the game for other players**) - the screen shows your IP.
+2. **Guests**: **Join online** on the title screen, pick the game in **Games found** (or type the host's IP), **Connect to the host**.
+3. **Host**: game menu > **Online** > **Start the network game**. Everybody plays from the host's world, each with the camera on their own character.
 
 - **Over the internet**: the easiest is a virtual LAN (Radmin VPN, ZeroTier, Hamachi) - type the host's VPN address. Or forward TCP port 47810 on the host's router. The input delay adapts to the ping by itself.
 - **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter.
