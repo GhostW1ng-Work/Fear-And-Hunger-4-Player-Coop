@@ -1289,6 +1289,9 @@
         if (Net.active && inBattleCtx && battle && result === 2 && battle.involved.indexOf(1) < 0) {
             battleLog('battle ' + battle.seq + ' lost by P' + battle.involved.join(', P') + ' (without P1): ends as escaped for the map event');
             result = 1;
+            // y siguen muertos: con "se puede perder" RPG Maker los levantaria con 1 PV (y el
+            // enemigo los volvia a tocar: combate sin fin)
+            this._coopNoRevive = true;
         } else if (Net.active && inBattleCtx && battle) {
             battleLog('battle ' + battle.seq + ' result ' + ['won', 'escaped / aborted', 'lost'][result]);
         }
