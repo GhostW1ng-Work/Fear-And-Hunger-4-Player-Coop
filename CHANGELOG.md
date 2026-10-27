@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.3
 
 - Network game, less work per frame: the battle log is written every 2 s in the background (it was written to disk on every key in a battle, the game waited for the disk) and kept under ~1 MB; the random-number trail for the desync log only turns call stacks into text when a desync is written.
 

@@ -1,6 +1,6 @@
 /*:
  * @target MV
- * @plugindesc v1.8.2 [EXPERIMENTAL] Co-op en red (LAN o internet): cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.8.3 [EXPERIMENTAL] Co-op en red (LAN o internet): cada jugador en su PC con su copia del juego (lockstep). Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @help
