@@ -4207,7 +4207,9 @@
     const _BattleManager_processDefeat = BattleManager.processDefeat;
     BattleManager.processDefeat = function() {
         const leader = $gameParty._actors.length ? $gameActors.actor($gameParty._actors[0]) : null;
-        if (coopOn() && coopSettings.deathRule !== 'gameover' && leader && leader.isAlive() && !this._canLose) {
+        // (en red tambien si el otro jugador ya no tiene personaje en el mapa)
+        const coopGame = coopOn() || Object.keys(CoopState.parked).length > 0 || (window.CoopNet && window.CoopNet.active);
+        if (coopGame && coopSettings.deathRule !== 'gameover' && leader && leader.isAlive() && !this._canLose) {
             this._canLose = true;
             this._coopNoRevive = true;
         }

@@ -1280,6 +1280,21 @@
         });
     }
 
+    // Un combate aparte sin P1 que se pierde: para el evento del mapa no es "Perder" sino que se
+    // termino (como huir). Las ramas "Si pierdes" del juego (los guardias de Fear & Hunger 1 te
+    // capturan: foso de sangre, piernas...) son la derrota del protagonista y le pasaban a todos;
+    // los que lucharon quedan muertos (cuerpos).
+    const _BattleManager_endBattle = BattleManager.endBattle;
+    BattleManager.endBattle = function(result) {
+        if (Net.active && inBattleCtx && battle && result === 2 && battle.involved.indexOf(1) < 0) {
+            battleLog('battle ' + battle.seq + ' lost by P' + battle.involved.join(', P') + ' (without P1): ends as escaped for the map event');
+            result = 1;
+        } else if (Net.active && inBattleCtx && battle) {
+            battleLog('battle ' + battle.seq + ' result ' + ['won', 'escaped / aborted', 'lost'][result]);
+        }
+        _BattleManager_endBattle.call(this, result);
+    };
+
     function closeBattle() {
         const b = battle;
         if (!b) return;
