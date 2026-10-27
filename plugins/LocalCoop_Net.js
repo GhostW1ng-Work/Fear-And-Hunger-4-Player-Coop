@@ -419,12 +419,20 @@
     // cada PC mira a su jugador; si no tiene personaje (murio, espera a alguien...), a P1
     let cameraHadChar = true;
     function followOwnCamera() {
-        if (!Net.player || Net.player === 1 || !(SceneManager._scene instanceof Scene_Map)) return;
+        if (!Net.active || !Net.player || Net.player === 1 || !(SceneManager._scene instanceof Scene_Map)) return;
+        // (mientras carga el mapa no hay datos del mapa: centrar la camara fallaria)
+        if (!SceneManager._sceneStarted || SceneManager._nextScene || !$dataMap || !$gameMap.mapId()) return;
         const has = !!coop.player(Net.player);
         if (has === cameraHadChar) return;
         cameraHadChar = has;
         coop.setCamera(has ? 'p' + Net.player : 'p1');
-        if (!has) $gamePlayer.center($gamePlayer.x, $gamePlayer.y);
+        if (!has) {
+            try {
+                $gamePlayer.center($gamePlayer.x, $gamePlayer.y);
+            } catch (e) {
+                logError('camera on P1', e);
+            }
+        }
     }
 
     // quien se fue vuelve a ser un seguidor normal en cuanto se esta en el mapa
@@ -1433,8 +1441,17 @@
     function closeSceneNow() {
         const old = SceneManager._scene;
         if (old) {
-            old.terminate();
-            old.detachReservation();
+            // (una escena a medio crear, p.ej. un mapa que aun cargaba, no siempre se deja cerrar)
+            try {
+                old.terminate();
+            } catch (e) {
+                logError('closing the scene', e);
+            }
+            try {
+                old.detachReservation();
+            } catch (e) {
+                // nada
+            }
         }
         SceneManager._scene = null;
         SceneManager._sceneStarted = false;
