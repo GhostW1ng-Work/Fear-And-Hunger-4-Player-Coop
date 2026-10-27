@@ -1350,6 +1350,25 @@
         coop.setPadCapture(capturePad);
     }
 
+    // TerraxLighting lleva el reloj dia/noche por dentro y solo lo lee de la partida guardada al
+    // cargar desde la pantalla de Cargar: con la instantanea cada invitado se quedaba con su hora.
+    // Se pone con sus propios comandos ("daynight speed", "daynight hour h m"), igual en todos.
+    function syncTerraxClock() {
+        if (typeof Imported === 'undefined' || !Imported.TerraxLighting) return;
+        const v = $gameVariables;
+        if (!v || typeof v.valueDayNightSave !== 'function') return;
+        const it = new Game_Interpreter();
+        try {
+            const speed = typeof v.valueSpeedDayNightSave === 'function' ? v.valueSpeedDayNightSave() : 0;
+            if (speed > 0) it.pluginCommand('daynight', ['speed', String(speed)]);
+            const hour = v.valueDayNightSave() || 0;
+            const minutes = typeof v.valueDayNightSaveMin === 'function' ? (v.valueDayNightSaveMin() || 0) : 0;
+            it.pluginCommand('daynight', ['hour', String(hour), String(minutes)]);
+        } catch (e) {
+            logError('TerraxLighting clock', e);
+        }
+    }
+
     function applySnapshot(meta, saveJson) {
         enterSession();
         rngState = meta.rng | 0;
@@ -1373,6 +1392,7 @@
         DataManager.createGameObjects();
         DataManager.extractSaveContents(JsonEx.parse(saveJson));
         $gameSystem.onAfterLoad(); // musica de la partida (si sigue siendo la misma, no se corta)
+        syncTerraxClock();
         applySharedConfig(meta.config);
         coop.clearInputs();
         // vuelven todos menos quien sigue fuera (su personaje va en la fila)
