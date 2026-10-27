@@ -74,6 +74,7 @@ function __tickTimers() {
     due.forEach(function(t) { t.fn(); });
 }
 var __files = {};
+var LZString = { compressToBase64: function(s) { return s; }, decompressFromBase64: function(s) { return s; } };
 var __outbox = [];
 var __sockets = {};
 var __server = null;
@@ -104,6 +105,7 @@ var process = { mainModule: { filename: '/game/www/index.html' } };
 var require = function(name) {
     if (name === 'fs') return {
         existsSync: function(p) { return p in __files; }, readFileSync: function(p) { return __files[p]; },
+        mkdirSync: function() {}, unlinkSync: function(p) { delete __files[p]; }, renameSync: function(a, b) { __files[b] = __files[a]; delete __files[a]; },
         writeFileSync: function(p, d) { __files[p] = d; }, appendFileSync: function(p, d) { __files[p] = (__files[p] || '') + d; }
     };
     if (name === 'path') return {
@@ -594,6 +596,45 @@ good.ev("CoopNet.config.password = 'wolf'; CoopNet.open('join')")
 tick(pnet, [ph, good], 30)
 check('right password and same versions: let in as P2', good.ev('CoopNet.player') == 2 and ph.ev('CoopNet.peers.length') == 1,
       [good.ev('CoopNet.player'), ph.ev('CoopNet.peers.length')])
+
+# --- a guest brings the hero of their own save ---
+bh = Peer(21, 'host')
+bg = Peer(22, 'join')
+bnet = Net(bh, [bg])
+bh.ev(HOST_SETUP)
+bg.ev("""
+DataManager.createGameObjects();
+$gameParty._actors = [5];
+$gameActors.actor(5).changeLevel(7, false);
+$gameSystem.onBeforeSave();
+DataManager.saveGame(1);
+""")
+check('bring: the guest has a save with its hero', bg.ev('DataManager.isThisGameFile(1)'))
+bh.ev("CoopNet.open('host')")
+bg.ev("CoopNet.config.bring = 1; CoopNet.open('join')")
+tick(bnet, [bh, bg], 10)
+bh.ev('CoopNet.startRequested = true')
+tick(bnet, [bh, bg], 60)
+check('bring: the hero joined the host party (on both PCs)',
+      all(p.ev('$gameParty._actors.indexOf(5) >= 0') for p in (bh, bg)), [p.ev('$gameParty._actors.join(",")') for p in (bh, bg)])
+check('bring: with the level of the save', all(p.ev('$gameActors.actor(5).level') == 7 for p in (bh, bg)),
+      [p.ev('$gameActors.actor(5).level') for p in (bh, bg)])
+check('bring: the guest plays it', all(p.ev('!!$gamePlayer2 && $gamePlayer2._coopActorId === 5') for p in (bh, bg)),
+      [p.ev('$gamePlayer2 && $gamePlayer2._coopActorId') for p in (bh, bg)])
+same, frames = aligned_worlds(bnet, [bh, bg])
+check('bring: same world', same, frames)
+# the guest leaves and comes back: same hero, not added twice
+bnet.cut(bg)
+bnet.guests.remove(bg)
+tick(bnet, [bh], 60)
+bg2 = Peer(23, 'join')
+bnet.add_guest(bg2)
+bg2.ev('DataManager.createGameObjects(); $gameParty._actors = [5]; $gameSystem.onBeforeSave(); DataManager.saveGame(1);')
+bg2.ev("CoopNet.config.bring = 1; CoopNet.open('join')")
+tick(bnet, [bh, bg2], 90)
+check('bring: coming back, same hero again and only once in the party',
+      bh.ev('!!$gamePlayer2 && $gamePlayer2._coopActorId === 5') and bh.ev('$gameParty._actors.filter(function(a){ return a === 5; }).length') == 1,
+      bh.ev('$gameParty._actors.join(",")'))
 
 # --- over the internet: 100 ms each way (ping 200 ms) ---
 lh = Peer(7, 'host')

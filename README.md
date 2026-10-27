@@ -40,6 +40,7 @@ Experimental. Every PC needs the game and the same version of the mod (the insta
 
 - **Over the internet**: the easiest is a virtual LAN (Radmin VPN, ZeroTier, Hamachi) - type the host's VPN address. Or forward TCP port 47810 on the host's router. The input delay adapts to the ping by itself.
 - **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter.
+- **Bring your own character**: a guest can pick one of their own saves; its main character joins the host's party (if it has fewer than 4 members).
 - Optional password. Keyboard and gamepad only (no mouse) in the network game.
 
 Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release ZIP).

@@ -78,7 +78,7 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '', battles: 'together' };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '', battles: 'together', bring: 0 };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
@@ -88,7 +88,8 @@
                 port: Number(cfg.port) || DEFAULT_PORT,
                 delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto',
                 password: String(cfg.password || ''),
-                battles: cfg.battles === 'separate' ? 'separate' : 'together'
+                battles: cfg.battles === 'separate' ? 'separate' : 'together',
+                bring: Number(cfg.bring) > 0 ? Number(cfg.bring) : 0
             };
         } catch (e) {
             console.error('LocalCoop_Net: coop_net.json no valido', e);
@@ -1469,7 +1470,7 @@
         applySharedConfig(meta.config);
         coop.clearInputs();
         // vuelven todos menos quien sigue fuera (su personaje va en la fila)
-        coop.forceRestore(meta.players.filter(p => p !== 1 && (meta.gone || []).indexOf(p) < 0));
+        coop.forceRestore(meta.players.filter(p => p !== 1 && (meta.gone || []).indexOf(p) < 0), meta.actors);
         Net.pendingExtras = { extras: meta.extras || [], away: meta.away || [], back: meta.back || [] };
         SceneManager.goto(Scene_Map); // sceneSeq + 1, igual en todos
         coop.setCamera('p' + Net.player);
@@ -1477,7 +1478,7 @@
         Net.delay = Math.max(Net.delay, targetDelay());
         for (let f = meta.f; f < meta.f + Net.delay; f++) sendInput(f, 0);
         if (meta.first) {
-            banner('Network game: you are P' + Net.player, 'Players: ' + meta.players.map(p => 'P' + p).join(', '), COLOR_NET, 240);
+            banner('Network game: you are P' + Net.player, meta.reason || ('Players: ' + meta.players.map(p => 'P' + p).join(', ')), COLOR_NET, 240);
         } else if (meta.reason) {
             banner(meta.reason, '', COLOR_NET, 160);
         }
@@ -1516,8 +1517,40 @@
         return ($dataSystem && $dataSystem.versionId) || 0;
     }
 
+    // El invitado puede traer su propio personaje: el protagonista de una de SUS partidas guardadas
+    // (nivel, atributos, habilidades, equipo puesto). El anfitrion lo suma a su grupo al entrar.
+    const savedHeroCache = {};
+    function savedHero(slot) {
+        if (!slot) return null;
+        if (savedHeroCache[slot] !== undefined) return savedHeroCache[slot];
+        let hero = null;
+        try {
+            if (DataManager.isThisGameFile(slot)) {
+                const contents = JsonEx.parse(StorageManager.load(slot));
+                const id = contents.party._actors[0];
+                const actor = contents.actors._data[id];
+                if (actor && $dataActors[id]) {
+                    hero = { actorId: id, name: actor._name || $dataActors[id].name, level: actor._level || 1, json: JsonEx.stringify(actor) };
+                }
+            }
+        } catch (e) {
+            logError('reading save ' + slot, e);
+        }
+        savedHeroCache[slot] = hero;
+        return hero;
+    }
+
+    function savedSlots() {
+        const max = DataManager.maxSavefiles ? DataManager.maxSavefiles() : 20;
+        const out = [];
+        for (let i = 1; i <= max; i++) if (DataManager.isThisGameFile(i)) out.push(i);
+        return out;
+    }
+
     function helloMessage() {
-        return { t: 'hello', mod: coop.version, game: gameVersion(), plugins: activePlugins(), pw: Net.config.password || '' };
+        const hero = savedHero(Net.config.bring);
+        return { t: 'hello', mod: coop.version, game: gameVersion(), plugins: activePlugins(), pw: Net.config.password || '',
+            bring: hero ? { actorId: hero.actorId, name: hero.name, level: hero.level, json: hero.json } : null };
     }
 
     // devuelve por que no puede entrar (o '' si todo coincide)
@@ -1613,6 +1646,43 @@
         return Math.max(now, NativeDate.now() + CLOCK_LEAD) - Math.floor(f * STEP_MS);
     }
 
+    // devuelve el actor que llevara ese invitado (0 = ninguno: un companero libre, como siempre)
+    function bringHero(peer) {
+        const b = peer.bring;
+        if (!b || peer.broughtDone) return peer.broughtId || 0;
+        peer.broughtDone = true;
+        const id = b.actorId;
+        const name = b.name || ($dataActors[id] && $dataActors[id].name) || 'that character';
+        const say = (title, sub) => send(peer.sock, { t: 'note', title: title, sub: sub || '' });
+        if (!$dataActors[id]) {
+            say('Your character could not join', 'Unknown character (another game?)');
+            return 0;
+        }
+        const takenBy = $gameParty._actors[0] === id ? 1 : (coop.players().find(p => p._coopActorId === id) || { coopIndex: () => 0 }).coopIndex();
+        if (takenBy && takenBy !== peer.player) {
+            say(name + ' is already played by P' + takenBy, 'You play a companion instead');
+            return 0;
+        }
+        if ($gameParty._actors.indexOf(id) < 0) {
+            if ($gameParty._actors.length >= 4) {
+                say("The host's party is full", 'You play a companion instead');
+                return 0;
+            }
+            try {
+                $gameActors._data[id] = JsonEx.parse(b.json);
+            } catch (e) {
+                logError('brought character', e);
+                say('Your character could not join', 'The save could not be read');
+                return 0;
+            }
+            $gameParty.addActor(id);
+            peer.broughtNew = true;
+        }
+        // (si ya estaba en el grupo, p.ej. vuelve tras irse, sigue como estaba en este mundo)
+        peer.broughtId = id;
+        return id;
+    }
+
     function hostSnapshot(first) {
         const back = Net.joinQueue.filter(n => Net.players.indexOf(n) >= 0);
         Net.joinQueue.forEach(n => {
@@ -1620,8 +1690,27 @@
             delete Net.lost[n];
         });
         Net.players.sort();
-        const reason = first ? '' : (Net.joinQueue.length > 0 ? 'P' + Net.joinQueue.join(', P') + ' joined' : 'Back in sync');
         const peersNow = Net.peers.filter(pp => Net.players.indexOf(pp.player) >= 0);
+        // quien entra con su personaje guardado: al grupo
+        const brought = {};
+        const joinedWith = [];
+        peersNow.filter(pp => Net.joinQueue.indexOf(pp.player) >= 0).forEach(pp => {
+            const id = bringHero(pp);
+            if (id) {
+                brought[pp.player] = id;
+                if (pp.broughtNew) joinedWith.push('P' + pp.player + ' with ' + $gameActors.actor(id).name());
+            }
+        });
+        if (joinedWith.length > 0) $gamePlayer.refresh();
+        const reason = first ? (joinedWith.length ? joinedWith.join(', ') : '') :
+            (Net.joinQueue.length > 0 ? (joinedWith.length ? joinedWith.join(', ') + ' joined' : 'P' + Net.joinQueue.join(', P') + ' joined') : 'Back in sync');
+        // el personaje de cada uno (para que nadie cambie de personaje al cargar la instantanea)
+        const actors = {};
+        Net.players.filter(n => n !== 1).forEach(n => {
+            const p = coop.player(n);
+            const id = brought[n] || (p && p._coopActorId) || coop.lastActor(n);
+            if (id) actors[n] = id;
+        });
         peersNow.forEach(pp => {
             pp.inSession = true;
             pp.ready = -1;
@@ -1647,6 +1736,7 @@
             gone: Object.keys(Net.lost).map(Number),
             back: back,
             reason: reason,
+            actors: actors,
             config: ConfigManager.makeData()
         };
         const saveJson = JsonEx.stringify(DataManager.makeSaveContents());
@@ -1683,7 +1773,7 @@
     }
 
     // un invitado ya presentado: se le da numero de jugador (o se le dice que esta lleno)
-    function acceptPeer(sock) {
+    function acceptPeer(sock, hello) {
         const used = Net.peers.map(pp => pp.player);
         // vuelve alguien que se habia ido: recupera su numero; si no, el primero libre
         const lostOnes = Object.keys(Net.lost).map(Number).filter(n => used.indexOf(n) < 0).sort();
@@ -1693,7 +1783,8 @@
             sock.end();
             return null;
         }
-        const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false };
+        const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false,
+            bring: hello && hello.bring && hello.bring.actorId ? hello.bring : null };
         Net.peers.push(peer);
         send(sock, { t: 'hi', player: player });
         if (Net.active) {
@@ -1739,7 +1830,7 @@
                         banner('A player could not join (' + sock.remoteAddress + ')', problem, '#ffaa44', 300);
                         return;
                     }
-                    peer = acceptPeer(sock);
+                    peer = acceptPeer(sock, msg);
                     return;
                 }
                 if (msg.t === 'in') hostStoreInput(msg.f, peer.player, msg.b | 0, msg.rs, msg.br);
@@ -1779,6 +1870,8 @@
                     banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
                     banner('The network game is full', '', '#ffaa44', 300);
+                } else if (msg.t === 'note') {
+                    banner(String(msg.title || ''), String(msg.sub || ''), '#ffaa44', 300);
                 } else if (msg.t === 'reject') {
                     Net.rejected = String(msg.reason || 'Rejected');
                     banner('The host did not let you in', Net.rejected, '#ff5555', 400);
@@ -1866,7 +1959,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'password', 'delay', 'battles', 'action', 'stop'];
+    const NET_ROWS = ['role', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -1920,6 +2013,11 @@
             if (this._editing === 'password') return this._text + '_';
             return this._cfg.password ? '*'.repeat(this._cfg.password.length) : '(none)';
         }
+        if (key === 'bring') {
+            if (this._cfg.role !== 'join') return '-';
+            const hero = savedHero(this._cfg.bring);
+            return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
+        }
         if (key === 'battles') {
             const label = this._cfg.battles === 'separate' ? 'Separate (experimental)' : 'Together';
             return Net.role === 'join' ? "(the host's)" : '< ' + label + ' >';
@@ -1940,13 +2038,14 @@
         if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
+        if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         return Net.role === 'off';
     };
 
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
+        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -1993,6 +2092,7 @@
         if (NET_ROWS[this.index()] === 'role') this.changeRole();
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(1);
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
+        if (NET_ROWS[this.index()] === 'bring') this.changeBring(1);
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2000,6 +2100,20 @@
         if (NET_ROWS[this.index()] === 'role') this.changeRole();
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(-1);
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
+        if (NET_ROWS[this.index()] === 'bring') this.changeBring(-1);
+    };
+
+    // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
+    Window_CoopNet.prototype.changeBring = function(step) {
+        if (!this.isRowEnabled('bring')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        const options = [0].concat(savedSlots().filter(slot => !!savedHero(slot)));
+        const i = Math.max(0, options.indexOf(this._cfg.bring));
+        this._cfg.bring = options[(i + step + options.length) % options.length];
+        SoundManager.playCursor();
+        this.refresh();
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
@@ -2033,6 +2147,8 @@
             this.changeDelay(1);
         } else if (key === 'battles') {
             this.changeBattles();
+        } else if (key === 'bring') {
+            this.changeBring(1);
         } else if (key === 'host' || key === 'port' || key === 'password') {
             this._editing = key;
             this._text = '';

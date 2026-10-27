@@ -2131,8 +2131,9 @@
             padCapture = fn || null;
         },
         // al empezar una partida en red: estos jugadores entran solos al cargar el mapa
-        forceRestore(players) {
-            CoopState.restore = { players: players.slice(), pads: {} };
+        // actors: { jugador: actorId } = el personaje de cada uno (si esta en el grupo)
+        forceRestore(players, actors) {
+            CoopState.restore = { players: players.slice(), pads: {}, actors: Object.assign({}, actors || {}) };
         },
         setAway(n, on) {
             setPlayerAway(n, !!on);

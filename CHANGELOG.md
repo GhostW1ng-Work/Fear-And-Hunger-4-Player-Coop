@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: **bring your own character**. A guest picks one of their own saves (*Bring character* in the network menu); its main character (level, stats, skills, equipment worn) joins the host's party and the guest plays it. Not if the host's party already has 4 members or that character is played by someone else (then the guest plays a companion, as before). Coming back later, the guest gets the same character again.
+
 ## v1.5.1
 
 - A battle started by a shot of P2-P4 (an enemy hit) is the shooter's: in separate battles the shooter fights, not the host.
