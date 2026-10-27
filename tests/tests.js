@@ -713,6 +713,7 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     [242, 243, 244, 245, 246].forEach(function(id) { $gameSwitches.setValue(id, false); });
     $gameSwitches.setValue(410, false); $gameSwitches.setValue(297, false); $gameSwitches.setValue(300, false);
     for (var k = 0; k < 30; k++) frame();
+    $gamePlayer.setDirection(6); $gamePlayer2.setDirection(4); // P1 mira a la derecha, P2 a la izquierda
     down('ShiftRight', 16, 2); frame(); frame();
     var selectOn = $gameSwitches.value(242);
     var after = [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); });
@@ -724,6 +725,10 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
         var it2 = new Game_Interpreter(); it2._eventId = otherEv2.eventId();
         check('T29e during the shot, arrow_check sees P2 as "the player" (flash animation on P2)', it1.character(-1) === $gamePlayer2);
         check('T29f other events still see P1', it2.character(-1) === $gamePlayer);
+    }
+    if (isTermina) {
+        check('T29g the flash follows where P2 looks (FACE_LEFT on, FACE_RIGHT off)', $gameSwitches.value(12) === true && $gameSwitches.value(13) === false,
+            [10, 11, 12, 13].map(function(id) { return $gameSwitches.value(id); }).join(','));
     }
     if (isTermina) {
         check('T29c Termina: pistol switch on during the shot', after[2] === true, after.join(','));

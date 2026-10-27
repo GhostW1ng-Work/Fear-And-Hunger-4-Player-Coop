@@ -161,8 +161,24 @@
         }
         saved[SW_GUN_OK] = sw(SW_GUN_OK);
 
+        // Termina elige la animacion del fogonazo con FACE_UP / FACE_DOWN / FACE_LEFT / FACE_RIGHT,
+        // que un evento comun pone cada pocos cuadros segun hacia donde mira P1: con el tirador
+        // mirando a otro lado salia el de P1 (o ninguno). Se ponen ya segun el tirador (despues el
+        // mismo evento comun los vuelve a calcular).
+        faceSwitches().forEach(f => $gameSwitches.setValue(f.id, f.dir === player.direction()));
+
         session = { player: player, frames: 0, sawArrow: false, saved: saved };
         lastShooter = player.coopIndex();
+    }
+
+    let faceCache = null;
+    function faceSwitches() {
+        if (!faceCache) {
+            const names = { FACE_UP: 8, FACE_DOWN: 2, FACE_LEFT: 4, FACE_RIGHT: 6 };
+            faceCache = ($dataSystem.switches || []).map((n, id) => ({ id: id, dir: names[String(n || '').trim().toUpperCase()] }))
+                .filter(f => f.dir);
+        }
+        return faceCache;
     }
 
     function endSession() {
