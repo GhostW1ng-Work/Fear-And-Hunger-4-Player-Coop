@@ -3,7 +3,7 @@
 ## Unreleased
 
 - Network game: YEP_BattleEngineCore picked the target under the (resting) mouse on one PC only - the main cause of battle desyncs in Fear & Hunger 1; now off in the network game.
-- Separate battles: the enemy of a battle stays frozen when it touches another player (it used to walk on and could start a second battle).
+- Separate battles: the enemy that started a battle stays frozen until it ends - also when P2-P4 started it, and when it touches another player (it used to walk on and could start a second battle).
 - P2-P4 no longer start following P1 into a wall after a map transfer.
 
 - Network game: the mouse is off (it is not sent over the network: picking a body part with it changed the target only on one PC).

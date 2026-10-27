@@ -1227,6 +1227,11 @@
         if (!(next instanceof Scene_Battle)) return result;
         b.scene = next;
         b.inputs[starter] = newVirtualInput(Net.raw[starter] || 0);
+        // el enemigo que empezo el combate se queda quieto hasta el final (el mapa sigue para los
+        // demas; normalmente ya esta parado, pero no siempre si el combate lo empezo P2-P4).
+        // Lo suelta el propio juego cuando termina su evento.
+        const foe = this._eventId > 0 && this._mapId === $gameMap.mapId() ? $gameMap.event(this._eventId) : null;
+        if (foe) foe._locked = true;
         Net.battleSeq = b.seq;
         battle = b;
         battleLog('battle ' + b.seq + ' for P' + starter + ' (troop ' + $gameTroop._troopId + ')');
