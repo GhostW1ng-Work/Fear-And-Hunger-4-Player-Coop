@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.5.1
 
 - A battle started by a shot of P2-P4 (an enemy hit) is the shooter's: in separate battles the shooter fights, not the host.
 - Shooting of P2-P4: the muzzle flash and the shot effects play on the shooter and in the direction the shooter looks (Termina chose it from where P1 looked), not on P1 (the shot events "show animation on the player"), and the shot lasts until the bullet / arrow stops flying.
