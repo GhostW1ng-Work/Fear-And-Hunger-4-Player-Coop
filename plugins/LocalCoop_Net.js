@@ -239,7 +239,20 @@
     const nativeRandom = Math.random;
     let rngState = 0;
 
+    // cada numero al azar de la logica, con quien lo pidio: si los PC se separan, el registro de
+    // desync muestra la primera llamada distinta (asi se encuentra que plugin hace algo distinto)
+    const RAND_KEEP = 4000;
+    const randTrail = [];
+
+    function noteRandom() {
+        const st = (new Error().stack || '').split('\n').slice(3, 6)
+            .map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/\\]/, '(')).join(' < ');
+        randTrail.push(Net.frame + ' ' + st);
+        if (randTrail.length > RAND_KEEP) randTrail.splice(0, randTrail.length - RAND_KEEP);
+    }
+
     function seededRandom() {
+        noteRandom();
         // mulberry32
         rngState = (rngState + 0x6D2B79F5) | 0;
         let t = rngState;
@@ -1050,7 +1063,10 @@
         });
         if (b.started) {
             const after = $gameParty.battleMembers();
-            after.filter(a => before.indexOf(a) < 0).forEach(a => a.onBattleStart());
+            after.filter(a => before.indexOf(a) < 0).forEach(a => {
+                a.onBattleStart();
+                a.makeActions(); // sus casillas de accion para este turno
+            });
             if (b.scene._statusWindow && b.scene._statusWindow.refresh) b.scene._statusWindow.refresh();
         }
     }
@@ -1119,6 +1135,7 @@
             return;
         }
         stepBattleInputs();
+        logBattleInput();
         let next = null;
         try {
             next = withBattle(() => {
@@ -1132,6 +1149,28 @@
             return;
         }
         if (next) changeBattle(next);
+    }
+
+    // registro: cuando cambian las teclas de alguien que lucha, quien tiene el control y que
+    // ventana y casilla estan activas (igual en todos los PC si todo va bien)
+    function logBattleInput() {
+        const raws = battle.involved.map(n => 'P' + n + '=' + (Net.raw[n] || 0)).join(' ');
+        if (raws === battle.lastRaws) return;
+        battle.lastRaws = raws;
+        let owner = '?';
+        let win = '-';
+        try {
+            withBattle(() => {
+                owner = 'P' + battleInputOwner();
+                const layer = battle.scene._windowLayer;
+                const active = layer ? layer.children.filter(w => w && w.active && w.visible && typeof w.index === 'function') : [];
+                win = active.map(w => w.constructor.name + '#' + w.index()).join(',') || 'none';
+            });
+        } catch (e) {
+            win = 'error ' + e.message;
+        }
+        battleLog('keys ' + raws + ' -> owner ' + owner + ', phase ' + BattleManager._phase + ', actor ' +
+            (BattleManager.actor() ? BattleManager.actor().name() : '-') + ', active ' + win);
     }
 
     // "Procesar combate" de un evento que empezo un jugador: combate aparte
@@ -1266,6 +1305,14 @@
         PART_NAMES.forEach((name, i) => {
             if (diff.indexOf(name) >= 0) lines.push('[' + name + '] ' + full[i]);
         });
+        // los numeros al azar del ultimo tramo (desde la huella anterior), para comparar entre PC
+        const from = f - HASH_EVERY;
+        const calls = randTrail.filter(l => {
+            const fr = parseInt(l, 10);
+            return fr >= from && fr <= f;
+        });
+        lines.push('[random calls ' + from + '..' + f + ': ' + calls.length + ']');
+        calls.forEach(l => lines.push('  ' + l));
         try {
             fs.appendFileSync(path.join(baseDir, 'coop_net_desync.log'), lines.join('\n') + '\n');
         } catch (e) {
