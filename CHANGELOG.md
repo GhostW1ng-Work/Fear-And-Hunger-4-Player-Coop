@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: **every player's ping on screen** (top right, on the map and in battles: green under 80 ms, yellow under 160, red above) and in the lobby list. *Ping on screen* in the network menu turns it off.
+
 ## v1.7.0
 
 - Network game **lobby**: connected guests press *I'm ready*; everybody sees who is ready, and when all guests are, the game starts by itself after a 3-second countdown (the host can still start earlier).

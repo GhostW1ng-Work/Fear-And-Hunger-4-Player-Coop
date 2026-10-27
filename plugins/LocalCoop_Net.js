@@ -84,7 +84,7 @@
     const configFile = path.join(baseDir, 'coop_net.json');
 
     function readConfig() {
-        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '', battles: 'together', bring: 0 };
+        const off = { role: 'host', host: '127.0.0.1', port: DEFAULT_PORT, delay: 'auto', password: '', battles: 'together', bring: 0, showPing: true };
         try {
             if (!fs.existsSync(configFile)) return off;
             const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
@@ -95,7 +95,8 @@
                 delay: Number(cfg.delay) >= MIN_DELAY && Number(cfg.delay) <= MAX_DELAY ? Number(cfg.delay) : 'auto',
                 password: String(cfg.password || ''),
                 battles: cfg.battles === 'separate' ? 'separate' : 'together',
-                bring: Number(cfg.bring) > 0 ? Number(cfg.bring) : 0
+                bring: Number(cfg.bring) > 0 ? Number(cfg.bring) : 0,
+                showPing: cfg.showPing !== false
             };
         } catch (e) {
             console.error('LocalCoop_Net: coop_net.json no valido', e);
@@ -1815,6 +1816,29 @@
     Net.lobbyReady = false; // invitado: yo estoy listo
     Net.countdown = 0;      // cuadros que faltan (0 = sin cuenta atras)
 
+    Net.allPings = {};      // invitado: el ping de cada jugador al anfitrion { 2: 35, 3: 120 }
+
+    // ping de cada jugador al anfitrion (el anfitrion no tiene)
+    function playerPings() {
+        if (Net.role === 'host') {
+            const out = {};
+            Net.peers.forEach(pp => { out[pp.player] = pp.ping; });
+            return out;
+        }
+        const out = Object.assign({}, Net.allPings);
+        if (Net.player) out[Net.player] = Net.ping;
+        return out;
+    }
+
+    // verde / amarillo / rojo (colores del windowskin para \C[n])
+    function pingColor(ms) {
+        return ms < 80 ? 3 : (ms < 160 ? 6 : 2);
+    }
+
+    function pingText(ms) {
+        return '\\C[' + pingColor(ms) + ']' + ms + 'ms\\C[0]';
+    }
+
     function lobbyList() {
         const leader = typeof $gameParty !== 'undefined' && $gameParty && $gameParty.leader && $gameParty.leader();
         return [{ n: 1, name: leader ? leader.name() : '', ready: true, host: true }].concat(Net.peers.map(pp => ({
@@ -1822,8 +1846,11 @@
         })));
     }
 
-    function lobbyText(list) {
-        return list.map(e => 'P' + e.n + (e.name ? ' ' + e.name : '') + (e.host ? ' (host)' : (e.ready ? ' - ready' : ' - waiting'))).join('   ');
+    // colored: con el ping en color (para drawTextEx; los avisos no lo entienden)
+    function lobbyText(list, colored) {
+        const pings = colored ? playerPings() : {};
+        return list.map(e => 'P' + e.n + (e.name ? ' ' + e.name : '') + (e.host ? ' (host)' : (e.ready ? ' - ready' : ' - waiting')) +
+            (pings[e.n] !== undefined ? ' ' + pingText(pings[e.n]) : '')).join('   ');
     }
 
     function sendLobby() {
@@ -2060,6 +2087,8 @@
                     banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
                     banner('The network game is full', '', '#ffaa44', 300);
+                } else if (msg.t === 'pings') {
+                    Net.allPings = msg.list && typeof msg.list === 'object' ? msg.list : {};
                 } else if (msg.t === 'lobby') {
                     Net.lobby = Array.isArray(msg.list) ? msg.list : [];
                     if (msg.countdown > 0) banner('Everybody is ready - starting in ' + msg.countdown + '...', lobbyText(Net.lobby), COLOR_NET, 70);
@@ -2129,6 +2158,10 @@
         const ts = performance.now();
         if (Net.role === 'host') {
             Net.peers.forEach(pp => send(pp.sock, { t: 'ping', ts: ts }));
+            // (cada invitado ve tambien el ping de los demas)
+            const all = {};
+            Net.peers.forEach(pp => { all[pp.player] = pp.ping; });
+            Net.peers.forEach(pp => send(pp.sock, { t: 'pings', list: all }));
             if (Net.active && Net.blockedSince && ts - Net.blockedSince > PEER_TIMEOUT) {
                 Net.blockedSince = 0;
                 Net.peers.filter(pp => pp.inSession && Net.blockedOn.indexOf(pp.player) >= 0).forEach(pp => {
@@ -2153,7 +2186,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'action', 'stop'];
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'showPing', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -2250,6 +2283,7 @@
             const hero = savedHero(this._cfg.bring);
             return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
         }
+        if (key === 'showPing') return '< ' + (this._cfg.showPing ? 'On' : 'Off') + ' >';
         if (key === 'battles') {
             const label = this._cfg.battles === 'separate' ? 'Separate (experimental)' : 'Together';
             return Net.role === 'join' ? "(the host's)" : '< ' + label + ' >';
@@ -2269,6 +2303,7 @@
         if (key === 'stop') return Net.role !== 'off';
         if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
+        if (key === 'showPing') return true;
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
@@ -2278,7 +2313,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', showPing: 'Ping on screen', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2333,6 +2368,7 @@
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(1);
         if (NET_ROWS[this.index()] === 'found') this.pickFound(1);
+        if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2342,6 +2378,7 @@
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(-1);
         if (NET_ROWS[this.index()] === 'found') this.pickFound(-1);
+        if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2358,6 +2395,16 @@
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    Window_CoopNet.prototype.changeShowPing = function() {
+        this._cfg.showPing = !this._cfg.showPing;
+        if (isMyMenu()) {
+            Net.config.showPing = this._cfg.showPing;
+            writeConfig(Object.assign({}, Net.config));
+        }
+        SoundManager.playCursor();
+        this.refresh();
+    };
+
     Window_CoopNet.prototype.changeBattles = function() {
         if (!this.isRowEnabled('battles')) {
             SoundManager.playBuzzer();
@@ -2388,6 +2435,8 @@
             this.changeDelay(1);
         } else if (key === 'battles') {
             this.changeBattles();
+        } else if (key === 'showPing') {
+            this.changeShowPing();
         } else if (key === 'bring') {
             this.changeBring(1);
         } else if (key === 'found') {
@@ -2475,21 +2524,24 @@
         if (key === this._key) return;
         this._key = key;
         this.contents.clear();
-        this.contents.fontSize = 20;
-        lines.forEach((line, i) => this.drawText(line, 0, i * 30, this.contents.width, 'left'));
+        lines.forEach((line, i) => this.drawTextEx(line, 0, i * 30));
+    };
+
+    Window_CoopNetHelp.prototype.standardFontSize = function() {
+        return 20;
     };
 
     Window_CoopNetHelp.prototype.lines = function() {
         const cfg = Net.config;
         if (Net.role === 'host') {
             return ['You are the host (P1). Your IP: ' + (localAddresses().join(', ') || '?') + '  port ' + cfg.port,
-                Net.peers.length ? 'Lobby: ' + lobbyText(lobbyList()) : 'Connected: nobody yet',
+                Net.peers.length ? 'Lobby: ' + lobbyText(lobbyList(), true) : 'Connected: nobody yet',
                 Net.active ? 'Players can join or come back during the game.' :
                     (Net.peers.length ? 'Starts by itself when everybody is ready.' : 'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).')];
         }
         if (Net.role === 'join') {
             return ['Joining ' + cfg.host + ':' + cfg.port + ' - ' + (Net.connected ? 'connected as P' + (Net.player || '?') : 'connecting...'),
-                Net.active ? 'In the network game as P' + Net.player + '.' : (Net.lobby.length ? 'Lobby: ' + lobbyText(Net.lobby) : 'The host starts the game; you will see their world.'),
+                Net.active ? 'In the network game as P' + Net.player + '.' : (Net.lobby.length ? 'Lobby: ' + lobbyText(Net.lobby, true) : 'The host starts the game; you will see their world.'),
                 Net.active ? '' : 'Press "I\'m ready" - the game starts when everybody is.'];
         }
         return ['Play over the network, each player on their own PC.',
@@ -2521,6 +2573,58 @@
     };
 
     window.Scene_CoopNet = Scene_CoopNet;
+
+    // ---- ping de cada jugador en la esquina de arriba a la derecha (mapa y combate) -----------
+    // Solo se dibuja en este PC: no toca la partida.
+    function Sprite_CoopPings() {
+        this.initialize.apply(this, arguments);
+    }
+
+    Sprite_CoopPings.prototype = Object.create(Sprite.prototype);
+    Sprite_CoopPings.prototype.constructor = Sprite_CoopPings;
+
+    Sprite_CoopPings.prototype.initialize = function() {
+        Sprite.prototype.initialize.call(this, new Bitmap(320, 24));
+        this.x = Graphics.width - 324;
+        this.y = 4;
+        this._key = null;
+    };
+
+    Sprite_CoopPings.prototype.update = function() {
+        Sprite.prototype.update.call(this);
+        const show = Net.config.showPing && Net.role !== 'off' && (Net.role === 'host' ? Net.peers.length > 0 : Net.connected);
+        const pings = show ? playerPings() : {};
+        const list = Object.keys(pings).map(Number).sort((a, b) => a - b);
+        const key = list.map(n => n + ':' + pings[n]).join(',');
+        if (key === this._key) return;
+        this._key = key;
+        const b = this.bitmap;
+        b.clear();
+        if (!list.length) return;
+        b.fontSize = 16;
+        b.outlineWidth = 3;
+        const colors = { 3: '#66ee66', 6: '#eedd44', 2: '#ff6655' };
+        let x = b.width;
+        list.slice().reverse().forEach(n => {
+            const text = 'P' + n + ' ' + pings[n] + 'ms';
+            const w = b.measureTextWidth(text) + 12;
+            x -= w;
+            b.textColor = colors[pingColor(pings[n])];
+            b.drawText(text, x, 0, w, 24, 'right');
+        });
+    };
+
+    const _Scene_Base_update_pings = Scene_Base.prototype.update;
+    Scene_Base.prototype.update = function() {
+        _Scene_Base_update_pings.call(this);
+        if (!(this instanceof Scene_Map || this instanceof Scene_Battle || this instanceof Scene_CoopNet)) return;
+        if (!this._coopPings) {
+            this._coopPings = new Sprite_CoopPings();
+            this.addChild(this._coopPings);
+        } else if (this.children[this.children.length - 1] !== this._coopPings) {
+            this.addChild(this._coopPings); // siempre por encima de todo
+        }
+    };
 
     // ---- atajos: "Host online" / "Join online" en el titulo y "Online" en el menu de P1 -------
     // Host online: elegir partida, y al cargarla la partida queda abierta para los demas.
