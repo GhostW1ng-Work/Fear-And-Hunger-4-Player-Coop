@@ -325,9 +325,11 @@ check('no desync reported', '"/game/www/coop_net_desync.log"' not in host.ev('JS
 # --- desync on purpose: the guest moves an event, the host must fix it with a snapshot ---
 p2before = host.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")')
 g2.ev('(function(){ var e = $gameMap.events().filter(function(e){ return e; })[0]; e._x += 3; e._realX += 3; })()')
+host.ev('(function coopTestCaller(){ Math.random(); })()')  # a random call with a known caller, for the log
 tick(net, [host, g2], 200)
 log = host.ev('__files["/game/www/coop_net_desync.log"] || ""')
 check('desync detected and logged', 'different: events' in log, log[:80])
+check('the desync log lists the random calls with who made them', '[random calls' in log and 'coopTestCaller' in log.split('[random calls')[1], log.split('[random calls')[1][:160] if '[random calls' in log else '')
 same, frames = aligned_worlds(net, [host, g2])
 check('back in sync after the snapshot', same, frames)
 p2after = [p.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') for p in (host, g2)]

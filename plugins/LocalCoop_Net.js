@@ -252,11 +252,19 @@
     const RAND_KEEP = 4000;
     const randTrail = [];
 
+    // (solo se guarda el Error: convertir la pila en texto cuesta, y solo hace falta si hay desync)
     function noteRandom() {
-        const st = (new Error().stack || '').split('\n').slice(3, 6)
+        const limit = Error.stackTraceLimit;
+        Error.stackTraceLimit = 6;
+        randTrail.push({ f: Net.frame, e: new Error() });
+        Error.stackTraceLimit = limit;
+        if (randTrail.length > RAND_KEEP + 500) randTrail.splice(0, randTrail.length - RAND_KEEP);
+    }
+
+    function trailLine(t) {
+        const st = (t.e.stack || '').split('\n').slice(3, 6)
             .map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/\\]/, '(')).join(' < ');
-        randTrail.push(Net.frame + ' ' + st);
-        if (randTrail.length > RAND_KEEP) randTrail.splice(0, randTrail.length - RAND_KEEP);
+        return t.f + ' ' + st;
     }
 
     function seededRandom() {
@@ -1034,13 +1042,28 @@
         'fadeOutBgs', 'fadeOutMe', 'fadeInBgm', 'fadeInBgs', 'stopBgm', 'stopBgs', 'stopMe', 'stopSe', 'stopAll'];
 
     // registro corto de los combates aparte (para saber que paso si algo no va)
+    // (se escribe cada 2 s y sin parar el juego: escribir en disco a cada tecla del combate
+    // hacia esperar al juego; y no pasa de ~1 MB)
+    let battleLogLines = [];
     function battleLog(msg) {
+        battleLogLines.push(new NativeDate().toISOString() + '  frame ' + Net.frame + '  ' + msg);
+    }
+
+    setInterval(() => {
+        if (battleLogLines.length === 0) return;
+        const text = battleLogLines.join('\n') + '\n';
+        battleLogLines = [];
+        const file = path.join(baseDir, 'coop_net_battle.log');
         try {
-            fs.appendFileSync(path.join(baseDir, 'coop_net_battle.log'), new NativeDate().toISOString() + '  frame ' + Net.frame + '  ' + msg + '\n');
+            fs.stat(file, (err, st) => {
+                const write = () => fs.appendFile(file, text, () => {});
+                if (!err && st && st.size > 1024 * 1024) fs.rename(file, file + '.old', write);
+                else write();
+            });
         } catch (e) {
             // nada
         }
-    }
+    }, 2000);
 
     function inSeparateBattle(n) {
         return !!battle && battle.involved.indexOf(n) >= 0;
@@ -1477,10 +1500,7 @@
         });
         // los numeros al azar del ultimo tramo (desde la huella anterior), para comparar entre PC
         const from = f - HASH_EVERY;
-        const calls = randTrail.filter(l => {
-            const fr = parseInt(l, 10);
-            return fr >= from && fr <= f;
-        });
+        const calls = randTrail.filter(t => t.f >= from && t.f <= f).map(trailLine);
         lines.push('[random calls ' + from + '..' + f + ': ' + calls.length + ']');
         calls.forEach(l => lines.push('  ' + l));
         try {

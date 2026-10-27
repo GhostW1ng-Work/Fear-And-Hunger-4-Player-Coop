@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game, less work per frame: the battle log is written every 2 s in the background (it was written to disk on every key in a battle, the game waited for the disk) and kept under ~1 MB; the random-number trail for the desync log only turns call stacks into text when a desync is written.
+
 ## v1.8.2
 
 - **Easier install**: double-click `install.bat` - unzipped inside the game folder, it installs right there; otherwise it finds Fear & Hunger 1 / Termina by itself (Steam and its libraries, GOG, `Games` folders) and asks which one (a number, several, or all). Dragging the game folder onto it still works.
