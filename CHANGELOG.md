@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.1
 
 - Network game: **every player's ping on screen** (top right, on the map and in battles: green under 80 ms, yellow under 160, red above) and in the lobby list. *Ping on screen* in the network menu turns it off.
 
