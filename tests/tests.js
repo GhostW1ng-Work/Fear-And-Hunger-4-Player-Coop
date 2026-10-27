@@ -725,6 +725,7 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
         var it2 = new Game_Interpreter(); it2._eventId = otherEv2.eventId();
         check('T29e during the shot, arrow_check sees P2 as "the player" (flash animation on P2)', it1.character(-1) === $gamePlayer2);
         check('T29f other events still see P1', it2.character(-1) === $gamePlayer);
+        if (shotEv._interpreter) check('T29h what the shot starts belongs to P2 (a battle from the hit is for P2)', shotEv._interpreter._coopStarter === 2, shotEv._interpreter._coopStarter);
     }
     if (isTermina) {
         check('T29g the flash follows where P2 looks (FACE_LEFT on, FACE_RIGHT off)', $gameSwitches.value(12) === true && $gameSwitches.value(13) === false,
@@ -737,6 +738,8 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     }
     up('ShiftRight', 16, 2);
     for (k = 0; k < 40; k++) frame();
+    var shotEv2 = $gameMap.events().filter(function(e) { return e && e.event().name === 'arrow_check'; })[0];
+    if (shotEv2 && shotEv2._interpreter) check('T29i after the shot, shots belong to nobody again (shots of P1 stay with P1)', !shotEv2._interpreter._coopStarter, shotEv2._interpreter._coopStarter);
     check('T29d after the shot the switches are restored', $gameSwitches.value(242) === false && [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); }).join(',') === story.join(','));
     p2a.forceChangeEquip(0, null);
 })();

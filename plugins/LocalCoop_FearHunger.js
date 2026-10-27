@@ -183,6 +183,7 @@
 
     function endSession() {
         if (!session) return;
+        shotInterpreters().forEach(it => markStarter(it, 0)); // los disparos de P1 siguen siendo de P1
         for (const id of Object.keys(session.saved)) {
             $gameSwitches.setValue(Number(id), session.saved[id]);
         }
@@ -203,6 +204,41 @@
             if (data && SHOT_EVENTS.indexOf(data.name) >= 0) return session.player;
         }
         return _Game_Interpreter_character.call(this, param);
+    };
+
+    // Lo que pone en marcha el disparo de P2-P4 (los eventos del disparo, un enemigo que empieza
+    // por el impacto, los eventos comunes que reservan) es "de" el tirador: asi un combate por un
+    // disparo es del tirador (combates aparte en red) y no de P1.
+    function shotInterpreters() {
+        return $gameMap.events().filter(ev => ev && ev.event() && SHOT_EVENTS.indexOf(ev.event().name) >= 0 && ev._interpreter)
+            .map(ev => ev._interpreter);
+    }
+
+    function markStarter(interp, n) {
+        for (let it = interp; it; it = it._childInterpreter) it._coopStarter = n;
+    }
+
+    // (los eventos paralelos vuelven a empezar su lista sin parar: al empezarla, otra vez del tirador)
+    const _Game_Interpreter_setup = Game_Interpreter.prototype.setup;
+    Game_Interpreter.prototype.setup = function(list, eventId) {
+        _Game_Interpreter_setup.call(this, list, eventId);
+        if (session && eventId > 0) {
+            const ev = $gameMap.event(eventId);
+            const data = ev && ev.event();
+            if (data && SHOT_EVENTS.indexOf(data.name) >= 0) this._coopStarter = session.player.coopIndex();
+        }
+    };
+
+    const _Game_Event_start = Game_Event.prototype.start;
+    Game_Event.prototype.start = function() {
+        _Game_Event_start.call(this);
+        if (session && this._starting) this._coopStarter = session.player.coopIndex();
+    };
+
+    const _Game_Temp_reserveCommonEvent = Game_Temp.prototype.reserveCommonEvent;
+    Game_Temp.prototype.reserveCommonEvent = function(commonEventId) {
+        _Game_Temp_reserveCommonEvent.call(this, commonEventId);
+        if (session) this._coopReservedBy = session.player.coopIndex();
     };
 
     // Intercambia temporalmente a P1 con otro jugador (solo mientras corren los eventos del mapa)
@@ -229,6 +265,7 @@
             return;
         }
 
+        shotInterpreters().forEach(it => markStarter(it, session.player.coopIndex()));
         const savedPlayer = swapPlayers(session.player);
         const shiftBefore = Input._currentState.shift;
         Input._currentState.shift = true; // el evento comprueba "boton Shift pulsado"
