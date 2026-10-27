@@ -402,10 +402,15 @@ $gamePlayer.locate(px, py);
 $gamePlayer2.locate(px + 6, py);
 $gameMap._interpreter.setup([{ code: 0, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 0);
 $gamePlayer.forceMoveRoute({ list: [{ code: 15, parameters: [600] }, { code: 0 }], repeat: false, skippable: true, wait: false });
+var p2x0 = $gamePlayer2.x;
+for (f = 0; f < 30; f++) frame();
+check('T20 a route that does not move P1 (turn, wait): P2 stays where it is', $gamePlayer2.x === p2x0, p2x0 + ' -> ' + $gamePlayer2.x);
+$gamePlayer.locate(px, py); $gamePlayer._x = px; // la escena lo lleva a otra casilla
+$gamePlayer.locate(px - 1, py);
 var d0 = Math.abs($gamePlayer2.x - $gamePlayer.x);
 for (f = 0; f < 120; f++) { $gamePlayer.updateRoutineMove && $gamePlayer.updateRoutineMove(); frame(); }
 var d1 = Math.abs($gamePlayer2.x - $gamePlayer.x) + Math.abs($gamePlayer2.y - $gamePlayer.y);
-check('T20 P2 walks to P1 during a forced move route', d1 < d0 && d1 <= 2, d0 + ' -> ' + d1);
+check('T20b the route moves P1: P2 walks to P1', d1 < d0 && d1 <= 2, d0 + ' -> ' + d1);
 $gamePlayer._moveRouteForcing = false;
 
 // --- T21: la escena desplaza la camara -> el mod no la recentra hasta que termina ---

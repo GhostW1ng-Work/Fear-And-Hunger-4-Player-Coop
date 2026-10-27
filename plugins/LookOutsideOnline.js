@@ -1722,13 +1722,28 @@
     };
 
     // Cuando una escena mueve al protagonista (ruta de movimiento), P2-P4 lo siguen como
-    // acompanantes, atravesando todo para no estorbar ni quedarse atascados.
+    // acompanantes, atravesando todo para no estorbar ni quedarse atascados. Solo si de verdad lo
+    // lleva a otra casilla: si la ruta solo le gira (abrir un barril, mirar a un enemigo), no.
     Game_CoopPlayer.prototype.updateCutsceneFollow = function() {
         if (!$gameMap.isEventRunning() || !$gamePlayer.isMoveRouteForcing()) {
+            this._coopRouteFrom = null;
+            if (this._coopFollowing) this.endCutsceneFollow();
             this._through = false;
             return;
         }
+        if (!this._coopRouteFrom) this._coopRouteFrom = [$gamePlayer.x, $gamePlayer.y];
+        if (!this._coopFollowing && $gamePlayer.x === this._coopRouteFrom[0] && $gamePlayer.y === this._coopRouteFrom[1]) return;
+        this._coopFollowing = true;
         this.followLeader();
+    };
+
+    // al terminar de seguirle (o si la escena se corta, p.ej. un combate aparte) puede haberse
+    // quedado dentro de una pared: entonces se pone junto a P1
+    Game_CoopPlayer.prototype.endCutsceneFollow = function() {
+        this._coopFollowing = false;
+        this._through = false;
+        const free = [2, 4, 6, 8].some(d => this.canPass(this.x, this.y, d));
+        if (!free) this.locate($gamePlayer.x, $gamePlayer.y);
     };
 
     Game_CoopPlayer.prototype.updateMoveCoop = function() {

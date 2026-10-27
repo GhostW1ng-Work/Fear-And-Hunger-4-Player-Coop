@@ -623,6 +623,12 @@
         if (this._netMenuNote) this._netMenuNote.visible = hide;
     };
 
+    // El raton (y la pantalla tactil) no van por la red: en la partida en red no llegan al juego
+    // (si no, elegir con el raton una parte del cuerpo en un combate solo pasaba en ese PC)
+    ['mousedown', 'mousemove', 'mouseup', 'wheel', 'touchstart', 'touchmove', 'touchend', 'touchcancel'].forEach(type => {
+        window.addEventListener(type, e => { if (Net.active) e.stopPropagation(); }, true);
+    });
+
     // el raton de un PC no debe mover a nadie en los demas
     const _TouchInput_update = TouchInput.update;
     TouchInput.update = function() {

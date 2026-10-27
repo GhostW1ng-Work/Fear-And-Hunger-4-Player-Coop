@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Network game: the mouse is off (it is not sent over the network: picking a body part with it changed the target only on one PC).
+- Separate battles: a player who joins during the choice of actions no longer crashes the battle (WeaponSkill `setAttack`).
+- P2-P4 follow P1 in scenes only when the scene really moves P1 (not when it just turns, e.g. opening a barrel), and if a scene ends while they walk through a wall they are put next to P1 instead of getting stuck.
+- Desync log: the random-number calls of the last second on each PC (to find what differs); battle key log.
+
 - Network game in **Fear & Hunger 1**: the PCs no longer drift apart every few seconds (the day/night clock of TerraxLighting counted only on the host), which looked like constant reconnects.
 
 ## v1.4.0
