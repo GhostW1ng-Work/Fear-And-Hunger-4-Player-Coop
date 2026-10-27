@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: fixed frequent **desyncs between different PCs** in Fear & Hunger 1 and Termina: the flicker of TerraxLighting lights (and the film grain of FilterController) drew random numbers from the shared game seed - each PC draws a different part of the map, so the PCs drifted apart. Every desync re-sent the world (~400 KB) to the guests, which is what made the ping jump to seconds.
+
 ## v1.8.0
 
 - **Death and soul stones** (Fear & Hunger 1 and Termina): only P1's death ends the game. A character who dies leaves a body; a player with a filled soul stone (*Lesser soul* / *Soul stone*) presses OK at the body to bring them back (the stone is used up; back with 30% HP and mind; the reviver loses 30% mind - both in *Co-op settings*). The game's "killed" switches are undone and Termina's corpse goes away. *When P2-P4 die*: *The party goes on* (new default) or *Game over* (the old rule). In the network game the host's rules apply to everyone.

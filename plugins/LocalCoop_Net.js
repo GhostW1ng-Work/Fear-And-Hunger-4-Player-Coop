@@ -284,6 +284,38 @@
         }
     };
 
+    // Otros dibujos que piden numeros al azar fuera de Spriteset_Base.update (cada PC dibuja una
+    // parte distinta: si tomaran de la semilla comun, los PC se separarian): la luz de
+    // TerraxLighting (parpadeo de las luces, tambien en cada vista de la pantalla dividida) y el
+    // grano de pelicula de FilterController.
+    function visualOnly(proto, name) {
+        const orig = proto && proto[name];
+        if (typeof orig !== 'function' || orig._coopVisual) return;
+        const wrapped = function() {
+            if (!Net.active) return orig.apply(this, arguments);
+            const logic = Math.random;
+            Math.random = nativeRandom;
+            try {
+                return orig.apply(this, arguments);
+            } finally {
+                Math.random = logic;
+            }
+        };
+        wrapped._coopVisual = true;
+        proto[name] = wrapped;
+    }
+
+    if (typeof Filter_Controller !== 'undefined') visualOnly(Filter_Controller.prototype, 'updateFilter');
+    // (la clase de la luz no es global: se toma de la primera que se crea)
+    if (Spriteset_Map.prototype.createLightmask) {
+        const _createLightmask = Spriteset_Map.prototype.createLightmask;
+        Spriteset_Map.prototype.createLightmask = function() {
+            _createLightmask.apply(this, arguments);
+            const proto = this._lightmask && Object.getPrototypeOf(this._lightmask);
+            if (proto) ['update', '_updateMask'].forEach(name => visualOnly(proto, name));
+        };
+    }
+
     const NativeDate = Date;
     function netTimeMs() {
         return Net.timeBase + Math.floor(Net.frame * STEP_MS);
