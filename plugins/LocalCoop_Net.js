@@ -1509,6 +1509,17 @@
         }
     }
 
+    // El reloj comun (Date durante cada cuadro) se coloca en cada instantanea un poco por delante
+    // del reloj de verdad, y nunca hacia atras. Hay plugins que solo cuentan tiempo cuando la hora
+    // pasa de la ultima que vieron, y esa la guardan por dentro, fuera de la partida guardada
+    // (el ciclo dia/noche de TerraxLighting en Fear & Hunger 1): un invitado que habia visto la
+    // hora real (mas adelantada que el reloj comun) dejaba de contar y se separaba una y otra vez.
+    const CLOCK_LEAD = 5 * 60 * 1000;
+    function sharedClockBase(first, f) {
+        const now = first ? 0 : Net.timeBase + Math.floor(f * STEP_MS);
+        return Math.max(now, NativeDate.now() + CLOCK_LEAD) - Math.floor(f * STEP_MS);
+    }
+
     function hostSnapshot(first) {
         const back = Net.joinQueue.filter(n => Net.players.indexOf(n) >= 0);
         Net.joinQueue.forEach(n => {
@@ -1532,7 +1543,7 @@
             rng: first ? ((nativeRandom() * 4294967296) | 0) : rngState,
             players: Net.players.slice(),
             frameBase: first ? $gameSystem._framesOnSave : Net.frameBase,
-            timeBase: first ? NativeDate.now() : Net.timeBase,
+            timeBase: sharedClockBase(first, Net.frame),
             sceneSeq: Net.sceneSeq,
             battleSeq: Net.battleSeq,
             separate: Net.config.battles === 'separate',
