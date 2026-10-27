@@ -1,20 +1,23 @@
 # Changelog
 
-## Unreleased
+## v1.5.0
 
-- **F6 / F7**: F6 opens the save screen (choose the slot - even where the game doesn't let you save), F7 the load screen (also on the title screen). Shift+F6 / Shift+F7 keep the instant quick save in slot 99. Off in the network game.
-- Separate battles: the enemy of the battle doesn't move at all on the map until the battle ends (some chase with routes set by other events and went after the players who were not fighting).
+**Network game in Fear & Hunger 1**
+- No more drifting apart every few seconds (looked like constant reconnects): the day/night clock of TerraxLighting is now the same on every PC.
+- Battles stay in sync: the mouse is off in the network game (YEP_BattleEngineCore picked the target under the resting mouse on one PC only).
 
-- Network game: YEP_BattleEngineCore picked the target under the (resting) mouse on one PC only - the main cause of battle desyncs in Fear & Hunger 1; now off in the network game.
-- Separate battles: the enemy that started a battle stays frozen until it ends - also when P2-P4 started it, and when it touches another player (it used to walk on and could start a second battle).
-- P2-P4 no longer start following P1 into a wall after a map transfer.
+**Separate battles**
+- The enemy of a battle stays frozen on the map until the battle ends, whoever started it (it used to walk on, chase the other players and could start a second battle).
+- A player who joins while actions are being chosen no longer crashes the battle (WeaponSkill `setAttack`).
 
-- Network game: the mouse is off (it is not sent over the network: picking a body part with it changed the target only on one PC).
-- Separate battles: a player who joins during the choice of actions no longer crashes the battle (WeaponSkill `setAttack`).
-- P2-P4 follow P1 in scenes only when the scene really moves P1 (not when it just turns, e.g. opening a barrel), and if a scene ends while they walk through a wall they are put next to P1 instead of getting stuck.
-- Desync log: the random-number calls of the last second on each PC (to find what differs); battle key log.
+**Scenes**
+- P2-P4 follow P1 in a scene only when it really moves P1 (not when it just turns him, e.g. opening a barrel), not after a map transfer, and never stay stuck inside a wall.
 
-- Network game in **Fear & Hunger 1**: the PCs no longer drift apart every few seconds (the day/night clock of TerraxLighting counted only on the host), which looked like constant reconnects.
+**F6 / F7**
+- F6 opens the save screen (choose the slot - even where the game doesn't let you save), F7 the load screen (also on the title screen). Shift+F6 / Shift+F7 keep the instant save / load in slot 99. Off in the network game.
+
+**Diagnostics**
+- The desync log lists the random-number calls of the last second on each PC; separate battles log the keys, the active window and the cursor.
 
 ## v1.4.0
 
