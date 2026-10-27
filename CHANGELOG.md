@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.4.0
 
 - **Players keep their characters**: when a story event removes the character of P2-P4 from the party, it stays with its player (*Co-op settings > Keep players' characters*, on by default). In Termina's solo parts (`temporary_party_remove`) it does leave: the player waits and comes back with the same character afterwards - never with someone else.
 - Saves remember which character each player had; after loading everybody gets their own back.
