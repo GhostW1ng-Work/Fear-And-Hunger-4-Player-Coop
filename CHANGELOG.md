@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Network game: a player who disconnects during a battle no longer leaves their character to the AI - the host commands it until the battle ends (in a separate battle, the next player fighting in it; the AI only if nobody is left). After the battle it is a normal party member.
+- Fix: in a separate battle, if the player who started it disconnected, nobody could close the victory messages (the battle never ended). Now the next player still in the battle presses OK; if nobody is left, the messages go on by themselves.
 
 ## v1.7.1
 

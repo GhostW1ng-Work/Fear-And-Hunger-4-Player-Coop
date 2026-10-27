@@ -942,11 +942,28 @@
         return !!battle && battle.involved.indexOf(n) >= 0;
     }
 
-    // de quien son las teclas en el combate (si es de alguien que no lucha, del primero que lucha)
+    // de quien son las teclas en el combate (si es de alguien que no lucha o que se fue, del primero
+    // que sigue luchando: el que empezo el combate puede haberse desconectado)
     function battleInputOwner() {
         const n = coop.inputOwner();
-        return battle.involved.indexOf(n) >= 0 ? n : battle.involved[0];
+        const here = battle.involved.filter(m => !Net.left[m]);
+        if (here.indexOf(n) >= 0) return n;
+        return here.length ? here[0] : battle.involved[0];
     }
+
+    // se fueron todos los de este combate: lo acaba la IA y los mensajes pasan solos
+    function battleAbandoned() {
+        return !!battle && battle.involved.every(m => Net.left[m]);
+    }
+
+    const _Window_Message_isTriggered = Window_Message.prototype.isTriggered;
+    Window_Message.prototype.isTriggered = function() {
+        if (inBattleCtx && battleAbandoned()) {
+            battle.autoOk = (battle.autoOk || 0) + 1;
+            if (battle.autoOk % 30 === 0) return true; // (cuenta en el combate: igual en todos los PC)
+        }
+        return _Window_Message_isTriggered.call(this);
+    };
 
     // ejecuta fn como si el combate fuera la escena actual (ver withSub)
     function withBattle(fn) {
