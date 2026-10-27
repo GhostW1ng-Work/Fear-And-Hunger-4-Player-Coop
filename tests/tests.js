@@ -237,22 +237,30 @@ check('T12 camera cycles through P4 (mode 5)', seen.indexOf(5) >= 0, seen.join('
 scene._active = true;
 scene.stop = function() {}; // la escena de prueba no tiene graficos (fundido, ventanas)
 DataManager.loadMapData = function() {};
-function fkey(code) { (__listeners.keydown || []).forEach(function(f) { f({ keyCode: code, repeat: false }); }); }
+function fkey(code, shift) { (__listeners.keydown || []).forEach(function(f) { f({ keyCode: code, repeat: false, shiftKey: !!shift }); }); }
 var before = $gameParty._actors.join(',');
-fkey(117);
-check('T13 F6 saved slot 99', DataManager.isThisGameFile(99));
+fkey(117, true);
+check('T13 Shift+F6 saved slot 99', DataManager.isThisGameFile(99));
 $gameParty._actors = [1];
 frame();
 check('T13b party changed after save', !$gamePlayer2);
-fkey(118);
+fkey(118, true);
 var next = SceneManager._nextScene;
-check('T13c F7 goes to a new map scene', next instanceof Scene_Map);
+check('T13c Shift+F7 goes to a new map scene', next instanceof Scene_Map);
 next.create();
 check('T13d party restored from quick save', $gameParty._actors.join(',') === before, $gameParty._actors.join(','));
 next._spriteset = null; next.addWindow = function() {}; next._windowLayer = { removeChild: function() {} };
 SceneManager._scene = next; SceneManager._nextScene = null;
 frame();
 check('T13e players rejoin after quick load', !!$gamePlayer2 && !!$gamePlayer3 && !!$gamePlayer4);
+// F6 / F7 sin Shift: las pantallas de Guardar / Cargar (se elige la ranura)
+function sceneTick() { SceneManager._scene._active = true; try { Scene_Base.prototype.update.call(SceneManager._scene); } catch (e) { /* graficos */ } }
+SceneManager._scene._active = true; fkey(117); sceneTick();
+check('T13f F6 opens the save screen', SceneManager._nextScene instanceof Scene_Save, SceneManager._nextScene && SceneManager._nextScene.constructor.name);
+SceneManager._nextScene = null; SceneManager._stack = [];
+fkey(118); sceneTick();
+check('T13g F7 opens the load screen', SceneManager._nextScene instanceof Scene_Load, SceneManager._nextScene && SceneManager._nextScene.constructor.name);
+SceneManager._nextScene = null; SceneManager._stack = [];
 
 // --- T14: menu propio de P3 (Numpad .) ---
 scene = next;

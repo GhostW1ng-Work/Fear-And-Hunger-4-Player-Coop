@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.4.0 [PRUEBAS] F6 = guardado rapido, F7 = carga rapida, en una ranura aparte. Para probar el co-op sin buscar donde guardar. Desactivar para jugar normal.
+ * @plugindesc v1.4.0 [PRUEBAS] F6 = guardar (eligiendo ranura), F7 = cargar; Shift+F6 / Shift+F7 = guardado / carga rapida en una ranura aparte. Para probar el co-op sin buscar donde guardar.
  * @author TheTiranix
  *
  * @param Slot
@@ -12,8 +12,11 @@
  *
  * @help
  * Solo en el mapa y cuando no hay dialogos ni eventos en curso:
- *   F6 = guardar en la ranura del parametro Slot
- *   F7 = cargar esa ranura (igual que cargarla desde el menu)
+ *   F6 = pantalla de Guardar (se elige la ranura; aunque el juego no deje guardar ahora)
+ *   F7 = pantalla de Cargar (tambien en la pantalla de titulo)
+ *   Shift+F6 = guardar al momento en la ranura del parametro Slot
+ *   Shift+F7 = cargar esa ranura
+ * En la partida en red no funciona (cada PC tiene sus propios archivos).
  *
  * Es una ayuda para pruebas: en Fear & Hunger guardar cuesta, y esto se lo
  * salta. Para jugar en serio, ponga "status": false en js/plugins.js.
@@ -41,7 +44,7 @@
         if (DataManager.saveGame(SLOT)) {
             SoundManager.playSave();
             if (StorageManager.cleanBackup) StorageManager.cleanBackup(SLOT);
-            banner('Quick save', 'Slot ' + SLOT + '  -  F7 to load it');
+            banner('Quick save', 'Slot ' + SLOT + '  -  Shift+F7 to load it');
         } else {
             SoundManager.playBuzzer();
             banner('Quick save failed', 'Slot ' + SLOT, '#ffaa44');
@@ -55,7 +58,7 @@
     function quickLoad() {
         if (!DataManager.isThisGameFile(SLOT)) {
             SoundManager.playBuzzer();
-            banner('No quick save yet', 'Press F6 first', '#ffaa44');
+            banner('No quick save yet', 'Press Shift+F6 first', '#ffaa44');
             return;
         }
         pendingLoad = true;
@@ -81,13 +84,45 @@
         _Scene_Map_create.call(this);
     };
 
+    // F6 / F7 abren las pantallas de Guardar / Cargar desde la actualizacion de la escena (no
+    // desde el evento de teclado, que llega a mitad de cuadro)
+    let pendingScreen = null;
+
+    const _Scene_Base_update = Scene_Base.prototype.update;
+    Scene_Base.prototype.update = function() {
+        openPendingScreen(this);
+        _Scene_Base_update.call(this);
+    };
+
+    function openPendingScreen(scene) {
+        if (!pendingScreen || SceneManager.isSceneChanging()) return;
+        const screen = pendingScreen;
+        pendingScreen = null;
+        if (screen === Scene_Load && scene instanceof Scene_Title) {
+            SoundManager.playOk();
+            SceneManager.push(Scene_Load);
+        } else if (scene instanceof Scene_Map && canUse()) {
+            SoundManager.playOk();
+            SceneManager.push(screen);
+        }
+    }
+
     window.addEventListener('keydown', e => {
         if (e.repeat || (e.keyCode !== KEY_SAVE && e.keyCode !== KEY_LOAD)) return;
-        if (!canUse()) {
+        const onTitle = SceneManager._scene instanceof Scene_Title;
+        if (e.shiftKey) {
+            if (!canUse()) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            if (e.keyCode === KEY_SAVE) quickSave();
+            else quickLoad();
+            return;
+        }
+        if (!canUse() && !(onTitle && e.keyCode === KEY_LOAD)) {
             SoundManager.playBuzzer();
             return;
         }
-        if (e.keyCode === KEY_SAVE) quickSave();
-        else quickLoad();
+        pendingScreen = e.keyCode === KEY_SAVE ? Scene_Save : Scene_Load;
     });
 })();

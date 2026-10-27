@@ -1232,6 +1232,7 @@
         // Lo suelta el propio juego cuando termina su evento.
         const foe = this._eventId > 0 && this._mapId === $gameMap.mapId() ? $gameMap.event(this._eventId) : null;
         if (foe) foe._locked = true;
+        b.foe = foe;
         Net.battleSeq = b.seq;
         battle = b;
         battleLog('battle ' + b.seq + ' for P' + starter + ' (troop ' + $gameTroop._troopId + ')');
@@ -1270,6 +1271,14 @@
         const running = _Game_Map_isEventRunning.call(this);
         if (running && battle && !inBattleCtx && this._interpreter === battle.interp && this._interpreter._waitMode === 'coopBattle') return false;
         return running;
+    };
+
+    // El enemigo del combate ni se mueve en el mapa: algunos persiguen con rutas que les pone otro
+    // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan
+    const _Game_Event_update = Game_Event.prototype.update;
+    Game_Event.prototype.update = function() {
+        if (battle && battle.foe === this) return;
+        _Game_Event_update.call(this);
     };
 
     // eventos durante un combate aparte: los que luchan no estan; un enemigo que toca a otro

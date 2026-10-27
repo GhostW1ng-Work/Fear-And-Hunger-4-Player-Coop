@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **F6 / F7**: F6 opens the save screen (choose the slot - even where the game doesn't let you save), F7 the load screen (also on the title screen). Shift+F6 / Shift+F7 keep the instant quick save in slot 99. Off in the network game.
+- Separate battles: the enemy of the battle doesn't move at all on the map until the battle ends (some chase with routes set by other events and went after the players who were not fighting).
+
 - Network game: YEP_BattleEngineCore picked the target under the (resting) mouse on one PC only - the main cause of battle desyncs in Fear & Hunger 1; now off in the network game.
 - Separate battles: the enemy that started a battle stays frozen until it ends - also when P2-P4 started it, and when it touches another player (it used to walk on and could start a second battle).
 - P2-P4 no longer start following P1 into a wall after a map transfer.
