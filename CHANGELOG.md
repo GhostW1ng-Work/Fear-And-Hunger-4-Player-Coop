@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Shooting of P2-P4: the shot now lasts until the bullet / arrow stops flying (the rest of the flight and the hit used to come from P1).
+
 ## v1.5.0
 
 **Network game in Fear & Hunger 1**

@@ -212,9 +212,12 @@
         session.frames++;
         const arrow = sw(SW_ARROW);
         if (arrow) session.sawArrow = true;
-        const finished = session.sawArrow && !arrow && !sw(SW_BOW_USED);
+        // termina cuando la bala / flecha ya no vuela (si no, el resto del vuelo y el impacto
+        // salian desde P1)
+        if (sw(SW_ARROW_FLYING)) session.sawArrow = true;
+        const finished = session.sawArrow && !arrow && !sw(SW_BOW_USED) && !sw(SW_ARROW_FLYING);
         const noShot = !session.sawArrow && session.frames > 12;
-        if (finished || noShot || session.frames > 240) endSession();
+        if (finished || noShot || session.frames > 600) endSession();
     };
 
     const _Scene_Map_update = Scene_Map.prototype.update;
