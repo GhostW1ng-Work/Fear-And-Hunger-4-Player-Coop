@@ -471,6 +471,33 @@
         return corpses().find(c => c.mapId === mapId && c.x === x && c.y === y && !$gameParty._actors.includes(c.actorId)) || null;
     }
 
+    // casilla para el cuerpo: la suya, o una de al lado sin otro evento (el cadaver de un enemigo
+    // lo taparia)
+    function freeTileNear(ch) {
+        const tiles = [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]];
+        for (const t of tiles) {
+            const x = ch.x + t[0];
+            const y = ch.y + t[1];
+            if ($gameMap.isValid(x, y) && $gameMap.isPassable(x, y, 2) && $gameMap.eventsXy(x, y).length === 0 &&
+                !corpses().some(c => c.mapId === $gameMap.mapId() && c.x === x && c.y === y)) return { x: x, y: y };
+        }
+        return { x: ch.x, y: ch.y };
+    }
+
+    // el cadaver que el juego crea justo despues ("Galv.SPAWN.event(n, x de P1, y de P1)") va al cuerpo
+    let pendingSpawn = null;
+    if (typeof Galv !== 'undefined' && Galv.SPAWN && Galv.SPAWN.event) {
+        const _spawnEvent = Galv.SPAWN.event;
+        Galv.SPAWN.event = function(id, x, y, save) {
+            if (pendingSpawn && Number(id) === pendingSpawn.id && typeof x === 'number') {
+                x = pendingSpawn.x;
+                y = pendingSpawn.y;
+                pendingSpawn = null;
+            }
+            return _spawnEvent.call(this, id, x, y, save);
+        };
+    }
+
     // al morir, el juego lo saca del grupo: ahi queda su cuerpo
     const _Game_Party_removeActor = Game_Party.prototype.removeActor;
     Game_Party.prototype.removeActor = function(actorId) {
@@ -478,14 +505,13 @@
         if (this._actors.includes(actorId) && actor && actor.isDead() && reviveOn() && $gameMap && $gameMap.mapId() > 0) {
             // en Termina el cadaver del juego sale donde esta P1; en Fear & Hunger 1 (sin cadaver)
             // donde estaba el jugador que lo llevaba
-            let pos = $gamePlayer;
-            if (!deathEffectsOf(actorId).spawn) {
-                const who = coop.players().find(pl => pl._coopActorId === actorId);
-                if (who) pos = who;
-            }
+            const who = coop.players().find(pl => pl._coopActorId === actorId);
+            const pos = freeTileNear(who || $gamePlayer);
             const list = corpses().filter(c => c.actorId !== actorId);
             list.push({ actorId: actorId, mapId: $gameMap.mapId(), x: pos.x, y: pos.y });
             $gameSystem._coopCorpses = list;
+            const spawn = deathEffectsOf(actorId).spawn;
+            if (spawn) pendingSpawn = { id: spawn, x: pos.x, y: pos.y };
         }
         _Game_Party_removeActor.call(this, actorId);
     };
@@ -617,23 +643,52 @@
     Game_CoopCorpse.prototype = Object.create(Game_Character.prototype);
     Game_CoopCorpse.prototype.constructor = Game_CoopCorpse;
 
-    function bodiesHere() {
+    function bodiesHere(all) {
         const mapId = $gameMap.mapId();
-        return corpses().filter(c => c.mapId === mapId && !deathEffectsOf(c.actorId).spawn && !$gameParty._actors.includes(c.actorId));
+        return corpses().filter(c => c.mapId === mapId && (all || !deathEffectsOf(c.actorId).spawn) && !$gameParty._actors.includes(c.actorId));
     }
+
+    function Sprite_CoopCorpseName(c) {
+        Sprite.prototype.initialize.call(this, new Bitmap(160, 24));
+        this._corpse = c;
+        this.anchor.x = 0.5;
+        this.anchor.y = 1;
+        this.z = 9;
+        const actor = $gameActors.actor(c.actorId);
+        this.bitmap.fontSize = 15;
+        this.bitmap.outlineWidth = 3;
+        this.bitmap.textColor = '#c8d4ff';
+        this.bitmap.drawText('+ ' + (actor ? actor.name() : '?'), 0, 0, 160, 24, 'center');
+        this._probe = new Game_Character();
+        this._probe.setPosition(c.x, c.y);
+    }
+    Sprite_CoopCorpseName.prototype = Object.create(Sprite.prototype);
+    Sprite_CoopCorpseName.prototype.constructor = Sprite_CoopCorpseName;
+    Sprite_CoopCorpseName.prototype.update = function() {
+        Sprite.prototype.update.call(this);
+        this.x = this._probe.screenX();
+        this.y = this._probe.screenY() - $gameMap.tileHeight() + 8;
+        this.opacity = 150 + Math.round(60 * Math.sin(Graphics.frameCount / 20));
+    };
 
     Spriteset_Map.prototype.coopSyncCorpses = function() {
         if (!this._tilemap) return;
-        const list = reviveOn() ? bodiesHere() : [];
+        const list = reviveOn() ? bodiesHere(true) : [];
         const key = list.map(c => c.actorId + '@' + c.x + ',' + c.y).join(';');
         if (key === this._coopCorpseKey) return;
         this._coopCorpseKey = key;
+        (this._coopCorpseNames || []).forEach(sp => { if (sp.parent) sp.parent.removeChild(sp); });
+        this._coopCorpseNames = list.map(c => {
+            const sp = new Sprite_CoopCorpseName(c);
+            this._tilemap.addChild(sp);
+            return sp;
+        });
         (this._coopCorpseSprites || []).forEach(sp => {
             if (sp.parent) sp.parent.removeChild(sp);
             const i = this._characterSprites.indexOf(sp);
             if (i >= 0) this._characterSprites.splice(i, 1);
         });
-        this._coopCorpseSprites = list.map(c => {
+        this._coopCorpseSprites = list.filter(c => !deathEffectsOf(c.actorId).spawn).map(c => {
             const sp = new Sprite_Character(new Game_CoopCorpse(c));
             this._characterSprites.push(sp);
             this._tilemap.addChild(sp);

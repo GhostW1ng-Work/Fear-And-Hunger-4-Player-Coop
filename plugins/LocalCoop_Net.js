@@ -416,6 +416,17 @@
         });
     }
 
+    // cada PC mira a su jugador; si no tiene personaje (murio, espera a alguien...), a P1
+    let cameraHadChar = true;
+    function followOwnCamera() {
+        if (!Net.player || Net.player === 1 || !(SceneManager._scene instanceof Scene_Map)) return;
+        const has = !!coop.player(Net.player);
+        if (has === cameraHadChar) return;
+        cameraHadChar = has;
+        coop.setCamera(has ? 'p' + Net.player : 'p1');
+        if (!has) $gamePlayer.center($gamePlayer.x, $gamePlayer.y);
+    }
+
     // quien se fue vuelve a ser un seguidor normal en cuanto se esta en el mapa
     function processLeft() {
         Object.keys(Net.left).map(Number).forEach(n => {
@@ -500,6 +511,7 @@
             SceneManager.updateScene();
             applyPendingExtras();
             processLeft();
+            followOwnCamera();
             // durante un cambio de escena no se compara: cada PC termina de cargar el mapa nuevo
             // en un momento distinto, aunque el juego no avanza hasta que todos estan listos
             if (Net.frame % HASH_EVERY === 0 && SceneManager._sceneStarted && !SceneManager._nextScene) checkHash(Net.frame);
@@ -1024,6 +1036,15 @@
         }
         return next;
     }
+
+    const _Game_CommonEvent_isActive = Game_CommonEvent.prototype.isActive;
+    Game_CommonEvent.prototype.isActive = function() {
+        if (battle && Net.active) {
+            const ev = this.event();
+            if (ev && /^deathCheck$/i.test(ev.name)) return false;
+        }
+        return _Game_CommonEvent_isActive.call(this);
+    };
 
     // en el combate aparte solo luchan los personajes de los que estan en el
     const _Game_Party_battleMembers = Game_Party.prototype.battleMembers;

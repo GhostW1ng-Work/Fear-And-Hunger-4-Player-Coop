@@ -3509,7 +3509,8 @@
         _Window_MenuCommand_makeCommandList.call(this);
         if (CoopState.menuOwner >= 2) {
             this._list = this._list.filter(cmd => P1_ONLY_COMMANDS.indexOf(cmd.symbol) < 0);
-        } else if (coopOn() && !this._list.some(cmd => cmd.symbol === 'coopAssign')) {
+        } else if ((coopOn() || Object.keys(CoopState.parked).length > 0 || (window.CoopNet && window.CoopNet.active)) &&
+            !this._list.some(cmd => cmd.symbol === 'coopAssign')) {
             // "Co-op" (reparto de personajes) antes de Opciones / Salir
             const command = { name: 'Co-op', symbol: 'coopAssign', enabled: true, ext: null };
             const at = this._list.findIndex(cmd => cmd.symbol === 'options' || cmd.symbol === 'gameEnd');
@@ -4194,8 +4195,20 @@
     const _BattleManager_processDefeat = BattleManager.processDefeat;
     BattleManager.processDefeat = function() {
         const leader = $gameParty._actors.length ? $gameActors.actor($gameParty._actors[0]) : null;
-        if (coopOn() && coopSettings.deathRule !== 'gameover' && leader && leader.isAlive()) this._canLose = true;
+        if (coopOn() && coopSettings.deathRule !== 'gameover' && leader && leader.isAlive() && !this._canLose) {
+            this._canLose = true;
+            this._coopNoRevive = true;
+        }
         _BattleManager_processDefeat.call(this);
+    };
+
+    const _Game_Party_reviveBattleMembers = Game_Party.prototype.reviveBattleMembers;
+    Game_Party.prototype.reviveBattleMembers = function() {
+        if (BattleManager._coopNoRevive) {
+            BattleManager._coopNoRevive = false;
+            return;
+        }
+        _Game_Party_reviveBattleMembers.call(this);
     };
 
 })();
