@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.7.0
 
 - Network game **lobby**: connected guests press *I'm ready*; everybody sees who is ready, and when all guests are, the game starts by itself after a 3-second countdown (the host can still start earlier).
 - Network game shortcuts: **Host online** on the title screen (load a save and the game is open for the others) and **Join online** (the network menu, straight on the list of games found); **Online** in P1's game menu (who is connected, start, stop).
