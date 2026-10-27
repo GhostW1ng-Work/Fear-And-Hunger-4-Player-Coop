@@ -1,6 +1,8 @@
-# Termina Local Co-op (up to 4 players)
+# Fear & Hunger Co-op: Termina and Fear & Hunger 1 (up to 4 players, local and online)
 
-Local co-op for **Fear & Hunger 2: Termina** and **Fear & Hunger 1** (RPG Maker MV): up to 4 players on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
+Co-op for **Fear & Hunger 2: Termina** and **Fear & Hunger 1** (RPG Maker MV), up to 4 players:
+- **Local** - on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
+- **Online (experimental)** - every player on their own PC with their own copy of the game, over the LAN or the internet. Menus don't pause the game, players can join and leave mid-game, and battles can be shared or separate (only the players an enemy touches fight, the others keep playing). See [Network game](#network-game).
 
 Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players, MIT). This version extends it to 3-4 players and adds gamepads, auto camera, per-player menus and more. The base plugin still works on other RPG Maker MV/MZ games (e.g. Look Outside), but development and testing target Termina.
 
@@ -27,6 +29,20 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Quick save (testing)** | Optional plugin: `F6` save screen (choose the slot) / `F7` load screen; `Shift+F6` / `Shift+F7` instant save / load in slot 99. |
 
 Game over rule (as in the original mod): if any player's character dies in combat, it's game over.
+
+## Network game
+
+Experimental. Every PC needs the game and the same version of the mod (the installer adds the network part; the game checks versions when someone connects).
+
+1. **Host**: load a save, *Options > Co-op > Network game...*, Mode *Host*, **Open the game for other players** - the screen shows your IP.
+2. **Guests** (the title screen is enough): Mode *Join*, type the host's IP, **Connect to the host**.
+3. **Host**: **Start the network game**. Everybody plays from the host's world, each with the camera on their own character.
+
+- **Over the internet**: the easiest is a virtual LAN (Radmin VPN, ZeroTier, Hamachi) - type the host's VPN address. Or forward TCP port 47810 on the host's router. The input delay adapts to the ping by itself.
+- **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter.
+- Optional password. Keyboard and gamepad only (no mouse) in the network game.
+
+Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release ZIP).
 
 ## Controls
 
