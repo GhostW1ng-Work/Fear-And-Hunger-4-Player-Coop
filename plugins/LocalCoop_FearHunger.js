@@ -603,6 +603,7 @@
         const helper = n === 1 ? $gameParty.leader() : coop.actorOf(coop.player(n));
         const cost = (Number(coop.setting('reviveCost')) || 0) / 100;
         if (helper && helper !== actor && cost > 0) helper.setMp(helper.mp - Math.round(helper.mmp * cost));
+        removeBodyPictures(actorId);
         $gameScreen.startFlash([170, 200, 255, 170], 45);
         SoundManager.playRecovery();
         coop.banner(actor.name() + ' is back from the dead', (helper && cost > 0 ? helper.name() + ' paid with their mind' : ''), '#9fb6ff', 200);
@@ -672,6 +673,21 @@
         this.opacity = 150 + Math.round(60 * Math.sin(Graphics.frameCount / 20));
     };
 
+    // fuera ya el dibujo de su cuerpo (y su nombre), sin esperar a la siguiente comprobacion
+    function removeBodyPictures(actorId) {
+        const ss = SceneManager._scene && SceneManager._scene._spriteset;
+        if (!ss || !ss._tilemap) return;
+        ss._tilemap.children.slice().forEach(sp => {
+            const c = (sp._character && sp._character._coopCorpse) || sp._corpse;
+            if (c && c.actorId === actorId) {
+                ss._tilemap.removeChild(sp);
+                const i = ss._characterSprites.indexOf(sp);
+                if (i >= 0) ss._characterSprites.splice(i, 1);
+            }
+        });
+        ss._coopCorpseKey = null; // y que se rehaga la lista
+    }
+
     Spriteset_Map.prototype.coopSyncCorpses = function() {
         if (!this._tilemap) return;
         const list = reviveOn() ? bodiesHere(true) : [];
@@ -700,7 +716,7 @@
     const _Spriteset_Map_update_corpses = Spriteset_Map.prototype.update;
     Spriteset_Map.prototype.update = function() {
         _Spriteset_Map_update_corpses.call(this);
-        if (Graphics.frameCount % 20 === 0 || this._coopCorpseKey === undefined) this.coopSyncCorpses();
+        if (Graphics.frameCount % 20 === 0 || !this._coopCorpseKey && this._coopCorpseKey !== '') this.coopSyncCorpses();
     };
 
     // tumbado de lado y sin color

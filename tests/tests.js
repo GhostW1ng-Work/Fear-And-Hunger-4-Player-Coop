@@ -866,6 +866,10 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         $gameParty.gainItem(stone, 1);
         body.x = $gamePlayer.x;
         body.y = $gamePlayer.y;
+        for (k = 0; k < 25; k++) frame();
+        var ss = SceneManager._scene._spriteset;
+        var bodySprites = function() { return ss ? (ss._coopCorpseSprites || []).filter(function(sp) { return !!sp.parent; }).length + '/' + (ss._coopCorpseNames || []).filter(function(sp) { return !!sp.parent; }).length : 'no spriteset'; };
+        var spritesBefore = bodySprites();
         $gamePlayer.checkEventTriggerHere([0]);
         check('T33d OK on the body: the "bring them back?" question', $gameMap._interpreter.isRunning() && $gameMap._interpreter._coopRevive === $gameMap._interpreter._list);
         $gameMap._interpreter.clear();
@@ -880,6 +884,8 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T33g the one who did it lost mind', leader.mp === leader.mmp - Math.round(leader.mmp * 0.3), leader.mp + '/' + leader.mmp);
         check('T33h P3 plays their character again', !!whoP() && whoP()._coopActorId === mine, (whoP() && whoP()._coopActorId));
         check('T33i the body is gone', CoopRevive.corpses().length === 0);
+        for (k = 0; k < 25; k++) frame();
+        if (ss) check('T33j the body picture is gone too', bodySprites() === '0/0', 'before ' + spritesBefore + ' after ' + bodySprites());
         // truco del menu "Co-op": la ultima fila da una piedra
         var before = $gameParty.numItems(stone);
         var err = '';
