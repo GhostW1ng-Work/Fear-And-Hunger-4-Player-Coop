@@ -1,6 +1,6 @@
 """Network game scenarios without a network: 2-3 independent copies of the engine (V8 each),
 with fake sockets between them pumped by this script. Checks start, sync, resync after a
-desync, disconnect (AI takes over), reconnect and joining mid-game.
+desync, disconnect (another player takes over), reconnect and joining mid-game.
 Usage: python tests/netharness.py   (same setup as run.py: mini-racer, TERMINA_GAME)"""
 import json
 import os
@@ -641,6 +641,16 @@ bh.ev("CoopNet.close(); CoopNet.open('host')")
 tick(bnet, [bh, bg2], 300)  # the guest retries every 3 s
 check('host reopened the game: the guest is P2 again', bg2.ev('CoopNet.player') == 2 and bh.ev('CoopNet.peers.length') == 1,
       [bg2.ev('CoopNet.player'), bh.ev('CoopNet.peers.length')])
+
+# --- a player who leaves: in the battle another player (the host) commands their character, not the AI ---
+tk = "(function(){ var a = $gameActors.actor($gamePlayer2._coopActorId); return [CoopLocal.battleOwnerOf(a), a.isAutoBattle()].join(','); })()"
+bh.ev('CoopLocal.setAway(2, true, 1)')
+check('takeover: the host commands the character of the gone player', bh.ev(tk) == '1,false', bh.ev(tk))
+bh.ev('CoopLocal.setAway(2, false)')
+bh.ev('CoopLocal.setAway(2, true, 0)')
+check('takeover: nobody to take it - the AI', bh.ev(tk) == '2,true', bh.ev(tk))
+bh.ev('CoopLocal.setAway(2, false)')
+check('takeover: back - their own again', bh.ev(tk) == '2,false', bh.ev(tk))
 
 # --- lobby: the game starts by itself when every guest is ready ---
 lh2 = Peer(31, 'host')

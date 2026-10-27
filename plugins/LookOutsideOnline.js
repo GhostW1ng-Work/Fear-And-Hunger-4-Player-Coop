@@ -284,7 +284,8 @@
         parked: {},         // jugador -> { actorId }: sin personaje por ahora, vuelve solo
         lastActor: {},      // jugador -> ultimo personaje que llevo (al volver lo prefiere)
         takes: [],          // jugadores a los que el anfitrion quito el personaje (se aplica en el mapa)
-        away: {}            // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
+        away: {},           // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
+        awayTo: {}          // jugador ausente -> quien manda su personaje en el combate (en vez de la IA)
     };
 
     // otro plugin (el juego en red) puede decir que un jugador esta ocupado (en su menu): no se mueve
@@ -467,33 +468,44 @@
         const idx = $gameParty.allMembers().indexOf(actor);
         if (idx < 0) return 1;
         const main = mainOwnerOf(actor);
-        if (main) return main;
+        if (main) return takeoverOf(main) || main;
         const assigned = assignedOwnerOf(actor);
         if (assigned !== undefined) return assigned || 1;
         const owners = [1].concat(extraPlayers().map(p => p.coopIndex()));
         return owners[idx % owners.length];
     }
 
+    // quien lleva el personaje de un jugador ausente (0 = la IA); si ese tambien se fue, el siguiente
+    function takeoverOf(n) {
+        let t = CoopState.away[n] ? CoopState.awayTo[n] || 0 : 0;
+        for (let i = 0; i < 4 && t && CoopState.away[t]; i++) t = CoopState.awayTo[t] || 0;
+        return t && !CoopState.away[t] ? t : 0;
+    }
+
     // Jugador ausente: su personaje lucha con la IA y en el mapa sigue a P1.
     // Se activa si su mando se desconecta o desde el menu "Co-op"; se quita con cualquier tecla suya.
-    function setPlayerAway(n, on) {
+    // takeover: el jugador que manda su personaje en el combate (si no, la IA)
+    function setPlayerAway(n, on, takeover) {
         const p = coopPlayer(n);
         if (n < 2 || !p || !!CoopState.away[n] === on) return;
         if (on) {
             CoopState.away[n] = true;
+            if (takeover && takeover !== n) CoopState.awayTo[n] = takeover;
             // su menu abierto pasa a P1 (si no, nadie podria cerrarlo)
             if (CoopState.menuOwner === n) CoopState.menuOwner = 1;
             const actor = p.actor();
-            CoopUI.banner('Player ' + n + ' is away', 'AI plays ' + (actor ? actor.name() : 'the character') + '  -  any button to come back', colorOf(n), 200);
+            const who = takeoverOf(n) ? 'P' + takeoverOf(n) : 'AI';
+            CoopUI.banner('Player ' + n + ' is away', who + ' plays ' + (actor ? actor.name() : 'the character') + '  -  any button to come back', colorOf(n), 200);
         } else {
             delete CoopState.away[n];
+            delete CoopState.awayTo[n];
             CoopUI.banner('Player ' + n + ' is back', '', colorOf(n), 110);
         }
     }
 
     function isAiControlled(actor) {
         const main = mainOwnerOf(actor);
-        if (main >= 2) return coopOn() && !!CoopState.away[main];
+        if (main >= 2) return coopOn() && !!CoopState.away[main] && !takeoverOf(main);
         return coopOn() && !mainOwnerOf(actor) && assignedOwnerOf(actor) === 0;
     }
 
@@ -2135,8 +2147,8 @@
         forceRestore(players, actors) {
             CoopState.restore = { players: players.slice(), pads: {}, actors: Object.assign({}, actors || {}) };
         },
-        setAway(n, on) {
-            setPlayerAway(n, !!on);
+        setAway(n, on, takeover) {
+            setPlayerAway(n, !!on, takeover);
         },
         menuOwner() {
             return CoopState.menuOwner;
@@ -2165,6 +2177,7 @@
             const scene = SceneManager._scene;
             if (!(scene instanceof Scene_Map) || !coopPlayer(n)) return false;
             delete CoopState.away[n];
+            delete CoopState.awayTo[n];
             scene.coopRemovePlayer(n);
             return true;
         },
@@ -3205,6 +3218,7 @@
         if (isPlayerCamera(cameraMode) && cameraPlayerIndex(cameraMode) === n) cameraMode = CAM_AUTO;
         Object.assign(playerInput[n], newPlayerKeys());
         delete CoopState.away[n];
+        delete CoopState.awayTo[n];
         if (keepPads) {
             padsOf(n).forEach(index => releasePad(Input, index));
         } else {
@@ -3398,6 +3412,7 @@
         CoopState.menuOwner = 0;
         CoopState.parked = {};
         CoopState.away = {};
+        CoopState.awayTo = {};
         CoopState.lastActor = {};
         CoopState.takes = [];
     }

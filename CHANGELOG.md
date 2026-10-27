@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: a player who disconnects during a battle no longer leaves their character to the AI - the host commands it until the battle ends (in a separate battle, the next player fighting in it; the AI only if nobody is left). After the battle it is a normal party member.
+
 ## v1.7.1
 
 - Network game: **every player's ping on screen** (top right, on the map and in battles: green under 80 ms, yellow under 160, red above) and in the lobby list. *Ping on screen* in the network menu turns it off.

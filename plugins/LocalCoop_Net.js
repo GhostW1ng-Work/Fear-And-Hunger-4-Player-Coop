@@ -404,9 +404,14 @@
         (list || []).forEach(ev => {
             if (ev.k === 'away') {
                 closeSub(ev.n);
-                coop.setAway(ev.n, true); // si es en un combate, hasta el final lo lleva la IA
+                // en un combate su personaje lo lleva hasta el final otro jugador de ese combate:
+                // el anfitrion, o en un combate aparte el siguiente que lucha en el (si no queda nadie, la IA)
+                const others = battle && battle.involved.indexOf(ev.n) >= 0 ? battle.involved.filter(m => m !== ev.n && !Net.left[m]) : [1];
+                const takeover = others[0] || 0;
+                coop.setAway(ev.n, true, takeover);
                 Net.left[ev.n] = true;
-                banner('P' + ev.n + ' disconnected', 'Their character follows the party until they come back', '#ffaa44', 240);
+                banner('P' + ev.n + ' disconnected', takeover ? 'P' + takeover + ' plays their character until the battle ends' :
+                    'Their character follows the party until they come back', '#ffaa44', 240);
             }
         });
     }
