@@ -717,6 +717,14 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     var selectOn = $gameSwitches.value(242);
     var after = [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); });
     check('T29b P2 shot: the game sees the Knight as shooter (KNIGHT_SELECT on)', selectOn === true);
+    var shotEv = $gameMap.events().filter(function(e) { return e && e.event().name === 'arrow_check'; })[0];
+    var otherEv2 = $gameMap.events().filter(function(e) { return e && e.event().name !== 'arrow_check' && e.event().name !== 'arrow_player'; })[0];
+    if (shotEv && otherEv2) {
+        var it1 = new Game_Interpreter(); it1._eventId = shotEv.eventId();
+        var it2 = new Game_Interpreter(); it2._eventId = otherEv2.eventId();
+        check('T29e during the shot, arrow_check sees P2 as "the player" (flash animation on P2)', it1.character(-1) === $gamePlayer2);
+        check('T29f other events still see P1', it2.character(-1) === $gamePlayer);
+    }
     if (isTermina) {
         check('T29c Termina: pistol switch on during the shot', after[2] === true, after.join(','));
     } else {

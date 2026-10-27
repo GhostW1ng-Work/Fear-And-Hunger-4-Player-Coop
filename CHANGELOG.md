@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Shooting of P2-P4: the shot now lasts until the bullet / arrow stops flying (the rest of the flight and the hit used to come from P1).
+- Shooting of P2-P4: the muzzle flash and the shot effects play on the shooter, not on P1 (the shot events "show animation on the player"), and the shot lasts until the bullet / arrow stops flying.
 
 ## v1.5.0
 

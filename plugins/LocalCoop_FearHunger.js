@@ -174,6 +174,21 @@
         cooldown = RETRY_FRAMES;
     }
 
+    // Los eventos del disparo ("arrow_check", "arrow_player" y los eventos comunes que llaman)
+    // durante el disparo de P2-P4: "el jugador" es el tirador (mostrar animacion, ruta de
+    // movimiento...). El intercambio de abajo solo le da al protagonista la posicion y direccion
+    // del tirador, asi que la animacion del fogonazo salia en P1.
+    const SHOT_EVENTS = ['arrow_check', 'arrow_player'];
+    const _Game_Interpreter_character = Game_Interpreter.prototype.character;
+    Game_Interpreter.prototype.character = function(param) {
+        if (session && param < 0 && !$gameParty.inBattle() && this._eventId > 0) {
+            const ev = $gameMap.event(this._eventId);
+            const data = ev && ev.event();
+            if (data && SHOT_EVENTS.indexOf(data.name) >= 0) return session.player;
+        }
+        return _Game_Interpreter_character.call(this, param);
+    };
+
     // Intercambia temporalmente a P1 con otro jugador (solo mientras corren los eventos del mapa)
     function swapPlayers(other) {
         const p1 = $gamePlayer;
