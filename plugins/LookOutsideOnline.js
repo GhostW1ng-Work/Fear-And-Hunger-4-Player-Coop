@@ -1091,7 +1091,10 @@
         if (typeof $gameSystem === 'undefined' || !$gameSystem) return;
         const pads = {};
         for (const key of Object.keys(padOwner)) pads[padOwner[key]] = Number(key);
-        $gameSystem._coopSession = { players: extraPlayers().map(p => p.coopIndex()), pads: pads };
+        const actors = {};
+        extraPlayers().forEach(p => { actors[p.coopIndex()] = p._coopActorId; });
+        Object.keys(CoopState.parked).forEach(n => { if (CoopState.parked[n].actorId) actors[n] = CoopState.parked[n].actorId; });
+        $gameSystem._coopSession = { players: extraPlayers().map(p => p.coopIndex()).concat(Object.keys(CoopState.parked).map(Number)), pads: pads, actors: actors };
     }
 
     // =========================================================================
@@ -3050,9 +3053,10 @@
 
     // Cada jugador conserva su personaje aunque el juego reordene el grupo (Termina lo reordena
     // al reclutar, con "PartyREARRANGE"): al terminar cada evento, el personaje de P2 vuelve al
-    // 2.o puesto, el de P3 al 3.o, etc. Si un personaje se va, su jugador toma a otro miembro
-    // libre; si no queda ninguno, el jugador "espera" y vuelve solo cuando haya alguien
-    // (p.ej. las partes en solitario de la historia con "temporary_party_remove/back").
+    // 2.o puesto, el de P3 al 3.o, etc. El personaje es de su jugador: si la historia lo saca del
+    // grupo, el jugador "espera" y vuelve solo cuando ese personaje vuelve (p.ej. las partes en
+    // solitario con "temporary_party_remove/back"); no pasa a llevar a otro. Si quiere jugar ya
+    // con otro, pulsa su tecla de unirse.
     Scene_Map.prototype.coopFollowPartySlots = function() {
         if ($gameMap.isEventRunning()) return; // los eventos cambian el grupo en varios pasos
         const actors = $gameParty._actors;
@@ -3071,21 +3075,16 @@
                 taken.push(id);
             }
         }
-        // 2) quien lo perdio toma el primer miembro libre
-        for (const n of players) {
-            if (assign[n]) continue;
-            const id = actors.find(a => taken.indexOf(a) < 0);
-            if (id) {
-                assign[n] = id;
-                taken.push(id);
-            }
-        }
+        // 2) quien lo perdio espera a su personaje (no toma a otro)
         for (let i = players.length - 1; i >= 0; i--) {
             const n = players[i];
             if (assign[n]) continue;
-            CoopState.parked[n] = { actorId: coopPlayer(n)._coopActorId };
+            const id = coopPlayer(n)._coopActorId;
+            const actor = $gameActors.actor(id);
+            CoopState.parked[n] = { actorId: id };
             this.coopRemovePlayer(n, true);
-            CoopUI.banner('Player ' + n + ' is waiting', 'Comes back when someone joins the party', colorOf(n), 160);
+            CoopUI.banner('Player ' + n + ' is waiting for ' + (actor ? actor.name() : 'their character'),
+                'Comes back with them  -  ' + JOIN_KEY_NAME[n] + ' to play someone else now', colorOf(n), 220);
         }
         // 4) orden del grupo: lider, personajes de P2..P4, y el resto como estaba
         const order = [leaderId];
@@ -3107,7 +3106,40 @@
         }
     };
 
-    // Jugadores en espera: vuelven en cuanto hay un miembro libre (preferiblemente su personaje)
+    // La historia no le quita el personaje a P2-P4: "Cambiar miembros del grupo: quitar" de un
+    // evento no se aplica a un personaje que lleva un jugador (si no, se quedaria sin nada que
+    // hacer). Salvo en las partes en solitario (evento comun "temporary_party_remove" de Termina):
+    // ahi se va y su jugador espera hasta "temporary_party_back".
+    let soloPartLists = null;
+    function isSoloPartList(list) {
+        if (!soloPartLists) {
+            soloPartLists = (typeof $dataCommonEvents !== 'undefined' && $dataCommonEvents ? $dataCommonEvents : [])
+                .filter(ce => ce && /temporary_party_remove/i.test(ce.name)).map(ce => ce.list);
+        }
+        return soloPartLists.indexOf(list) >= 0;
+    }
+
+    function playerOfActor(actorId) {
+        for (let n = 2; n <= MAX_PLAYERS; n++) {
+            const p = coopPlayer(n);
+            if (p && p._coopActorId === actorId) return n;
+        }
+        return 0;
+    }
+
+    const _Game_Interpreter_command129 = Game_Interpreter.prototype.command129;
+    Game_Interpreter.prototype.command129 = function() {
+        const actorId = this._params[0];
+        const n = this._params[1] === 1 && coopOn() && coopSettings.keepCharacters ? playerOfActor(actorId) : 0;
+        if (n && !isSoloPartList(this._list) && $gameParty._actors.indexOf(actorId) >= 0) {
+            const actor = $gameActors.actor(actorId);
+            CoopUI.banner((actor ? actor.name() : 'The character') + ' stays with Player ' + n, 'The story removed them from the party', colorOf(n), 160);
+            return true;
+        }
+        return _Game_Interpreter_command129.call(this);
+    };
+
+    // Jugadores en espera: vuelven cuando su personaje vuelve al grupo (y esta libre)
     Scene_Map.prototype.coopUpdateParked = function() {
         if (!isMapIdle()) return;
         for (let n = 2; n <= MAX_PLAYERS; n++) {
@@ -3120,8 +3152,9 @@
             const actors = $gameParty._actors;
             const used = [actors[0]].concat(extraPlayers().map(p => p._coopActorId));
             const free = actors.filter(a => used.indexOf(a) < 0);
-            if (free.length === 0) return;
-            const id = free.indexOf(parked.actorId) >= 0 ? parked.actorId : free[0];
+            // sin personaje guardado (partidas viejas): el primero libre, como antes
+            const id = parked.actorId ? (free.indexOf(parked.actorId) >= 0 ? parked.actorId : 0) : free[0];
+            if (!id) continue;
             delete CoopState.parked[n];
             this.spawnPlayer(n, id, true);
             if (coopPlayer(n)) {
@@ -3278,13 +3311,21 @@
         const saved = CoopState.restore;
         CoopState.restore = null;
         const ids = saved.players || [];
+        const mine = saved.actors || {};
         const pads = connectedPads();
         const joined = [];
         for (let n = 2; n <= MAX_PLAYERS; n++) {
             if (ids.indexOf(n) < 0) continue;
             const free = freeMembers();
-            if (free.length === 0 && !(n === 2 && coopMode() === 'clone')) break;
-            this.spawnPlayer(n, free[0] || 0, true);
+            const own = mine[n];
+            if (own && free.indexOf(own) < 0 && coopMode() !== 'clone') {
+                // su personaje no esta en el grupo ahora: espera a que vuelva
+                CoopState.parked[n] = { actorId: own };
+                continue;
+            }
+            const id = own || free[0] || 0;
+            if (!id && !(n === 2 && coopMode() === 'clone')) break;
+            this.spawnPlayer(n, id, true);
             if (!coopPlayer(n)) continue;
             joined.push(n);
             const index = saved.pads ? saved.pads[n] : undefined;
@@ -3351,7 +3392,7 @@
         _DataManager_extractSaveContents.call(this, contents);
         const saved = $gameSystem && $gameSystem._coopSession;
         if (AUTO_REJOIN && LOCAL_COOP && saved && saved.players && saved.players.length > 0) {
-            CoopState.restore = { players: saved.players.slice(), pads: Object.assign({}, saved.pads) };
+            CoopState.restore = { players: saved.players.slice(), pads: Object.assign({}, saved.pads), actors: Object.assign({}, saved.actors) };
         }
     };
 
@@ -3691,6 +3732,8 @@
             help: 'Keys P3 can use on the keyboard.' },
         { key: 'autoRejoin', name: 'Rejoin after loading', values: [true, false], labels: ['On', 'Off'],
             help: 'On: players that were playing come back by themselves when a save is loaded.' },
+        { key: 'keepCharacters', name: "Keep players' characters", values: [true, false], labels: ['On', 'Off (story decides)'],
+            help: "On: if the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply)." },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
             help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
@@ -3708,6 +3751,7 @@
         gamepads: GAMEPADS,
         p3Keys: P3_KEY_SET,
         autoRejoin: AUTO_REJOIN,
+        keepCharacters: true,
         updateCheck: true
     };
 

@@ -539,6 +539,12 @@
             Net.sceneSeq++;
         }
         _SceneManager_goto.call(this, sceneClass);
+        // De vuelta al titulo (fin de la partida, o Salir): la partida en red termina en todos a
+        // la vez. Seguir en red ahi no sirve: si el anfitrion cargara una partida, cada PC cargaria
+        // su propio archivo. Las conexiones siguen: el anfitrion carga y vuelve a empezar.
+        if (Net.active && !inSub && sceneClass === Scene_Title) {
+            endSession(Net.role === 'host' ? 'Load a save, then Options > Co-op > Network game > Start' : 'Wait for the host to start again');
+        }
     };
 
     const _SceneManager_updateScene = SceneManager.updateScene;

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Players keep their characters**: when a story event removes the character of P2-P4 from the party, it stays with its player (*Co-op settings > Keep players' characters*, on by default). In Termina's solo parts (`temporary_party_remove`) it does leave: the player waits and comes back with the same character afterwards - never with someone else.
+- Saves remember which character each player had; after loading everybody gets their own back.
+- Network game: a game over (back to the title) ends the network session for everybody instead of hanging when the host loads a save; the guests stay connected and the host starts again.
+
 - **Update notice**: once at start the mod checks GitHub; if there is a newer version, the title screen says so (*Co-op settings > Check for updates* turns it off).
 
 ## v1.3.0

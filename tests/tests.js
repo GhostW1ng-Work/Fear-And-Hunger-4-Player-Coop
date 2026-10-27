@@ -64,7 +64,7 @@ var pad0 = makePad(0);
 __pads = [pad0];
 padBtn(pad0, 9, true); frame(); padBtn(pad0, 9, false); frame();
 check('T3 Start on gamepad joins P4 as slot 4', $gamePlayer4 && $gamePlayer4._coopActorId === 5, $gamePlayer4 && $gamePlayer4._coopActorId);
-check('T3b session saved with pad', JSON.stringify($gameSystem._coopSession) === '{"players":[2,3,4],"pads":{"4":0}}', JSON.stringify($gameSystem._coopSession));
+check('T3b session saved with pad', JSON.stringify($gameSystem._coopSession) === '{"players":[2,3,4],"pads":{"4":0},"actors":{"2":3,"3":4,"4":5}}', JSON.stringify($gameSystem._coopSession));
 
 // --- T4: cruceta del mando mueve a P4, no a P1 ---
 pad0.axes[0] = 1; frame();
@@ -204,7 +204,7 @@ $gameParty.removeActor(3);
 frame();
 check('T9 P2 waiting when its character leaves', !$gamePlayer2 && !!$gamePlayer3 && !!$gamePlayer4);
 check('T9b P3 keeps actor 4, P4 keeps 5', $gamePlayer3._coopActorId === 4 && $gamePlayer4._coopActorId === 5, $gamePlayer3._coopActorId + ',' + $gamePlayer4._coopActorId);
-check('T9c session without P2, P4 keeps its gamepad', JSON.stringify($gameSystem._coopSession) === '{"players":[3,4],"pads":{"4":0}}', JSON.stringify($gameSystem._coopSession));
+check('T9c session: P2 saved as waiting for actor 3, P4 keeps its gamepad', JSON.stringify($gameSystem._coopSession) === '{"players":[3,4,2],"pads":{"4":0},"actors":{"2":3,"3":4,"4":5}}', JSON.stringify($gameSystem._coopSession));
 // vuelve su personaje: P2 vuelve solo
 $gameParty._actors.push(3);
 frame(); frame();
@@ -652,7 +652,7 @@ var cfg = ConfigManager.makeData();
 check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
 var setScene = new Scene_CoopSettings(); setScene.create();
 var setList = setScene._coopList;
-function selectSetting(key) { setList.select(['localCoop', 'camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin', 'updateCheck'].indexOf(key)); }
+function selectSetting(key) { setList.select(['localCoop', 'camera', 'splitZoom', 'splitDirection', 'split3Layout', 'gamepads', 'p3Keys', 'autoRejoin', 'keepCharacters', 'updateCheck'].indexOf(key)); }
 // P3 solo con teclado numerico: I/J/K/L ya no son de P3
 SceneManager._scene = scene;
 selectSetting('p3Keys'); setList.cursorRight();
@@ -755,5 +755,56 @@ check('T31b same version is not newer', !CoopLocal.versionNewer('1.3.0', '1.3.0'
 check('T31c 1.10.0 > 1.9.2 (numbers, not text)', CoopLocal.versionNewer('1.10.0', '1.9.2'));
 check('T31d older is not newer', !CoopLocal.versionNewer('1.2.5', '1.3.0'));
 check('T31e update check saved with the config (on by default)', ConfigManager.makeData().coopSettings.updateCheck === true);
+
+// --- T32: el personaje es del jugador ---
+(function() {
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    SceneManager._scene = scene;
+    for (var k = 0; k < 5; k++) frame();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    var p3 = $gamePlayer3;
+    if (!p3) { check('T32 setup: P3 joined', false); return; }
+    var mine = p3._coopActorId;
+    function runEvent(list) {
+        var it = new Game_Interpreter();
+        it.setup(list, 0);
+        for (var i = 0; i < 200 && it.isRunning(); i++) it.update();
+    }
+    // un evento de la historia quita su personaje: se queda
+    runEvent([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 0, indent: 0, parameters: [] }]);
+    for (k = 0; k < 5; k++) frame();
+    check("T32 story removes P3's character: it stays with P3", !!$gamePlayer3 && $gamePlayer3._coopActorId === mine && $gameParty._actors.indexOf(mine) >= 0,
+        ($gamePlayer3 ? $gamePlayer3._coopActorId : 'gone') + ' party=' + $gameParty._actors);
+    // si de todas formas sale (otro plugin, escena en solitario...), espera al suyo y no toma a otro libre
+    var spare = [6, 7, 8, 9, 10].filter(function(id) { return $dataActors[id] && $gameParty._actors.indexOf(id) < 0; })[0];
+    $gameParty.addActor(spare);
+    for (k = 0; k < 5; k++) frame();
+    $gameParty.removeActor(mine);
+    for (k = 0; k < 10; k++) frame();
+    check('T32b gone anyway: P3 waits for its character, does not take the free one', !$gamePlayer3 && $gameParty._actors.indexOf(spare) >= 0,
+        ($gamePlayer3 ? $gamePlayer3._coopActorId : 'waiting') + ' free=' + spare);
+    $gameParty.addActor(mine);
+    for (k = 0; k < 10; k++) frame();
+    check('T32c P3 comes back with its own character', !!$gamePlayer3 && $gamePlayer3._coopActorId === mine, $gamePlayer3 && $gamePlayer3._coopActorId);
+    $gameParty.removeActor(spare);
+    for (k = 0; k < 5; k++) frame();
+    // parte en solitario de Termina: ahi si se va (y vuelve con "temporary_party_back")
+    var solo = $dataCommonEvents.filter(function(ce) { return ce && /temporary_party_remove/i.test(ce.name); })[0];
+    var back = $dataCommonEvents.filter(function(ce) { return ce && /temporary_party_back/i.test(ce.name); })[0];
+    if (solo && back) {
+        runEvent(solo.list);
+        for (k = 0; k < 10; k++) frame();
+        check('T32d solo part of the story: the character leaves, P3 waits', !$gamePlayer3 && $gameParty._actors.indexOf(mine) < 0, 'party=' + $gameParty._actors);
+        $gameParty.addActor(1); // la parte en solitario: el protagonista
+        for (k = 0; k < 5; k++) frame();
+        runEvent(back.list);
+        for (k = 0; k < 10; k++) frame();
+        // (la vuelta termina con el reordenado del grupo de Termina, que elige al lider segun la
+        // historia: si eligio al personaje de P3, ese es de P1)
+        var leadIsMine = $gameParty._actors[0] === mine;
+        check('T32e after the solo part P3 is back with its character', leadIsMine || (!!$gamePlayer3 && $gamePlayer3._coopActorId === mine),
+            ($gamePlayer3 && $gamePlayer3._coopActorId) + ' party=' + $gameParty._actors);
+    }
+})();
 
 __results.join('\n') + '\n--log--\n' + __log.join('\n');
