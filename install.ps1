@@ -1,7 +1,8 @@
 ﻿<#
   Instalador de Local Co-op para RPG Maker MV/MZ.
   Uso:  .\install.ps1 -GamePath "D:\Juegos\Fear & Hunger 2"
-        .\install.ps1            (sin -GamePath: busca los juegos en Steam, GOG y carpetas comunes y pregunta)
+        .\install.ps1            (sin -GamePath: si esta dentro de la carpeta del juego, ese juego; si no,
+                                  busca los juegos en Steam, GOG y carpetas comunes y pregunta)
   Copia los plugins, registra los plugins en js\plugins.js (con copia de seguridad) y listo.
   -QuickSave instala tambien el plugin de pruebas F6/F7 (guardado rapido).
   El juego en red (experimental) se instala siempre: sin usarlo no hace nada, se abre en
@@ -93,6 +94,26 @@ function Find-Games {
         }
     }
     return $found
+}
+
+# el mod se descomprimio dentro de la carpeta del juego (junto a Game.exe o en una subcarpeta):
+# ese juego, sin buscar mas
+function Find-HereGame {
+    $dir = $PSScriptRoot
+    for ($i = 0; $i -lt 4 -and $dir; $i++) {
+        $t = Get-GameTitle $dir
+        if ($t -ne $null) { return [pscustomobject]@{ Path = $dir; Title = $t; Installed = '' } }
+        $dir = Split-Path $dir -Parent
+    }
+    return $null
+}
+
+if (-not $GamePath) {
+    $here = Find-HereGame
+    if ($here) {
+        Write-Host "Found the game this folder is in: $($here.Title)  -  $($here.Path)"
+        $GamePath = $here.Path
+    }
 }
 
 if (-not $GamePath) {

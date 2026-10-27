@@ -63,7 +63,7 @@ Numpad keys work with NumLock on or off.
 ## Install
 
 1. Download the latest **Termina-Local-Coop-vX.Y.Z.zip** from [Releases](../../releases) (or Code > Download ZIP) and unzip it.
-2. **Double-click `install.bat`.** It finds Fear & Hunger 1 / Termina on your PC (Steam and all its libraries, GOG, `Games` folders on every drive), lists them (with the co-op version already installed) and asks which one: a number, several (`1,3`) or `A` for all.
+2. **Double-click `install.bat`.** Unzipped inside the game folder (next to `Game.exe` or in a subfolder)? It installs right there. Otherwise it finds Fear & Hunger 1 / Termina on your PC (Steam and all its libraries, GOG, `Games` folders on every drive), lists them (with the co-op version already installed) and asks which one: a number, several (`1,3`) or `A` for all.
    Not found? Drag your **game folder** (the one with `Game.exe`) onto `install.bat`,
    or run `powershell -ExecutionPolicy Bypass -File install.ps1 -GamePath "C:\path\to\game"`.
    Add `-QuickSave` to also install the F6/F7 save / load plugin.

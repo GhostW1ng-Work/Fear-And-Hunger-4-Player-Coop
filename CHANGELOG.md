@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Easier install**: double-click `install.bat` - it finds Fear & Hunger 1 / Termina by itself (Steam and its libraries, GOG, `Games` folders) and asks which one (a number, several, or all). Dragging the game folder onto it still works.
+- **Easier install**: double-click `install.bat` - unzipped inside the game folder, it installs right there; otherwise it finds Fear & Hunger 1 / Termina by itself (Steam and its libraries, GOG, `Games` folders) and asks which one (a number, several, or all). Dragging the game folder onto it still works.
 
 ## v1.8.1
 
