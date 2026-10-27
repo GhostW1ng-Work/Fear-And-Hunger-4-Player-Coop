@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Easier install**: double-click `install.bat` - it finds Fear & Hunger 1 / Termina by itself (Steam and its libraries, GOG, `Games` folders) and asks which one (a number, several, or all). Dragging the game folder onto it still works.
+
 ## v1.8.1
 
 - Network game: fixed frequent **desyncs between different PCs** in Fear & Hunger 1 and Termina: the flicker of TerraxLighting lights (and the film grain of FilterController) drew random numbers from the shared game seed - each PC draws a different part of the map, so the PCs drifted apart. Every desync re-sent the world (~400 KB) to the guests, which is what made the ping jump to seconds. Same fix for the noise / glitch of Olivia_HorrorEffects, the voice pitch of messages (DhoomMessageSE) and the first frame of UltraMode7 projectiles.
