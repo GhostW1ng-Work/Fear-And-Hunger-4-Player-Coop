@@ -642,6 +642,22 @@ tick(bnet, [bh, bg2], 300)  # the guest retries every 3 s
 check('host reopened the game: the guest is P2 again', bg2.ev('CoopNet.player') == 2 and bh.ev('CoopNet.peers.length') == 1,
       [bg2.ev('CoopNet.player'), bh.ev('CoopNet.peers.length')])
 
+# --- lobby: the game starts by itself when every guest is ready ---
+lh2 = Peer(31, 'host')
+lg2 = Peer(32, 'join')
+lnet2 = Net(lh2, [lg2])
+lh2.ev(HOST_SETUP)
+lh2.ev("CoopNet.open('host')")
+lg2.ev("CoopNet.open('join')")
+tick(lnet2, [lh2, lg2], 300)
+check('lobby: connected but not ready - the game does not start', not lh2.ev('CoopNet.active') and lg2.ev('CoopNet.player') == 2)
+check('lobby: the guest sees the lobby list', lg2.ev('CoopNet.lobby.length') == 2, lg2.ev('JSON.stringify(CoopNet.lobby)'))
+lg2.ev("__menuPress('join')")  # "I'm ready"
+tick(lnet2, [lh2, lg2], 30)
+check('lobby: the host sees the guest ready', lh2.ev('CoopNet.peers[0].lobbyReady') is True)
+tick(lnet2, [lh2, lg2], 240)  # 3 s countdown
+check('lobby: everybody ready - it started by itself', lh2.ev('CoopNet.active') and lg2.ev('CoopNet.active'))
+
 # --- over the internet: 100 ms each way (ping 200 ms) ---
 lh = Peer(7, 'host')
 lg = Peer(8, 'join')

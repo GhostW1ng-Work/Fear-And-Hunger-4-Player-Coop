@@ -522,6 +522,7 @@
             Net.startRequested = false;
             hostStartSession();
         }
+        updateLobby();
         if (Net.stopRequested) {
             Net.stopRequested = false;
             stopNetworking();
@@ -1793,7 +1794,8 @@
             sock.end();
             return null;
         }
-        const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false,
+        setTimeout(sendLobby, 0);
+        const peer = { sock: sock, player: player, ready: -1, address: sock.remoteAddress, ping: 0, pings: [], inSession: false, lobbyReady: false,
             bring: hello && hello.bring && hello.bring.actorId ? hello.bring : null };
         Net.peers.push(peer);
         send(sock, { t: 'hi', player: player });
@@ -1806,10 +1808,68 @@
         return peer;
     }
 
+    // ---- lobby: antes de empezar, cada invitado dice "listo"; cuando lo estan todos, cuenta atras
+    // y la partida empieza sola (el anfitrion tambien puede empezar antes con Start)
+    const COUNTDOWN_FRAMES = 180;
+    Net.lobby = [];         // invitado: lo que manda el anfitrion [{ n, name, ready, host }]
+    Net.lobbyReady = false; // invitado: yo estoy listo
+    Net.countdown = 0;      // cuadros que faltan (0 = sin cuenta atras)
+
+    function lobbyList() {
+        const leader = typeof $gameParty !== 'undefined' && $gameParty && $gameParty.leader && $gameParty.leader();
+        return [{ n: 1, name: leader ? leader.name() : '', ready: true, host: true }].concat(Net.peers.map(pp => ({
+            n: pp.player, name: pp.bring ? pp.bring.name : '', ready: !!pp.lobbyReady
+        })));
+    }
+
+    function lobbyText(list) {
+        return list.map(e => 'P' + e.n + (e.name ? ' ' + e.name : '') + (e.host ? ' (host)' : (e.ready ? ' - ready' : ' - waiting'))).join('   ');
+    }
+
+    function sendLobby() {
+        if (Net.role !== 'host' || Net.active) return;
+        const msg = { t: 'lobby', list: lobbyList(), countdown: Math.ceil(Net.countdown / 60) };
+        Net.peers.forEach(pp => send(pp.sock, msg));
+    }
+
+    function allGuestsReady() {
+        return Net.peers.length > 0 && Net.peers.every(pp => pp.lobbyReady);
+    }
+
+    // cada cuadro (fuera de la partida en red): la cuenta atras del anfitrion
+    function updateLobby() {
+        if (Net.role !== 'host' || Net.active) {
+            Net.countdown = 0;
+            return;
+        }
+        const go = allGuestsReady() && gameLoaded();
+        if (!go) {
+            if (Net.countdown > 0) {
+                Net.countdown = 0;
+                banner('Start cancelled', 'Not everybody is ready', '#ffaa44', 150);
+                sendLobby();
+            }
+            return;
+        }
+        if (Net.countdown === 0) Net.countdown = COUNTDOWN_FRAMES + 1;
+        const before = Math.ceil(Net.countdown / 60);
+        Net.countdown--;
+        const now = Math.ceil(Net.countdown / 60);
+        if (now !== before && now > 0) {
+            banner('Everybody is ready - starting in ' + now + '...', lobbyText(lobbyList()), COLOR_NET, 70);
+            sendLobby();
+        }
+        if (Net.countdown <= 0) {
+            Net.countdown = 0;
+            hostStartSession();
+        }
+    }
+
     function peerGone(peer) {
         if (Net.peers.indexOf(peer) < 0) return;
         const player = peer.player;
         Net.peers = Net.peers.filter(pp => pp !== peer);
+        setTimeout(sendLobby, 0);
         Net.joinQueue = Net.joinQueue.filter(n => n !== player);
         if (Net.active && Net.players.indexOf(player) >= 0) {
             // su personaje vuelve a la fila en todos los PC a la vez (viaja con el proximo cuadro)
@@ -1958,6 +2018,12 @@
                 if (msg.t === 'in') hostStoreInput(msg.f, peer.player, msg.b | 0, msg.rs, msg.br);
                 else if (msg.t === 'h') compareHash(peer.player, msg.f, msg.h);
                 else if (msg.t === 'ping') send(sock, { t: 'pong', ts: msg.ts });
+                else if (msg.t === 'ready') {
+                    peer.lobbyReady = !!msg.on;
+                    const ready = Net.peers.filter(pp => pp.lobbyReady).length;
+                    banner('P' + peer.player + (peer.lobbyReady ? ' is ready' : ' is not ready'), ready + '/' + Net.peers.length + ' ready', COLOR_NET, 150);
+                    sendLobby();
+                }
                 else if (msg.t === 'pong') {
                     peer.ping = Math.round(performance.now() - msg.ts);
                     peer.pings = peer.pings.concat(peer.ping).slice(-PING_KEEP);
@@ -1984,6 +2050,8 @@
             sock.on('connect', () => {
                 Net.connected = true;
                 Net.pings = [];
+                Net.lobbyReady = false;
+                Net.lobby = [];
                 send(sock, helloMessage());
             });
             readLines(sock, msg => {
@@ -1992,6 +2060,9 @@
                     banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
                     banner('The network game is full', '', '#ffaa44', 300);
+                } else if (msg.t === 'lobby') {
+                    Net.lobby = Array.isArray(msg.list) ? msg.list : [];
+                    if (msg.countdown > 0) banner('Everybody is ready - starting in ' + msg.countdown + '...', lobbyText(Net.lobby), COLOR_NET, 70);
                 } else if (msg.t === 'note') {
                     banner(String(msg.title || ''), String(msg.sub || ''), '#ffaa44', 300);
                 } else if (msg.t === 'reject') {
@@ -2147,11 +2218,13 @@
             if (Net.active) return { text: 'Playing (P' + Net.players.join(', P') + ')', on: false };
             if (Net.peers.length === 0) return { text: 'Waiting for players to connect...', on: false };
             if (!gameLoaded()) return { text: 'Load your game first, then start', on: false };
-            return { text: 'Start the network game (P' + [1].concat(Net.peers.map(pp => pp.player)).join(', P') + ')', on: true };
+            const ready = Net.peers.filter(pp => pp.lobbyReady).length;
+            return { text: 'Start now (' + ready + '/' + Net.peers.length + ' ready - starts by itself when all are)', on: true };
         }
         if (Net.active) return { text: 'Playing as P' + Net.player, on: false };
         if (Net.rejected) return { text: 'Not let in: ' + Net.rejected, on: false };
-        return { text: Net.connected ? 'Connected as P' + (Net.player || '?') + ' - waiting for the host' : 'Connecting to ' + Net.config.host + '...', on: false };
+        if (Net.connected && Net.player) return { text: Net.lobbyReady ? 'Ready! (OK: not ready)' : "I'm ready", on: true };
+        return { text: 'Connecting to ' + Net.config.host + '...', on: false };
     };
 
     Window_CoopNet.prototype.rowValue = function(key) {
@@ -2332,6 +2405,11 @@
             startNetworking(Net.config.role);
             SoundManager.playOk();
             this.select(ACTION_ROW);
+        } else if (key === 'action' && Net.role === 'join') {
+            // invitado en el lobby: listo / no listo
+            Net.lobbyReady = !Net.lobbyReady;
+            send(Net.sock, { t: 'ready', on: Net.lobbyReady });
+            SoundManager.playOk();
         } else if (key === 'action') {
             SoundManager.playOk();
             if (isMyMenu()) Net.startRequested = true; // se empieza fuera de la escena (cierra este menu)
@@ -2405,13 +2483,14 @@
         const cfg = Net.config;
         if (Net.role === 'host') {
             return ['You are the host (P1). Your IP: ' + (localAddresses().join(', ') || '?') + '  port ' + cfg.port,
-                'Connected: ' + (Net.peers.map(pp => 'P' + pp.player + ' ' + pp.address).join(', ') || 'nobody yet'),
-                Net.active ? 'Players can join or come back during the game.' : 'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).'];
+                Net.peers.length ? 'Lobby: ' + lobbyText(lobbyList()) : 'Connected: nobody yet',
+                Net.active ? 'Players can join or come back during the game.' :
+                    (Net.peers.length ? 'Starts by itself when everybody is ready.' : 'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).')];
         }
         if (Net.role === 'join') {
             return ['Joining ' + cfg.host + ':' + cfg.port + ' - ' + (Net.connected ? 'connected as P' + (Net.player || '?') : 'connecting...'),
-                Net.active ? 'In the network game as P' + Net.player + '.' : 'The host starts the game; you will see their world.',
-                'Every PC needs its own copy of the game (same version).'];
+                Net.active ? 'In the network game as P' + Net.player + '.' : (Net.lobby.length ? 'Lobby: ' + lobbyText(Net.lobby) : 'The host starts the game; you will see their world.'),
+                Net.active ? '' : 'Press "I\'m ready" - the game starts when everybody is.'];
         }
         return ['Play over the network, each player on their own PC.',
             'Host: load your game and open it.  Join: type the host\'s IP and connect.',
