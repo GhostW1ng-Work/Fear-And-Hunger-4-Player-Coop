@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Network game: after the host closes and opens the game again, a guest gets their old number back (P2 used to come back as P3).
 - Network game: **bring your own character**. A guest picks one of their own saves (*Bring character* in the network menu); its main character (level, stats, skills, equipment worn) joins the host's party and the guest plays it. Not if the host's party already has 4 members or that character is played by someone else (then the guest plays a companion, as before). Coming back later, the guest gets the same character again.
 
 ## v1.5.1

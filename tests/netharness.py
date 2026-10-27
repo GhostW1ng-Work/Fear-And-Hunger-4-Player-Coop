@@ -636,6 +636,12 @@ check('bring: coming back, same hero again and only once in the party',
       bh.ev('!!$gamePlayer2 && $gamePlayer2._coopActorId === 5') and bh.ev('$gameParty._actors.filter(function(a){ return a === 5; }).length') == 1,
       bh.ev('$gameParty._actors.join(",")'))
 
+# the host closes and opens the game again: the guest comes back as P2 (not P3)
+bh.ev("CoopNet.close(); CoopNet.open('host')")
+tick(bnet, [bh, bg2], 300)  # the guest retries every 3 s
+check('host reopened the game: the guest is P2 again', bg2.ev('CoopNet.player') == 2 and bh.ev('CoopNet.peers.length') == 1,
+      [bg2.ev('CoopNet.player'), bh.ev('CoopNet.peers.length')])
+
 # --- over the internet: 100 ms each way (ping 200 ms) ---
 lh = Peer(7, 'host')
 lg = Peer(8, 'join')

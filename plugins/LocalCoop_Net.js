@@ -1497,6 +1497,7 @@
         Net.hold = null;
         Net.joinQueue = [];
         Net.lost = {};
+        Net.players = [1];
         Net.peers.forEach(pp => { pp.inSession = false; });
         banner('Network game stopped', reason || '', '#ffaa44', 300);
     }
@@ -1777,7 +1778,10 @@
         const used = Net.peers.map(pp => pp.player);
         // vuelve alguien que se habia ido: recupera su numero; si no, el primero libre
         const lostOnes = Object.keys(Net.lost).map(Number).filter(n => used.indexOf(n) < 0).sort();
-        const player = lostOnes[0] || [2, 3, 4].find(n => used.indexOf(n) < 0 && Net.players.indexOf(n) < 0);
+        // (fuera de la partida en red no cuentan los jugadores de la sesion anterior: si no, al cerrar
+        // y volver a abrir la partida el invitado pasaba a ser P3)
+        const inGame = Net.active ? Net.players : [1];
+        const player = lostOnes[0] || [2, 3, 4].find(n => used.indexOf(n) < 0 && inGame.indexOf(n) < 0);
         if (!player) {
             send(sock, { t: 'full' });
             sock.end();
