@@ -3768,6 +3768,10 @@
         this.refresh();
     };
 
+    Window_CoopAssign.prototype.isOkEnabled = function() {
+        return true;
+    };
+
     Window_CoopAssign.prototype.processOk = function() {
         const action = this.actionAt(this.index());
         if (action) {
@@ -3828,6 +3832,7 @@
     };
 
     window.Scene_CoopAssign = Scene_CoopAssign;
+    window.Window_CoopAssign = Window_CoopAssign;
 
     // =========================================================================
     // AJUSTES DEL CO-OP (Opciones > Co-op)

@@ -880,6 +880,15 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T33g the one who did it lost mind', leader.mp === leader.mmp - Math.round(leader.mmp * 0.3), leader.mp + '/' + leader.mmp);
         check('T33h P3 plays their character again', !!whoP() && whoP()._coopActorId === mine, (whoP() && whoP()._coopActorId));
         check('T33i the body is gone', CoopRevive.corpses().length === 0);
+        // truco del menu "Co-op": la ultima fila da una piedra
+        var before = $gameParty.numItems(stone);
+        var err = '';
+        try {
+            var w = new Window_CoopAssign(0, 0, 816, 500);
+            w.select(w.maxItems() - 1);
+            w.processOk();
+        } catch (e) { err = e.message; }
+        check('T34 Co-op menu cheat gives a soul stone', $gameParty.numItems(stone) === before + 1, before + ' -> ' + $gameParty.numItems(stone) + ' ' + err);
     }
 })();
 

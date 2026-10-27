@@ -26,7 +26,7 @@ Everything is in **Options > Co-op > Network game...** Shortcuts: **Host online*
 
 *Close the game (stop hosting)* / *Disconnect* on the same screen end it. Port: default 47810 (Windows asks to allow it in the firewall the first time).
 
-During the network game F6 / F7 (quick save), F9 (player windows) and F5 (reload) are disabled.
+During the network game F6 / F7 (quick save plugin) work on the host only: F6 = save screen (everybody sees it as the host's menu; guests keep a copy of the save), Shift+F6 = slot 99; F7 / Shift+F7 = everybody goes to the title for a moment, the host loads and the network game starts again by itself. F9 (player windows) and F5 (reload) are disabled.
 
 **F10** shows the network status next to the FPS: host — ping of every guest; guest — ping to the host; *delay* = input delay in frames; *buffer* = frames received and waiting (0 for a long time = the network is the bottleneck).
 

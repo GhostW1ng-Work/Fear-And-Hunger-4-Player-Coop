@@ -39,7 +39,7 @@
  * la pantalla de titulo) eligen Join, escriben la IP y "Connect"; el anfitrion pulsa
  * "Start the network game".
  * En cada PC: WASD o flechas, Z/Espacio/Enter, X/Esc/Retroceso, Shift, o un mando.
- * En la partida en red no hay guardado rapido (F6/F7), ventanas F9 ni recarga (F5).
+ * En la partida en red F6/F7 solo en el anfitrion (ver "F6 / F7"); no hay ventanas F9 ni recarga (F5).
  */
 
 (() => {
@@ -315,6 +315,7 @@
         if (LOCAL_ONLY.indexOf(e.keyCode) >= 0) return;
         e.stopImmediatePropagation();
         e.preventDefault();
+        if (down && !e.repeat && (e.keyCode === 117 || e.keyCode === 118)) quickSaveKey(e.keyCode === 117, e.shiftKey);
         if (!LOCAL_KEYS[e.keyCode]) return;
         keyState[e.keyCode] = down;
         const list = {};
@@ -399,9 +400,55 @@
         }
     }
 
+    // ---- F6 / F7 (con LocalCoop_QuickSave) en la partida en red: solo el anfitrion ----------
+    // Viajan como sucesos del cuadro. F6: la pantalla de Guardar como menu de P1 (en todos los PC:
+    // cada invitado guarda tambien una copia). Shift+F6: guardar ya en la ranura 99.
+    // F7 / Shift+F7: todos vuelven al titulo (la partida en red se para a la vez), el anfitrion
+    // carga y, de vuelta en el mapa, la partida en red empieza otra vez con su mundo.
+    const QUICK_SLOT = 99;
+
+    function hasQuickSave() {
+        return typeof $plugins !== 'undefined' && $plugins.some(pl => pl && pl.status && pl.name === 'LocalCoop_QuickSave');
+    }
+
+    function quickSaveKey(save, shift) {
+        if (!hasQuickSave()) return;
+        if (Net.role !== 'host') {
+            banner(save ? 'Only the host saves' : 'Only the host loads', 'F6 / F7 work on the host\'s PC', '#ffaa44', 120);
+            return;
+        }
+        if (!(SceneManager._scene instanceof Scene_Map) || battle || $gameMap.isEventRunning() || subs[1]) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        if (!save && shift && !DataManager.isThisGameFile(QUICK_SLOT)) {
+            SoundManager.playBuzzer();
+            banner('No quick save yet', 'Press Shift+F6 first', '#ffaa44', 120);
+            return;
+        }
+        Net.pendingEvents.push({ k: 'qs', save: !!save, shift: !!shift });
+    }
+
+    function applyQuickSave(ev) {
+        const map = SceneManager._scene;
+        if (!(map instanceof Scene_Map) || battle || $gameMap.isEventRunning() || subs[1]) return;
+        if (ev.save && ev.shift) {
+            $gameSystem.onBeforeSave();
+            const ok = DataManager.saveGame(QUICK_SLOT);
+            if (Net.role === 'host') banner(ok ? 'Quick save' : 'Quick save failed', 'Slot ' + QUICK_SLOT, ok ? COLOR_NET : '#ffaa44', 120);
+        } else if (ev.save) {
+            openSub(map, 1, () => SceneManager.push(Scene_Save));
+        } else {
+            if (Net.role === 'host') Net.loadAfterTitle = ev.shift ? QUICK_SLOT : 'screen';
+            else banner('The host is loading a save', 'The game comes back by itself', COLOR_NET, 300);
+            SceneManager.goto(Scene_Title);
+        }
+    }
+
     // sucesos que viajan con el cuadro, para que pasen a la vez en todos los PC
     function applyEvents(list) {
         (list || []).forEach(ev => {
+            if (ev.k === 'qs') applyQuickSave(ev);
             if (ev.k === 'away') {
                 closeSub(ev.n);
                 // en un combate su personaje lo lleva hasta el final otro jugador de ese combate:
@@ -2729,11 +2776,30 @@
     Scene_Title.prototype.start = function() {
         _Scene_Title_start.call(this);
         Net.hostAfterLoad = false;
+        const load = Net.loadAfterTitle;
+        Net.loadAfterTitle = null;
+        if (!load || Net.role !== 'host') return;
+        Net.restartAfterLoad = true;
+        if (load === 'screen') {
+            SceneManager.push(Scene_Load);
+        } else if (DataManager.loadGame(load)) {
+            SoundManager.playLoad();
+            $gameSystem.onAfterLoad();
+            SceneManager.goto(Scene_Map);
+        } else {
+            Net.restartAfterLoad = false;
+            SoundManager.playBuzzer();
+        }
     };
 
     const _Scene_Map_start = Scene_Map.prototype.start;
     Scene_Map.prototype.start = function() {
         _Scene_Map_start.call(this);
+        if (Net.restartAfterLoad && Net.role === 'host' && !Net.active) {
+            Net.restartAfterLoad = false;
+            Net.startRequested = true; // los invitados siguen conectados: reciben el mundo cargado
+            return;
+        }
         if (!Net.hostAfterLoad) return;
         Net.hostAfterLoad = false;
         if (Net.role !== 'host') {
