@@ -15,7 +15,8 @@ The normal installer (`install.bat` / `install.ps1`) already installs it, on eve
 Everything is in **Options > Co-op > Network game...**
 
 1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
-2. **Guests** (the title screen is enough): Mode = *Join*, *Host's IP* (OK, type the IP or a name, Enter), **Connect to the host**. The host's screen lists them.
+2. **Guests** (the title screen is enough): Mode = *Join*, then either pick the game in **Games found** (left / right: the menu looks for open games on your networks every few seconds, OK searches again) or type it in *Host's IP* (OK, type the IP or a name, Enter); then **Connect to the host**. The host's screen lists them.
+   - *Games found* asks on UDP port 47811 on every network of the PC (LAN, Radmin VPN, ZeroTier...) and on the PC itself. If the host isn't listed (some VPNs or routers block it, e.g. Hamachi), type the IP.
    - *Password* (optional): if the host sets one, guests must type the same.
    - *Bring character* (optional): one of the guest's own saves. Its main character (level, stats, skills, equipment worn - not the bag) joins the host's party and the guest plays it. Make a save with a new character first (Termina: the train / backstory; Fear & Hunger 1: the class choice). Not possible if the host's party already has 4 members or someone else plays that character - then the guest plays a companion. If the character is already in the host's party (the guest played it before), the guest simply gets it back as it is in the host's world.
    - When someone connects, the host checks the mod version, the game version and the active plugins: if they differ the guest is told what (e.g. *Different game version*) and not let in.

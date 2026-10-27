@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game: **games found** - the network menu lists the games open on your networks (LAN, Radmin VPN / ZeroTier, or another copy on this PC): pick one with left / right instead of typing the IP (UDP port 47811). Typing the IP still works.
+
 ## v1.6.0
 
 - Network game: after the host closes and opens the game again, a guest gets their old number back (P2 used to come back as P3).

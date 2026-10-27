@@ -56,6 +56,12 @@
     const path = require('path');
     const os = require('os');
     const netlib = require('net');
+    let dgram = null; // para buscar partidas en la red (UDP); sin el, solo se escribe la IP
+    try {
+        dgram = require('dgram');
+    } catch (e) {
+        dgram = null;
+    }
 
     const DEFAULT_DELAY = 3;    // cuadros de margen para que lleguen las teclas de todos (al empezar)
     const MIN_DELAY = 2;        // a mano (en la misma red puede bastar)
@@ -1815,7 +1821,119 @@
         }
     }
 
+    // ---- buscar partidas en la red ---------------------------------------------------------
+    // El invitado pregunta por UDP (a todas sus redes y a este mismo PC) quien tiene una partida
+    // abierta; cada anfitrion contesta con su nombre, juego y jugadores. Asi no hace falta escribir
+    // la IP. Con una VPN (Radmin, ZeroTier) funciona igual: son redes como las demas.
+    const DISCOVERY_PORT = 47811;
+    const DISCOVERY_ASK = 'termina-coop?';
+    Net.found = [];          // [{ address, port, name, game, players, pw, active, seen }]
+    Net.searching = false;
+    let discoveryServer = null;
+
+    function broadcastAddresses() {
+        const out = ['255.255.255.255', '127.0.0.1'];
+        const all = os.networkInterfaces();
+        Object.keys(all).forEach(name => (all[name] || []).forEach(a => {
+            if (a.family !== 'IPv4' || a.internal || !a.netmask) return;
+            const ip = a.address.split('.').map(Number);
+            const mask = a.netmask.split('.').map(Number);
+            out.push(ip.map((b, i) => (b & mask[i]) | (~mask[i] & 255)).join('.'));
+        }));
+        return out.filter((v, i) => out.indexOf(v) === i);
+    }
+
+    function hostInfo() {
+        const leader = typeof $gameParty !== 'undefined' && $gameParty && $gameParty.leader && $gameParty.leader();
+        return {
+            t: 'termina-coop', name: leader ? leader.name() : 'Host', game: ($dataSystem && $dataSystem.gameTitle) || '',
+            mod: coop.version, players: 1 + Net.peers.length, port: Net.config.port, pw: !!Net.config.password, active: Net.active
+        };
+    }
+
+    function startDiscoveryResponder() {
+        if (!dgram || discoveryServer) return;
+        try {
+            const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+            sock.on('message', (msg, rinfo) => {
+                if (String(msg) !== DISCOVERY_ASK) return;
+                const reply = Buffer.from(JSON.stringify(hostInfo()));
+                sock.send(reply, 0, reply.length, rinfo.port, rinfo.address);
+            });
+            sock.on('error', e => logError('game search (host)', e));
+            sock.bind(DISCOVERY_PORT);
+            discoveryServer = sock;
+        } catch (e) {
+            logError('game search (host)', e);
+        }
+    }
+
+    function stopDiscoveryResponder() {
+        if (!discoveryServer) return;
+        try {
+            discoveryServer.close();
+        } catch (e) {
+            // nada
+        }
+        discoveryServer = null;
+    }
+
+    // busca durante 1,5 s; Net.found queda con lo encontrado
+    function searchGames() {
+        if (!dgram || Net.searching) return;
+        Net.searching = true;
+        const found = [];
+        let sock = null;
+        try {
+            sock = dgram.createSocket('udp4');
+            sock.on('message', (msg, rinfo) => {
+                let info = null;
+                try {
+                    info = JSON.parse(String(msg));
+                } catch (e) {
+                    return;
+                }
+                if (!info || info.t !== 'termina-coop') return;
+                // (el mismo PC contesta por varias direcciones: una vez, mejor la de la red que la 127.0.0.1)
+                const same = found.find(f => f.port === info.port && f.name === info.name && f.game === info.game);
+                if (same) {
+                    if (same.address === '127.0.0.1' && rinfo.address !== '127.0.0.1') same.address = rinfo.address;
+                    return;
+                }
+                found.push(Object.assign({ address: rinfo.address }, info));
+            });
+            sock.on('error', () => {});
+            sock.bind(0, () => {
+                try {
+                    sock.setBroadcast(true);
+                } catch (e) {
+                    // nada
+                }
+                const ask = Buffer.from(DISCOVERY_ASK);
+                broadcastAddresses().forEach(addr => {
+                    try {
+                        sock.send(ask, 0, ask.length, DISCOVERY_PORT, addr);
+                    } catch (e) {
+                        // nada
+                    }
+                });
+            });
+        } catch (e) {
+            logError('game search', e);
+        }
+        setTimeout(() => {
+            Net.searching = false;
+            Net.found = found;
+            try {
+                if (sock) sock.close();
+            } catch (e) {
+                // nada
+            }
+        }, 1500);
+    }
+
     function startHost() {
+        startDiscoveryResponder();
         Net.server = netlib.createServer(sock => {
             let peer = null;
             let rejected = false;
@@ -1908,6 +2026,7 @@
 
     function stopNetworking() {
         if (Net.active) endSession('Network settings changed');
+        stopDiscoveryResponder();
         if (Net.server) {
             Net.server.close();
             Net.peers.forEach(pp => pp.sock.destroy());
@@ -1963,7 +2082,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'action', 'stop'];
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -1984,9 +2103,26 @@
         Window_Selectable.prototype.initialize.call(this, x, y, w, h);
         this._onKey = this.onKey.bind(this);
         window.addEventListener('keydown', this._onKey, true);
+        this._foundIndex = 0;
+        this._searchTimer = 0;
         this.refresh();
         this.select(Net.role === 'off' ? 0 : ACTION_ROW);
         this.activate();
+    };
+
+    // la partida encontrada que esta elegida (y su IP / puerto pasan a ser los del anfitrion)
+    Window_CoopNet.prototype.pickFound = function(step) {
+        const list = Net.found;
+        if (list.length === 0) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        this._foundIndex = (this._foundIndex + step + list.length) % list.length;
+        const f = list[this._foundIndex];
+        this._cfg.host = f.address;
+        this._cfg.port = f.port;
+        SoundManager.playCursor();
+        this.refresh();
     };
 
     Window_CoopNet.prototype.maxItems = function() {
@@ -2012,6 +2148,16 @@
     Window_CoopNet.prototype.rowValue = function(key) {
         if (key === 'role') return Net.role === 'off' ? '< ' + ROLE_LABELS[this._cfg.role] + ' >' : ROLE_LABELS[Net.role];
         if (key === 'host') return this._editing === 'host' ? this._text + '_' : (this._cfg.role === 'join' ? this._cfg.host : '-');
+        if (key === 'found') {
+            if (this._cfg.role !== 'join') return '-';
+            if (!dgram) return '(not available here)';
+            const list = Net.found;
+            if (list.length === 0) return Net.searching ? 'Searching...' : 'None found  (OK: search again)';
+            const f = list[Math.min(this._foundIndex, list.length - 1)];
+            const game = String(f.game || '').replace(/^Fear & Hunger 2: /i, '');
+            return '< ' + f.name + ' - ' + game + ' (' + f.players + '/4' + (f.pw ? ', password' : '') + ')  ' + f.address + ' >' +
+                (list.length > 1 ? '  ' + (this._foundIndex + 1) + '/' + list.length : '');
+        }
         if (key === 'port') return this._editing === 'port' ? this._text + '_' : String(this._cfg.port);
         if (key === 'password') {
             if (this._editing === 'password') return this._text + '_';
@@ -2043,13 +2189,14 @@
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
+        if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
         return Net.role === 'off';
     };
 
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2064,6 +2211,10 @@
     // se vuelve a dibujar si cambia el estado de la red (alguien se conecta, etc.)
     Window_CoopNet.prototype.update = function() {
         Window_Selectable.prototype.update.call(this);
+        if (Net.role === 'off' && this._cfg.role === 'join' && dgram && --this._searchTimer <= 0) {
+            this._searchTimer = 240; // cada 4 s
+            searchGames();
+        }
         const key = NET_ROWS.map(k => this.rowValue(k) + this.isRowEnabled(k)).join('|');
         if (key !== this._stateKey) {
             this._stateKey = key;
@@ -2097,6 +2248,7 @@
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(1);
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(1);
+        if (NET_ROWS[this.index()] === 'found') this.pickFound(1);
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2105,6 +2257,7 @@
         if (NET_ROWS[this.index()] === 'delay') this.changeDelay(-1);
         if (NET_ROWS[this.index()] === 'battles') this.changeBattles();
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(-1);
+        if (NET_ROWS[this.index()] === 'found') this.pickFound(-1);
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2153,6 +2306,10 @@
             this.changeBattles();
         } else if (key === 'bring') {
             this.changeBring(1);
+        } else if (key === 'found') {
+            SoundManager.playOk();
+            this._searchTimer = 0; // buscar otra vez ya
+            if (Net.found.length > 0) this.pickFound(0);
         } else if (key === 'host' || key === 'port' || key === 'password') {
             this._editing = key;
             this._text = '';
