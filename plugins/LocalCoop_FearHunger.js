@@ -612,6 +612,7 @@
 
     // truco en el menu "Co-op": una piedra con alma
     coop.addAssignAction({
+        cheat: true,
         name() {
             const stone = soulStone();
             return 'Cheat: get 1 ' + (stone ? stone.name : 'soul stone');

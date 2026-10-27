@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Fix (network game, separate battles): when the fighters of a separate battle died and the game took them out of the party during the battle (Fear & Hunger 1 does it from the enemy troop's page), the battle pulled in P1's character - P1 then "lost" in their place and the protagonist's defeat scenes (guards, blood pit...) played for everybody. Now a separate battle never takes other players' characters: if its fighters are all gone, the battle ends there and the dead stay as bodies.
+- **Cheats** setting (Options > Co-op > Co-op settings, the host's in the network game): F6 / F7 save / load anywhere and the cheats of the Co-op menu (soul stone). On by default.
+
 ## v1.8.3
 
 - Network game, less work per frame: the battle log is written every 2 s in the background (it was written to disk on every key in a battle, the game waited for the disk) and kept under ~1 MB; the random-number trail for the desync log only turns call stacks into text when a desync is written.

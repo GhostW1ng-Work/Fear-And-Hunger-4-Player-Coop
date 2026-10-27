@@ -458,6 +458,10 @@
 
     function quickSaveKey(save, shift) {
         if (!hasQuickSave()) return;
+        if (coop.setting('cheats') === false) {
+            banner('Cheats are off', 'Options > Co-op > Co-op settings > Cheats', '#ffaa44', 120);
+            return;
+        }
         if (Net.role !== 'host') {
             banner(save ? 'Only the host saves' : 'Only the host loads', 'F6 / F7 work on the host\'s PC', '#ffaa44', 120);
             return;
@@ -1167,7 +1171,7 @@
         const list = _Game_Party_battleMembers.call(this);
         if (!inBattleCtx || !battle) return list;
         const mine = list.filter(a => battle.involved.indexOf(coop.battleOwnerOf(a)) >= 0);
-        return mine.length > 0 ? mine : list;
+        return mine.length > 0 || battle.started ? mine : list;
     };
 
     // la pagina lleva "Procesar combate" (o llama a un evento comun que lo lleva: asi lo hacen

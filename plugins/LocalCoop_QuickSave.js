@@ -107,8 +107,17 @@
         }
     }
 
+    // "Cheats: Off" en Opciones > Co-op > Co-op settings: sin F6 / F7
+    function cheatsOff() {
+        return !!window.CoopLocal && typeof window.CoopLocal.setting === 'function' && window.CoopLocal.setting('cheats') === false;
+    }
+
     window.addEventListener('keydown', e => {
         if (e.repeat || (e.keyCode !== KEY_SAVE && e.keyCode !== KEY_LOAD)) return;
+        if (cheatsOff()) {
+            banner('Cheats are off', 'Options > Co-op > Co-op settings > Cheats', '#ffaa44');
+            return;
+        }
         const onTitle = SceneManager._scene instanceof Scene_Title;
         if (e.shiftKey) {
             if (!canUse()) {

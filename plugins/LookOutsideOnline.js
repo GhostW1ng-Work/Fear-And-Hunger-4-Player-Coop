@@ -3638,12 +3638,16 @@
         this.activate();
     };
 
+    function visibleActions() {
+        return assignActions.filter(a => !a.cheat || coopSettings.cheats !== false);
+    }
+
     Window_CoopAssign.prototype.maxItems = function() {
-        return $gameParty.members().length + assignActions.length;
+        return $gameParty.members().length + visibleActions().length;
     };
 
     Window_CoopAssign.prototype.actionAt = function(index) {
-        return assignActions[index - $gameParty.members().length] || null;
+        return visibleActions()[index - $gameParty.members().length] || null;
     };
 
     // jugadores que esperan a su personaje (muerto, fuera del grupo...) y no estan jugando
@@ -3861,6 +3865,8 @@
             help: 'The party goes on: only the death of P1 ends the game; the others wait for their character (or play a free one).' },
         { key: 'keepCharacters', name: "Keep players' characters", values: [true, false], labels: ['On', 'Off (story decides)'],
             help: "On: if the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply)." },
+        { key: 'cheats', name: 'Cheats', values: [true, false], labels: ['On', 'Off'],
+            help: 'On: F6 / F7 save and load anywhere (quick save plugin) and the cheats in the Co-op menu (e.g. a soul stone).' },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
             help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
@@ -3880,11 +3886,12 @@
         autoRejoin: AUTO_REJOIN,
         keepCharacters: true,
         deathRule: 'goOn',
+        cheats: true,
         updateCheck: true
     };
 
     // ajustes que cambian el juego: en la partida en red son los del anfitrion en todos los PC
-    const RULE_KEYS = ['keepCharacters', 'deathRule'];
+    const RULE_KEYS = ['keepCharacters', 'deathRule', 'cheats'];
 
     function applyCoopSettings(changedKey) {
         const st = coopSettings;
