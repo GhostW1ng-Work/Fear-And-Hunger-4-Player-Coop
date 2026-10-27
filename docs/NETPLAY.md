@@ -1,4 +1,4 @@
-# Network game (experimental, v1.5.1)
+# Network game (experimental, v1.6)
 
 Every player runs **their own copy of the game** on their own PC. Only the inputs travel over the network: every frame all PCs get the actions of all players and compute exactly the same frame, each with the camera on its own player. The host (P1) collects the inputs and hands out the frames.
 
