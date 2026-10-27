@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Network game: YEP_BattleEngineCore picked the target under the (resting) mouse on one PC only - the main cause of battle desyncs in Fear & Hunger 1; now off in the network game.
+- Separate battles: the enemy of a battle stays frozen when it touches another player (it used to walk on and could start a second battle).
+- P2-P4 no longer start following P1 into a wall after a map transfer.
+
 - Network game: the mouse is off (it is not sent over the network: picking a body part with it changed the target only on one PC).
 - Separate battles: a player who joins during the choice of actions no longer crashes the battle (WeaponSkill `setAttack`).
 - P2-P4 follow P1 in scenes only when the scene really moves P1 (not when it just turns, e.g. opening a barrel), and if a scene ends while they walk through a wall they are put next to P1 instead of getting stuck.

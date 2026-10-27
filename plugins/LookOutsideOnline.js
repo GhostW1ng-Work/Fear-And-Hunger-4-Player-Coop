@@ -1731,8 +1731,14 @@
             this._through = false;
             return;
         }
-        if (!this._coopRouteFrom) this._coopRouteFrom = [$gamePlayer.x, $gamePlayer.y];
-        if (!this._coopFollowing && $gamePlayer.x === this._coopRouteFrom[0] && $gamePlayer.y === this._coopRouteFrom[1]) return;
+        // (por mapa: al pasar a otro mapa P1 aparece en otra casilla sin haber "andado")
+        const from = this._coopRouteFrom;
+        if (!from || from[2] !== $gameMap.mapId()) {
+            this._coopRouteFrom = [$gamePlayer.x, $gamePlayer.y, $gameMap.mapId()];
+            this._coopFollowing = false;
+            return;
+        }
+        if (!this._coopFollowing && $gamePlayer.x === from[0] && $gamePlayer.y === from[1]) return;
         this._coopFollowing = true;
         this.followLeader();
     };

@@ -633,7 +633,12 @@
     const _TouchInput_update = TouchInput.update;
     TouchInput.update = function() {
         _TouchInput_update.call(this);
-        if (Net.active) this.clear();
+        if (Net.active) {
+            this.clear();
+            // YEP_BattleEngineCore elige el objetivo con el raton encima (guarda la ultima posicion
+            // del raton): fuera de la pantalla, o el raton quieto sobre un enemigo lo elegia solo en ese PC
+            this._mouseOverX = this._mouseOverY = -10000;
+        }
     };
 
     // ---- menus que no paran el juego ---------------------------------------------------
@@ -1266,16 +1271,17 @@
     // jugador le mete en el combate (en vez de empezar otro)
     const _Game_Event_start = Game_Event.prototype.start;
     Game_Event.prototype.start = function() {
+        const wasLocked = this._locked; // (el enemigo del combate esta parado: que siga parado)
         _Game_Event_start.call(this);
         if (!battle || !this._starting) return;
         const n = this._coopStarter || 1;
         if (inSeparateBattle(n)) {
             this._starting = false;
-            this.unlock();
+            if (!wasLocked) this.unlock();
         } else if (pageStartsBattle(this) || (battle.interp && battle.interp._eventId === this.eventId() && battle.interp._mapId === $gameMap.mapId())) {
             // un enemigo (o el mismo con el que ya luchan): entra en ese combate
             this._starting = false;
-            this.unlock();
+            if (!wasLocked) this.unlock();
             queueJoin(n, 'touched an enemy');
         }
     };
