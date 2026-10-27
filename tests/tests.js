@@ -258,7 +258,7 @@ function sceneTick() { SceneManager._scene._active = true; try { Scene_Base.prot
 SceneManager._scene._active = true; fkey(117); sceneTick();
 check('T13f F6 opens the save screen', SceneManager._nextScene instanceof Scene_Save, SceneManager._nextScene && SceneManager._nextScene.constructor.name);
 SceneManager._nextScene = null; SceneManager._stack = [];
-fkey(118); sceneTick();
+SceneManager._scene._active = true; fkey(118); sceneTick();
 check('T13g F7 opens the load screen', SceneManager._nextScene instanceof Scene_Load, SceneManager._nextScene && SceneManager._nextScene.constructor.name);
 SceneManager._nextScene = null; SceneManager._stack = [];
 

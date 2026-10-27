@@ -24,7 +24,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Fear & Hunger 1** | Same features; P2-P4 shoot with a bow (Short bow / Cursed short bow + arrows) like P1, and the character picker offers the four classes and the recruitable companions (Le'garde, Moonless, Nas'hrah). Event audit: [docs/AUDIT_FH1.md](docs/AUDIT_FH1.md). |
 | **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. Each player keeps their character when the game rearranges the party; in solo story parts players wait and come back by themselves; in cutscenes P2-P4 follow / hide with P1. See [docs/AUDIT_SUMMARY.md](docs/AUDIT_SUMMARY.md). |
 | **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
-| **Quick save (testing)** | Optional plugin: `F6` save / `F7` load in slot 99. |
+| **Quick save (testing)** | Optional plugin: `F6` save screen (choose the slot) / `F7` load screen; `Shift+F6` / `Shift+F7` instant save / load in slot 99. |
 
 Game over rule (as in the original mod): if any player's character dies in combat, it's game over.
 
@@ -48,7 +48,7 @@ Numpad keys work with NumLock on or off.
 1. Download the latest **Termina-Local-Coop-vX.Y.Z.zip** from [Releases](../../releases) (or Code > Download ZIP) and unzip it.
 2. Drag your **game folder** (the one with `Game.exe`) onto `install.bat`,
    or run `powershell -ExecutionPolicy Bypass -File install.ps1 -GamePath "C:\path\to\game"`.
-   Add `-QuickSave` to also install the F6/F7 quick save plugin.
+   Add `-QuickSave` to also install the F6/F7 save / load plugin.
 
 The installer checks the game (title, RPG Maker version, Termina data version it was tested with) and only warns if something differs. It copies the plugins to `www/js/plugins`, registers them at the end of `www/js/plugins.js` (backup: `plugins.js.coop.bak`) and copies `extras/coop_view.html` next to `index.html` (needed by F9). Re-running it updates the files; `-Uninstall` removes everything.
 
