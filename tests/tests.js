@@ -1232,8 +1232,8 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         if (arm) {
             arm.addState(arm.deathStateId());
             // el juego refresca la parte ya muerta y vuelve a ponerle la muerte: no es otro brazo
-            arm.removeState(arm.deathStateId());
-            arm.addState(arm.deathStateId());
+            arm._states = arm._states.filter(function(id) { return id !== arm.deathStateId(); });
+            arm.refresh();
         }
         check('T44e arm cut off: that character hits much weaker', CoopPvp.armFactor(defA) < 1 && CoopPvp.armFactor(lead) === 1 && limbNames(defA).indexOf('Arm cut') >= 0,
             'factor ' + CoopPvp.armFactor(defA) + ' / ' + CoopPvp.armFactor(lead));
