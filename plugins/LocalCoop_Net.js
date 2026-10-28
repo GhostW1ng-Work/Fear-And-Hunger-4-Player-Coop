@@ -1984,7 +1984,9 @@
         if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
             const tick = new Worker(URL.createObjectURL(new Blob(['setInterval(function () { postMessage(0); }, 16);'], { type: 'application/javascript' })));
             tick.onmessage = () => {
-                if (!Net.active || performance.now() - lastAnimFrame < 250) return;
+                // (solo con la ventana de verdad oculta - minimizada -: un cuadro largo con la ventana a la
+                // vista, p.ej. al cargar un mapa, no; ahi se metia en el cambio de escena y cada carga iba a peor)
+                if (!Net.active || Net.noBackgroundTick || !document.hidden || performance.now() - lastAnimFrame < 250) return;
                 // (sin pedir otra animacion: cada peticion era otro bucle de dibujo mas, que seguia al
                 // volver la ventana - con cada parada larga el juego se actualizaba varias veces por cuadro)
                 const request = SceneManager.requestUpdate;
