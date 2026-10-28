@@ -329,6 +329,34 @@
         };
     }
 
+    // GALV_VisibilityRange (Termina): la oscuridad con un agujero de vista alrededor del
+    // protagonista. Cada PC la ve alrededor de su personaje (como la camara); si no tiene, de P1.
+    // Es solo dibujo. (La clase del dibujo no es global: se toma de la primera que se crea.)
+    function ownCharacter() {
+        return Net.active && Net.player >= 2 ? coop.player(Net.player) || null : null;
+    }
+    if (Spriteset_Map.prototype.setVisibilityRange) {
+        const _setVisibilityRange = Spriteset_Map.prototype.setVisibilityRange;
+        Spriteset_Map.prototype.setVisibilityRange = function() {
+            _setVisibilityRange.apply(this, arguments);
+            const proto = this._galvVisRange && Object.getPrototypeOf(this._galvVisRange);
+            if (!proto || proto._coopOwnView) return;
+            proto._coopOwnView = true;
+            const _update = proto.update;
+            proto.update = function() {
+                const own = ownCharacter();
+                if (!own) return _update.apply(this, arguments);
+                const real = $gamePlayer;
+                $gamePlayer = own;
+                try {
+                    return _update.apply(this, arguments);
+                } finally {
+                    $gamePlayer = real;
+                }
+            };
+        };
+    }
+
     const NativeDate = Date;
     function netTimeMs() {
         return Net.timeBase + Math.floor(Net.frame * STEP_MS);
