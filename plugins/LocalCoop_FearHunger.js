@@ -1420,25 +1420,24 @@
         return source.members.filter(m => !m.hidden);
     }
 
-    // la tropa del combate: las partes del atacado y luego las del atacante (sin paginas de sucesos
-    // del juego: dialogos, historia)
-    const pvpTroopIds = {}; // "atacante/atacado" -> id de la tropa creada
+    // la tropa del combate: las partes de cada uno que lucha (sin paginas de sucesos del juego:
+    // dialogos, historia). pvpTroopFor(atacante, atacado) o pvpTroopFor([personajes...])
+    const pvpTroopIds = {}; // "personajes" -> id de la tropa creada
     function pvpTroopFor(attActorId, defActorId) {
-        const key = attActorId + '/' + defActorId;
+        const fighters = Array.isArray(attActorId) ? attActorId.slice() : [defActorId, attActorId];
+        const key = fighters.join('/');
         if (pvpTroopIds[key]) return pvpTroopIds[key];
         const members = [];
-        [[defActorId, bodyPartsOf(defActorId)], [attActorId, bodyPartsOf(attActorId)]].forEach(side => {
-            side[1].forEach(m => members.push({ enemyId: m.enemyId, x: m.x, y: m.y, hidden: false, coopOwner: side[0] }));
+        fighters.forEach(owner => {
+            bodyPartsOf(owner).forEach(m => members.push({ enemyId: m.enemyId, x: m.x, y: m.y, hidden: false, coopOwner: owner }));
         });
         const id = $dataTroops.length;
-        const def = $gameActors.actor(defActorId);
-        const att = $gameActors.actor(attActorId);
         const cond = (turnValid, turnEnding) => ({ actorHp: 50, actorId: 1, actorValid: false, enemyHp: 50, enemyIndex: 0, enemyValid: false,
             switchId: 1, switchValid: false, turnA: 0, turnB: 0, turnEnding: turnEnding, turnValid: turnValid });
         const gfx = battleGfxEventId();
         const call = gfx ? [{ code: 117, indent: 0, parameters: [gfx] }] : [];
         $dataTroops[id] = {
-            id: id, name: (att ? att.name() : '?') + ' vs ' + (def ? def.name() : '?'), members: members,
+            id: id, name: fighters.map(a => ($gameActors.actor(a) ? $gameActors.actor(a).name() : '?')).join(' vs '), members: members,
             pages: [
                 { conditions: cond(true, false), list: call.concat([{ code: 0, indent: 0, parameters: [] }]), span: 0 },
                 { conditions: cond(false, true), list: call.concat([{ code: 0, indent: 0, parameters: [] }]), span: 1 }
@@ -1448,7 +1447,50 @@
         return id;
     }
 
-    const pvpPending = {}; // troopId -> { attacker, defender, attActorId, actorId, lethal, backstab, before } del combate que va a empezar
+    // troopId -> el combate que va a empezar: { sides: [{ players: [n...] }], lethal, backstabbed: [actorId], before }
+    // (o, de dos, { attacker, defender, attActorId, actorId, lethal, backstab, before })
+    const pvpPending = {};
+
+    // Bandos: cada uno con sus jugadores (el primero es el principal: el que empezo o al que ayudan)
+    // y lo que lleva cada uno (su personaje, con su doble en la tropa, y los companeros que maneja).
+    function normalizePvp(info) {
+        const out = Object.assign({}, info);
+        if (!out.sides) out.sides = [{ players: [info.attacker], actors: [info.attActorId] }, { players: [info.defender], actors: [info.actorId] }];
+        out.sides = out.sides.map(sd => ({ players: sd.players.slice(), actors: (sd.actors || sd.players.map(n => playerActor(n) && playerActor(n).actorId())).slice() }));
+        out.fighters = [];
+        out.sides.forEach(sd => sd.actors.forEach(id => { if (id && out.fighters.indexOf(id) < 0) out.fighters.push(id); }));
+        out.players = [];
+        out.sides.forEach(sd => sd.players.forEach(n => { if (out.players.indexOf(n) < 0) out.players.push(n); }));
+        out.backstabbed = out.backstabbed || (info.backstab ? [info.actorId] : []);
+        out.out = out.out || {};      // personaje -> fuera del combate (muerto, o sin muerte a 1 de vida)
+        out.killedBy = out.killedBy || {}; // personaje -> el que le dio el golpe final
+        if (out.attacker === undefined) out.attacker = out.sides[0].players[0];
+        if (out.defender === undefined) out.defender = out.sides[1] ? out.sides[1].players[0] : 0;
+        return out;
+    }
+    // el bando de un personaje (su personaje o un companero que maneja uno de sus jugadores); -1: ninguno
+    function sideIndexOf(actor, info) {
+        info = info || pvpInfo();
+        if (!info || !actor || !actor.isActor || !actor.isActor()) return -1;
+        const id = actor.actorId();
+        for (let i = 0; i < info.sides.length; i++) if (info.sides[i].actors.indexOf(id) >= 0) return i;
+        const owner = coop.battleOwnerOf(actor);
+        for (let i = 0; i < info.sides.length; i++) if (info.sides[i].players.indexOf(owner) >= 0) return i;
+        return -1;
+    }
+    function sideInGame(sd, info) {
+        return sd.actors.some(id => !info.out[id]);
+    }
+    // los dobles a los que puede pegar: los de los otros bandos que siguen
+    function rivalOwners(actor) {
+        const info = pvpInfo();
+        if (!info || !actor) return [];
+        const mine = sideIndexOf(actor, info);
+        if (mine < 0) return [];
+        const out = [];
+        info.sides.forEach((sd, i) => { if (i !== mine) sd.actors.forEach(id => { if (!info.out[id]) out.push(id); }); });
+        return out;
+    }
 
     // En Termina un miembro perdido es un interruptor del personaje (mechanic_arm1...): "Arm cut" y
     // "Leg cut" solo avisan, y el suceso "Character_battleGFX" (y los que encadena) lo apunta.
@@ -1567,7 +1609,8 @@
         const troopId = pvpTroopFor(me.actorId(), them.actorId());
         const backstab = !!it._coopPvpBackstab;
         pvpPending[troopId] = { attacker: attacker, defender: defender, attActorId: me.actorId(), actorId: them.actorId(), lethal: pvpMode() === 'death',
-            backstab: backstab, before: {} };
+            sides: [{ players: [attacker], actors: [me.actorId()] }, { players: [defender], actors: [them.actorId()] }],
+            backstabbed: backstab ? [them.actorId()] : [], before: {} };
         [me, them].forEach(a => { pvpPending[troopId].before[a.actorId()] = limbSnapshot(a); });
         if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
         coop.banner('P' + attacker + ' attacks P' + defender + '!', me.name() + ' vs ' + them.name() + (backstab ? ' - from behind: ' + them.name() + ' loses the first turn' : ''), '#ff6655', 200);
@@ -1580,8 +1623,9 @@
     const _Game_Troop_setup = Game_Troop.prototype.setup;
     Game_Troop.prototype.setup = function(troopId) {
         _Game_Troop_setup.call(this, troopId);
-        const info = pvpPending[troopId];
-        this._coopPvp = info ? Object.assign({}, info) : null;
+        const raw = pvpPending[troopId];
+        const info = raw ? normalizePvp(raw) : null;
+        this._coopPvp = info;
         delete pvpPending[troopId];
         if (!info) return;
         BattleManager._coopPvpEnded = false;
@@ -1589,10 +1633,10 @@
         const data = $dataTroops[troopId];
         this.members().forEach((e, i) => {
             const nm = e.enemy().name.toLowerCase();
-            e._coopOwner = (data.members[i] && data.members[i].coopOwner) || info.actorId;
+            e._coopOwner = (data.members[i] && data.members[i].coopOwner) || info.fighters[0];
             e._coopPart = /\[torso\]/.test(nm) ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
         });
-        [info.actorId, info.attActorId].forEach(owner => {
+        info.fighters.forEach(owner => {
             const mine = this.members().filter(e => e._coopOwner === owner);
             const torso = mine.find(e => e._coopPart === 'torso') || mine[0];
             if (!torso) return;
@@ -1620,12 +1664,35 @@
         return Math.max(1, Math.ceil(a.mhp * mirror.hp / Math.max(1, mirror.mhp)));
     }
 
-    // se acaba el combate (gana quien queda en pie): como una huida, sin premio
+    // se acaba el combate: como una huida, sin premio
     function pvpEnd(loserName) {
         if (BattleManager._phase === 'aborting' || BattleManager._coopPvpEnded) return;
         BattleManager._coopPvpEnded = true;
         if (loserName) coop.banner(loserName + ' is down', '', '#ff6655', 150);
         BattleManager.abort();
+    }
+
+    // quien da el golpe ahora (para saber quien mato a quien)
+    function currentHitter() {
+        const sub = BattleManager._subject;
+        return sub && sub.isActor && sub.isActor() ? sub : null;
+    }
+
+    // un personaje cae (muerto, o sin muerte a 1 de vida): sale del combate, su doble desaparece;
+    // si ya solo queda un bando, se acaba
+    function pvpEliminate(actorId, hitter) {
+        const info = pvpInfo();
+        if (!info || info.out[actorId] || info.fighters.indexOf(actorId) < 0) return;
+        info.out[actorId] = true;
+        if (hitter && hitter.actorId() !== actorId) info.killedBy[actorId] = hitter.actorId();
+        $gameTroop.members().forEach(e => { if (e._coopOwner === actorId && e.isAlive()) { e._coopCut = true; _Game_Battler_addState_pvp.call(e, e.deathStateId()); } });
+        const a = $gameActors.actor(actorId);
+        const left = info.sides.filter(sd => sideInGame(sd, info));
+        if (left.length <= 1) {
+            pvpEnd(a ? a.name() : '');
+        } else if (a) {
+            coop.banner(a.name() + ' is down', left.length + ' sides still fighting', '#ff6655', 150);
+        }
     }
 
     Game_Enemy.prototype.setHp = function(hp) {
@@ -1636,19 +1703,19 @@
         Game_BattlerBase.prototype.setHp.call(this, hp);
         a.setHp(actorHpFor(this, a));
         this._coopActorHp = a.hp;
-        if (!info.lethal && hp <= 1) pvpEnd(a.name());
+        if (!info.lethal && hp <= 1) pvpEliminate(a.actorId(), currentHitter());
     };
 
     function isPvpFighter(battler) {
         const info = pvpInfo();
-        return !!info && battler && battler.isActor && battler.isActor() && (battler.actorId() === info.actorId || battler.actorId() === info.attActorId);
+        return !!info && battler && battler.isActor && battler.isActor() && info.fighters.indexOf(battler.actorId()) >= 0;
     }
 
     Game_Actor.prototype.setHp = function(hp) {
         const info = pvpInfo();
         if (info && !info.lethal && hp <= 0 && isPvpFighter(this)) {
             hp = 1;
-            pvpEnd(this.name());
+            pvpEliminate(this.actorId(), currentHitter());
         }
         return Game_BattlerBase.prototype.setHp.call(this, hp);
     };
@@ -1658,9 +1725,9 @@
     Game_Battler.prototype.addState = function(stateId) {
         const info = pvpInfo();
         if (info && !info.lethal && stateId === this.deathStateId() && isPvpFighter(this) && !this.isStateAffected(stateId)) {
-            // (muerte de golpe sin muerte: 1 de vida y se acaba)
+            // (muerte de golpe sin muerte: 1 de vida y fuera)
             Game_BattlerBase.prototype.setHp.call(this, Math.max(1, this.hp));
-            pvpEnd(this.name());
+            pvpEliminate(this.actorId(), currentHitter());
             return;
         }
         const enemyPart = this.isEnemy && this.isEnemy() && this._coopPart;
@@ -1673,7 +1740,9 @@
         const a = $gameActors.actor(this._coopOwner);
         if (!a) return;
         if (this._coopPart === 'torso' || this._coopPart === 'head') {
-            // sin torso o sin cabeza no queda nada de ese doble: cae su personaje y se acaba
+            // sin torso o sin cabeza no queda nada de ese doble: cae su personaje
+            const hitter = currentHitter();
+            if (hitter && hitter.actorId() !== a.actorId() && !info.killedBy[a.actorId()]) info.killedBy[a.actorId()] = hitter.actorId();
             if (info.lethal) {
                 if (a.isAlive()) {
                     Game_BattlerBase.prototype.setHp.call(a, 0);
@@ -1682,8 +1751,7 @@
             } else {
                 Game_BattlerBase.prototype.setHp.call(a, 1);
             }
-            $gameTroop.members().forEach(e => { if (e !== this && e._coopOwner === this._coopOwner && e.isAlive()) _Game_Battler_addState_pvp.call(e, e.deathStateId()); });
-            pvpEnd(a.name());
+            pvpEliminate(a.actorId(), hitter);
         } else if (this._coopPart === 'arm' || this._coopPart === 'leg') {
             const st = this._coopPart === 'arm' ? stateIdNamed(/^arm cut$/i) : stateIdNamed(/^leg cut$/i);
             if (st && !coop.cheat('cheatLimbs')) {
@@ -1726,7 +1794,9 @@
     const _Game_BattlerBase_canInput_pvp = Game_BattlerBase.prototype.canInput;
     Game_BattlerBase.prototype.canInput = function() {
         const info = pvpInfo();
-        if (info && info.backstab && this.isActor() && isDefenderSide(this) && $gameTroop.turnCount() === 0) return false;
+        if (info && this.isActor() && info.backstabbed.indexOf(this.actorId()) >= 0 && $gameTroop.turnCount() === 0) return false;
+        // (sin muerte, quien cayo ya no juega)
+        if (info && this.isActor() && info.out[this.actorId()]) return false;
         return _Game_BattlerBase_canInput_pvp.call(this);
     };
 
@@ -1762,16 +1832,34 @@
         const info = pvpInfo();
         if (info) {
             if (!info.lethal) {
-                [info.actorId, info.attActorId].forEach(id => limbRestore($gameActors.actor(id), info.before && info.before[id]));
+                info.fighters.forEach(id => limbRestore($gameActors.actor(id), info.before && info.before[id]));
             }
             const hero = $gameActors.actor($gameParty._actors[0]);
-            if (info.lethal && hero && hero.isDead() && (hero.actorId() === info.actorId || hero.actorId() === info.attActorId)) {
-                const killerId = hero.actorId() === info.actorId ? info.attActorId : info.actorId;
-                if (!takeOverProtagonist(hero, $gameActors.actor(killerId))) this._coopPvpGameOver = true;
+            if (info.lethal && hero && hero.isDead() && info.fighters.indexOf(hero.actorId()) >= 0) {
+                const killer = protagonistHeir(info, hero);
+                if (!takeOverProtagonist(hero, killer)) this._coopPvpGameOver = true;
             }
         }
         _BattleManager_endBattle_pvp.call(this, result);
     };
+
+    // quien hereda: el jugador principal del bando del que dio el golpe final (aunque lo diera un
+    // companero o quien le ayudaba); si ese ya no vive, el siguiente jugador vivo de ese bando
+    function protagonistHeir(info, hero) {
+        let byId = info.killedBy[hero.actorId()];
+        let side = byId ? sideIndexOf($gameActors.actor(byId), info) : -1;
+        if (side < 0 || side === sideIndexOf(hero, info)) {
+            // (sin golpe de otro: el bando que queda)
+            side = info.sides.findIndex((sd, i) => i !== sideIndexOf(hero, info) && sideInGame(sd, info));
+        }
+        if (side < 0) return null;
+        const sd = info.sides[side];
+        for (const n of sd.players) {
+            const a = n === 1 ? $gameActors.actor($gameParty._actors[0]) : (coop.player(n) && coop.player(n).actor());
+            if (a && a.isAlive() && a !== hero) return a;
+        }
+        return null;
+    }
 
     // ---- quien mata al protagonista ocupa su lugar ----------------------------------------
     // El que mata a P1 en un combate a muerte pasa a ser el protagonista: su personaje va el primero
@@ -1854,80 +1942,74 @@
     const _Game_Enemy_makeDropItems = Game_Enemy.prototype.makeDropItems;
     Game_Enemy.prototype.makeDropItems = function() { return pvpInfo() ? [] : _Game_Enemy_makeDropItems.call(this); };
 
-    // de que lado es cada personaje (los companeros que maneja cada uno van con el)
-    function isDefenderSide(actor) {
-        const info = pvpInfo();
-        return !!info && (actor.actorId() === info.actorId || (actor.actorId() !== info.attActorId && coop.battleOwnerOf(actor) === info.defender));
-    }
-
+    // un bando como "grupo" (curar / ayudar: solo a los suyos)
     function Game_CoopSide() {
         this.initialize.apply(this, arguments);
     }
     Game_CoopSide.prototype = Object.create(Game_Unit.prototype);
     Game_CoopSide.prototype.constructor = Game_CoopSide;
-    Game_CoopSide.prototype.initialize = function(defender) {
+    Game_CoopSide.prototype.initialize = function(side) {
         Game_Unit.prototype.initialize.call(this);
-        this._coopDefender = defender;
+        this._coopSide = side;
         this._inBattle = true;
     };
     Game_CoopSide.prototype.members = function() {
-        return pvpInfo() ? $gameParty.battleMembers().filter(a => isDefenderSide(a) === this._coopDefender) : [];
+        return pvpInfo() ? $gameParty.battleMembers().filter(a => sideIndexOf(a) === this._coopSide) : [];
     };
 
-    // curar / ayudar: solo a los de su lado
     const _Game_Actor_friendsUnit = Game_Actor.prototype.friendsUnit;
     Game_Actor.prototype.friendsUnit = function() {
-        if (pvpInfo()) return new Game_CoopSide(isDefenderSide(this));
+        if (pvpInfo()) return new Game_CoopSide(sideIndexOf(this));
         return _Game_Actor_friendsUnit.call(this);
     };
 
-    // el doble del rival de un personaje
-    function rivalOwner(actor) {
-        const info = pvpInfo();
-        if (!info || !actor) return 0;
-        return isDefenderSide(actor) ? info.attActorId : info.actorId;
-    }
-
-    // a quien se puede elegir: las partes del doble del rival de quien elige
+    // a quien se puede elegir: las partes de los dobles de los otros bandos
     if (Window_BattleEnemy.prototype.allowedTargets) {
         const _allowedTargets = Window_BattleEnemy.prototype.allowedTargets;
         Window_BattleEnemy.prototype.allowedTargets = function() {
             const list = _allowedTargets.call(this);
-            const rival = rivalOwner(BattleManager.actor());
-            return rival ? list.filter(e => e._coopOwner === rival) : list;
+            if (!pvpInfo()) return list;
+            const rivals = rivalOwners(BattleManager.actor());
+            return list.filter(e => rivals.indexOf(e._coopOwner) >= 0);
         };
     }
     const _Window_BattleEnemy_refresh = Window_BattleEnemy.prototype.refresh;
     Window_BattleEnemy.prototype.refresh = function() {
         _Window_BattleEnemy_refresh.call(this);
-        const rival = rivalOwner(BattleManager.actor());
-        if (rival && this._enemies) {
-            this._enemies = this._enemies.filter(e => e._coopOwner === rival);
+        if (pvpInfo() && this._enemies) {
+            const rivals = rivalOwners(BattleManager.actor());
+            this._enemies = this._enemies.filter(e => rivals.indexOf(e._coopOwner) >= 0);
             Window_Selectable.prototype.refresh.call(this);
         }
     };
 
-    // si el juego elige solo (confusion, objetivo al azar): tambien al doble del rival
+    // si el juego elige solo (confusion, objetivo al azar): tambien a un doble de otro bando
     const _Game_Action_targetsForOpponents = Game_Action.prototype.targetsForOpponents;
     Game_Action.prototype.targetsForOpponents = function() {
         const targets = _Game_Action_targetsForOpponents.call(this);
-        const rival = this.subject() && this.subject().isActor() ? rivalOwner(this.subject()) : 0;
-        if (!rival) return targets;
-        const ok = targets.filter(e => e._coopOwner === rival);
+        if (!pvpInfo() || !this.subject() || !this.subject().isActor()) return targets;
+        const rivals = rivalOwners(this.subject());
+        if (!rivals.length) return [];
+        const ok = targets.filter(e => rivals.indexOf(e._coopOwner) >= 0);
         if (ok.length) return ok;
-        const alive = $gameTroop.aliveMembers().filter(e => e._coopOwner === rival);
+        const alive = $gameTroop.aliveMembers().filter(e => rivals.indexOf(e._coopOwner) >= 0);
         const torso = alive.find(e => e._coopMirror) || alive[0];
         return torso ? [torso] : [];
     };
 
-    // en el combate solo estan los dos (y los companeros que maneja quien ataca)
+    // en el combate estan los de los bandos (sus personajes y los companeros que manejan); sin
+    // muerte, quien cayo ya no esta (ni su bando entero, si cayeron todos)
     const _Game_Party_battleMembers_pvp = Game_Party.prototype.battleMembers;
     Game_Party.prototype.battleMembers = function() {
         const list = _Game_Party_battleMembers_pvp.call(this);
         const info = this._inBattle && $gameTroop && $gameTroop._coopPvp;
         if (!info) return list;
-        return list.filter(a => a.actorId() === info.actorId || a.actorId() === info.attActorId ||
-            (a.actorId() !== info.actorId && coop.battleOwnerOf(a) === info.attacker));
+        return list.filter(a => {
+            const i = sideIndexOf(a, info);
+            if (i < 0) return false;
+            if (info.lethal) return true;
+            return !info.out[a.actorId()] && sideInGame(info.sides[i], info);
+        });
     };
 
     // nadie pierde "por grupo": se acaba cuando cae uno de los dos (ver arriba)
@@ -1951,10 +2033,7 @@
                 e._hp = a.hp <= 0 ? 0 : Math.max(1, Math.round(e.mhp * a.hp / Math.max(1, a.mhp)));
                 e._coopActorHp = a.hp;
             }
-            if (a.isDead()) {
-                this.members().forEach(p => { if (p._coopOwner === e._coopOwner && p.isAlive()) _Game_Battler_addState_pvp.call(p, p.deathStateId()); });
-                pvpEnd(a.name());
-            }
+            if (a.isDead()) pvpEliminate(a.actorId(), null);
         });
         return false;
     };
@@ -1968,10 +2047,10 @@
         const net = window.CoopNet;
         if (net && net.active) {
             const mine = playerActor(net.player);
-            return mine && (mine.actorId() === info.actorId || mine.actorId() === info.attActorId) ? mine : null;
+            return mine && sideIndexOf(mine, info) >= 0 ? mine : null;
         }
         const subject = BattleManager._subject;
-        return BattleManager.actor() || (subject && subject.isActor && subject.isActor() ? subject : null) || $gameActors.actor(info.attActorId);
+        return BattleManager.actor() || (subject && subject.isActor && subject.isActor() ? subject : null) || $gameActors.actor(info.fighters[info.fighters.length - 1]);
     }
 
     const _Sprite_Enemy_update = Sprite_Enemy.prototype.update;
@@ -1980,8 +2059,8 @@
         const e = this._enemy;
         if (!e || !e._coopOwner) return;
         const viewer = pvpViewer();
-        // (el doble propio no se ve: solo el del rival; "renderable" es solo el dibujo)
-        this.renderable = !(viewer && e._coopOwner === viewer.actorId());
+        // (los dobles de su bando no se ven: solo los de los otros; "renderable" es solo el dibujo)
+        this.renderable = !(viewer && sideIndexOf(viewer) === sideIndexOf($gameActors.actor(e._coopOwner)));
     };
 
     // en red, el rival tampoco esta en el grupo de este PC (ni su dibujo ni su fila)
@@ -1989,7 +2068,7 @@
         const net = window.CoopNet;
         if (!actor || !net || !net.active) return false;
         const viewer = pvpViewer();
-        return !!viewer && actor !== viewer && isDefenderSide(actor) !== isDefenderSide(viewer);
+        return !!viewer && actor !== viewer && sideIndexOf(actor) !== sideIndexOf(viewer);
     }
 
     if (typeof Sprite_Actor !== 'undefined') {
@@ -2045,7 +2124,7 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,

@@ -1414,6 +1414,87 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         for (k = 0; k < 5; k++) frame();
     }
 
+    // ---- PvP de varios bandos: todos contra todos, y dos contra uno ----
+    var addedP3 = false, partyBefore3 = $gameParty._actors.slice();
+    if (window.CoopPvp && /termina/i.test($dataSystem.gameTitle) && window.$gamePlayer2 && !window.$gamePlayer3) {
+        // (un tercer jugador para estas pruebas: Abella)
+        if ($gameParty._actors.indexOf(5) < 0) $gameParty._actors.splice(2, 0, 5);
+        tap('KeyU', 85);
+        for (k = 0; k < 5; k++) frame();
+        addedP3 = !!window.$gamePlayer3;
+    }
+    if (window.CoopPvp && /termina/i.test($dataSystem.gameTitle) && window.$gamePlayer2 && window.$gamePlayer3) {
+        var pA = $gameParty.leader(), pB = $gamePlayer2.actor(), pC = $gamePlayer3.actor();
+        var startSides = function(sides, lethal) {
+            var ids = [];
+            sides.forEach(function(sd) { sd.forEach(function(n) { ids.push((n === 1 ? pA : n === 2 ? pB : pC).actorId()); }); });
+            var tid = CoopPvp.troopFor(ids);
+            var bf = {};
+            [pA, pB, pC].forEach(function(a) { bf[a.actorId()] = CoopPvp.snapshot(a); });
+            CoopPvp.pending[tid] = { sides: sides.map(function(sd) { return { players: sd }; }), lethal: lethal, before: bf };
+            BattleManager.setup(tid, true, false);
+            $gameParty.onBattleStart();
+        };
+        var stopSides = function() {
+            $gameParty.onBattleEnd(); $gameParty._inBattle = false; $gameTroop._coopPvp = null; BattleManager._phase = ''; BattleManager._coopPvpEnded = false;
+            BattleManager._subject = null;
+        };
+        var torsoOf = function(a) { return $gameTroop.members().filter(function(e) { return e._coopMirror === a.actorId(); })[0]; };
+        var hitBy = function(hitter, victim) {
+            var t = torsoOf(victim);
+            BattleManager._subject = hitter;
+            if (t) t.setHp(0);
+            if (t && t.isAlive()) t.addState(t.deathStateId());
+            BattleManager._subject = null;
+        };
+        [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
+        CoopLocal.setSetting('pvp', 'duel');
+        startSides([[1], [2], [3]], false);
+        var own = function(a) { return CoopPvp.rivals(a).slice().sort().join(','); };
+        check('T47 everybody against everybody: three doubles, each one can hit the two others (never their own)',
+            !!torsoOf(pA) && !!torsoOf(pB) && !!torsoOf(pC) && own(pA) === [pB.actorId(), pC.actorId()].sort().join(',') &&
+            own(pB) === [pA.actorId(), pC.actorId()].sort().join(',') && $gameParty.battleMembers().length >= 3,
+            'P1 -> ' + own(pA) + ' P2 -> ' + own(pB) + ' P3 -> ' + own(pC) + ' members ' + $gameParty.battleMembers().map(function(a) { return a.name(); }));
+        hitBy(pA, pB);
+        check('T47b P2 is down (not to the death: 1 HP): out of the fight, the other two go on',
+            pB.hp === 1 && $gameParty.battleMembers().indexOf(pB) < 0 && !BattleManager.isAborting() && CoopPvp.rivals(pA).join(',') === String(pC.actorId()),
+            'P2 hp ' + pB.hp + ' members ' + $gameParty.battleMembers().map(function(a) { return a.name(); }) + ' phase ' + BattleManager._phase);
+        hitBy(pC, pA);
+        check('T47c then P1 is down too: one side left, the fight is over', BattleManager.isAborting(), 'phase ' + BattleManager._phase);
+        BattleManager.endBattle(2);
+        stopSides();
+        [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
+        // dos contra uno: P2 y P3 juntos contra P1
+        startSides([[1], [2, 3]], false);
+        var friends = pB.friendsUnit().members().map(function(a) { return a.actorId(); });
+        check('T47d two against one: P2 and P3 are on the same side (can only hit P1, can help each other)',
+            CoopPvp.rivals(pB).join(',') === String(pA.actorId()) && CoopPvp.rivals(pC).join(',') === String(pA.actorId()) &&
+            own(pA) === [pB.actorId(), pC.actorId()].sort().join(',') && friends.indexOf(pC.actorId()) >= 0,
+            'P2 -> ' + own(pB) + ' P3 -> ' + own(pC) + ' P1 -> ' + own(pA) + ' P2 friends ' + friends);
+        hitBy(pA, pB);
+        check('T47e one of the two is down: their side still fights (P3)', !BattleManager.isAborting() && CoopPvp.rivals(pA).join(',') === String(pC.actorId()),
+            'phase ' + BattleManager._phase + ' P1 -> ' + own(pA));
+        BattleManager.endBattle(2);
+        stopSides();
+        [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
+        // a muerte: P3 (que ayuda a P2) mata a P1 -> el protagonista es P2 (el principal de ese bando)
+        startSides([[1], [2, 3]], true);
+        var info = CoopPvp.info();
+        info.killedBy[pA.actorId()] = pC.actorId();
+        var heir = CoopPvp.heir(info, pA);
+        check('T47f to the death, the helper (P3) kills P1: the new protagonist is the main player of that side (P2), not the helper',
+            heir === pB, 'heir ' + (heir ? heir.name() : 'none') + ' P2 ' + pB.name() + ' P3 ' + pC.name());
+        stopSides();
+        [pA, pB, pC].forEach(function(a) { a.clearStates(); a.setHp(a.mhp); });
+        CoopLocal.setSetting('pvp', 'off');
+        for (k = 0; k < 5; k++) frame();
+    }
+    if (addedP3) {
+        CoopLocal.removePlayer(3);
+        $gameParty._actors = partyBefore3;
+        for (k = 0; k < 5; k++) frame();
+    }
+
     // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
     var walker = carrierN && CoopLocal.player(carrierN);
     var wall = null;

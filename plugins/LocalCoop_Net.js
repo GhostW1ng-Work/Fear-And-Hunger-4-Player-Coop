@@ -1785,14 +1785,15 @@
         b.foe = foe;
         Net.battleSeq = b.seq;
         battles.push(b);
-        // PvP (un jugador ataca a otro): el atacado lucha en el mismo combate, con sus turnos
+        // PvP: todos los jugadores de los bandos luchan en el mismo combate, con sus turnos
         const pvp = b.troop && b.troop._coopPvp;
-        if (pvp && pvp.defender && pvp.defender !== starter && !inSeparateBattle(pvp.defender)) {
-            closeSub(pvp.defender);
-            b.involved.push(pvp.defender);
-            b.inputs[pvp.defender] = newVirtualInput(Net.raw[pvp.defender] || 0);
-            if (pvp.defender === Net.player) battleStartAudio(b);
-        }
+        ((pvp && pvp.players) || []).forEach(n => {
+            if (n === starter || b.involved.indexOf(n) >= 0 || inSeparateBattle(n)) return;
+            closeSub(n);
+            b.involved.push(n);
+            b.inputs[n] = newVirtualInput(Net.raw[n] || 0);
+            if (n === Net.player) battleStartAudio(b);
+        });
         // el evento del mapa que lo empezo se aparta: el mapa queda libre (otro jugador puede
         // empezar su combate con otro enemigo, hablar, abrir cofres...)
         // (no una escena de la historia que empieza sola: con el mapa libre volveria a empezar
