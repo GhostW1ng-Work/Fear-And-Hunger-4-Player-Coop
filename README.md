@@ -126,13 +126,20 @@ Settings for this (Co-op settings):
 
 Only in Termina, and only if the host turns it on: setting **PvP (Termina)** - *Off*, *On - not to the death* or *On - to the death*.
 
-- **How to attack:** stand right next to another player, face them and press OK - *Attack Marina (P2)?* - **Attack**. The other player is not asked: they are pulled into the battle at once.
+- **How to attack:** stand right next to another player (on any side, also diagonally) and press OK - *Attack Marina (P2)?* - **Attack**. The other player is not asked: they are pulled into the battle at once. (If you are facing someone to talk to or a chest, OK does that instead.)
+- **From behind:** if the other player is looking away from you, they **lose their first turn**.
 - **The battle:** both players fight each other. Each one sees **the other player's character as an enemy**, the way Termina shows that contestant in a fight - their own picture with body parts (torso, head, arms, legs) - and in their party only their own character. Each player takes their own turns: chooses their skills or weapon and which body part of the other one to hit. The enemy has the HP and stats of that player's character, and what you do to it you do to them.
 - On one PC (local co-op) the screen shows the enemy of whoever is choosing right now.
-- **Body parts:** cutting off an arm or a leg of the opponent gives their character *Arm cut* / *Leg cut*. The head is fatal (or the end of the fight when not to the death). Damage to the torso is damage to their HP.
-- **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends.
-- **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off). If P1 dies, that is game over, as always.
-- No experience or money for these fights. You can run away from them.
+- **HP:** the enemy has the HP of that contestant in the game (e.g. Abella's torso: 2500), and each hit takes the same **share** of the real character's HP (250 of 2500 = 10%). So a fight lasts several turns, like a fight against that contestant. *PvP damage* (x1 / x0.5 / x0.25 / x2) changes it.
+- **Body parts:**
+  - **a leg cut off** - the head of that player is easy to hit (normally it dodges most attacks);
+  - **an arm cut off** - that player hits only half as hard; **both arms** - almost no damage;
+  - **the head** - death (or the end of the fight when not to the death);
+  - the character gets *Arm cut* / *Leg cut*, and everybody sees a message. Limbs already lost before the fight are missing on the enemy from the start.
+- **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends. Limbs cut off in the fight **come back** after it.
+- **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off); cut limbs stay. **If P1 (the protagonist) is killed, the game is over.**
+- **Running away:** the *Run* skill ends the fight for both; everybody goes back to the map as they are (HP, states).
+- No experience or money for these fights.
 - Online it works with both *Together* and *Separate* battles; in a separate battle the attacked player joins the attacker's battle.
 
 ---
@@ -177,7 +184,8 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | *Revived with* | 30% | HP and mind of a character brought back. |
 | *Mind cost of reviving* | 30% | How much mind the one who revives loses. |
 | *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. |
-| *PvP (Termina)* | Off | Players can attack each other (OK facing another player). Not to the death / to the death. |
+| *PvP (Termina)* | Off | Players can attack each other (OK next to another player). Not to the death / to the death. |
+| *PvP damage* | x1 | Damage in PvP fights: x1, x0.5, x0.25 or x2. |
 | *Cheats* | On | Allows F6 / F7 anywhere and the cheats below. |
 
 ---

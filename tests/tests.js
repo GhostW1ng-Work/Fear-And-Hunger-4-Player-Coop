@@ -1171,19 +1171,32 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     // ---- PvP (Termina): P1 ataca a P2; hay dos dobles, cada uno es su personaje ----
     if (window.CoopPvp && /termina/i.test($dataSystem.gameTitle) && carrierN) {
         var defN = carrierN, defA = CoopLocal.player(defN).actor(), lead = $gameParty.leader();
+        var limbNames = function(a) { return a.states().filter(function(st) { return /^(arm|leg) cut$/i.test(st.name); }).map(function(st) { return st.name; }); };
+        var startPvp = function(lethal, backstab) {
+            var tid = CoopPvp.troopFor(lead.actorId(), defA.actorId());
+            var lb = {};
+            [lead, defA].forEach(function(a) { lb[a.actorId()] = a.states().filter(function(st) { return /^(arm|leg) cut$/i.test(st.name); }).map(function(st) { return st.id; }); });
+            CoopPvp.pending[tid] = { attacker: 1, defender: defN, attActorId: lead.actorId(), actorId: defA.actorId(), lethal: lethal, backstab: !!backstab, limbsBefore: lb };
+            BattleManager.setup(tid, true, false);
+            $gameParty.onBattleStart();
+        };
+        var endPvp = function() {
+            $gameParty.onBattleEnd();
+            $gameParty._inBattle = false;
+            $gameTroop._coopPvp = null;
+            BattleManager._phase = '';
+        };
+        var mirrorOf = function(actor) { return $gameTroop.members().filter(function(e) { return e._coopMirror === actor.actorId(); })[0]; };
+        var partOf = function(actor, kind) { return $gameTroop.members().filter(function(e) { return e._coopOwner === actor.actorId() && e._coopPart === kind; })[0]; };
         CoopLocal.setSetting('pvp', 'duel');
-        var tid = CoopPvp.troopFor(lead.actorId(), defA.actorId());
-        CoopPvp.pending[tid] = { attacker: 1, defender: defN, attActorId: lead.actorId(), actorId: defA.actorId(), lethal: false };
         defA.setHp(defA.mhp);
         lead.setHp(lead.mhp);
-        BattleManager.setup(tid, true, false);
-        $gameParty.onBattleStart();
-        var mirrorOf = function(actor) { return $gameTroop.members().filter(function(e) { return e._coopMirror === actor.actorId(); })[0]; };
+        startPvp(false);
         var mDef = mirrorOf(defA), mLead = mirrorOf(lead);
-        check('T44 PvP: two doubles, each one is its character (HP, max HP)', !!mDef && !!mLead && mDef.hp === defA.hp && mDef.mhp === defA.mhp && mLead.hp === lead.hp,
-            (mDef ? mDef.enemy().name + ' ' + mDef.hp + '/' + mDef.mhp : 'no def double') + ' | ' + (mLead ? mLead.enemy().name + ' ' + mLead.hp : 'no lead double'));
+        check('T44 PvP: two doubles with the HP of the game\'s enemy (the character is at full HP: so is the double)',
+            !!mDef && !!mLead && mDef.mhp === mDef.enemy().params[0] && mDef.hp === mDef.mhp && mLead.hp === mLead.mhp,
+            (mDef ? mDef.enemy().name + ' ' + mDef.hp + '/' + mDef.mhp : 'no def double') + ' | ' + (mLead ? mLead.enemy().name + ' ' + mLead.hp + '/' + mLead.mhp : '-'));
         var bm = $gameParty.battleMembers();
-        // P1 apunta a su propio doble: el golpe va al doble de P2; y al reves
         var act = new Game_Action(lead);
         act.setAttack();
         act.setTarget(mLead.index());
@@ -1196,41 +1209,65 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             tLead.length > 0 && tLead.every(function(e) { return e._coopOwner === defA.actorId(); }) &&
             tDef.length > 0 && tDef.every(function(e) { return e._coopOwner === lead.actorId(); }),
             'P1 -> ' + tLead.map(function(e) { return e.enemy().name; }).join(',') + ' | P2 -> ' + tDef.map(function(e) { return e.enemy().name; }).join(','));
-        var hp0 = defA.hp, hpL = lead.hp;
-        mDef.setHp(mDef.hp - 5);
-        mLead.setHp(mLead.hp - 7);
-        check('T44c hitting a double hurts its character', defA.hp === hp0 - 5 && lead.hp === hpL - 7, hp0 + '->' + defA.hp + ' / ' + hpL + '->' + lead.hp);
-        mDef.setHp(0);
-        check('T44d not to the death: the loser stays with 1 HP and the battle ends', defA.hp === 1 && defA.isAlive() && BattleManager.isAborting(),
-            defA.hp + ' phase ' + BattleManager._phase);
-        BattleManager._coopPvpEnded = false;
-        BattleManager._phase = 'input';
-        $gameTroop._coopPvp.lethal = true;
-        defA.setHp(defA.mhp);
-        mDef._hp = defA.hp;
-        var arm = $gameTroop.members().filter(function(e) { return e._coopPart === 'arm' && e._coopOwner === defA.actorId(); })[0];
-        if (arm) {
-            arm.addState(arm.deathStateId());
-            check('T44e to the death: an arm of the double cut off = "Arm cut" on the character', defA.states().some(function(st) { return /^arm cut$/i.test(st.name); }),
-                defA.states().map(function(st) { return st.name; }).join(','));
-        }
-        var head = $gameTroop.members().filter(function(e) { return e._coopPart === 'head' && e._coopOwner === defA.actorId(); })[0];
+        mDef.setHp(mDef.hp - Math.round(mDef.mhp * 0.1));
+        check('T44c 10% of the double\'s HP = 10% of the character\'s HP (several hits to win, not one)', defA.hp === Math.ceil(defA.mhp * 0.9),
+            defA.hp + '/' + defA.mhp + ' double ' + mDef.hp + '/' + mDef.mhp);
+        // piernas: la cabeza ya no esquiva; brazos: pega mas flojo
+        var head = partOf(defA, 'head'), leg = partOf(defA, 'leg'), arm = partOf(defA, 'arm');
+        var eva0 = head ? head.eva : 0;
+        if (leg) leg.addState(leg.deathStateId());
+        check('T44d leg cut off: the head of that double is easy to hit, "Leg cut" on the character', !head || (eva0 > 0.5 && head.eva <= 0.05) && limbNames(defA).indexOf('Leg cut') >= 0,
+            'head eva ' + eva0 + ' -> ' + (head && head.eva) + ' states ' + limbNames(defA));
+        if (arm) arm.addState(arm.deathStateId());
+        check('T44e arm cut off: that character hits much weaker', CoopPvp.armFactor(defA) < 1 && CoopPvp.armFactor(lead) === 1 && limbNames(defA).indexOf('Arm cut') >= 0,
+            'factor ' + CoopPvp.armFactor(defA) + ' / ' + CoopPvp.armFactor(lead));
+        // huir ("Run") acaba el combate; sin muerte lo cortado vuelve
+        var runCe = $dataCommonEvents.filter(function(ce) { return ce && /skills_run/i.test(ce.name); })[0];
+        if (runCe) $gameTemp.reserveCommonEvent(runCe.id);
+        check('T44f "Run" ends the PvP fight', !runCe || BattleManager.isAborting(), 'phase ' + BattleManager._phase);
+        var hpBefore = defA.hp;
+        BattleManager.endBattle(1);
+        check('T44g not to the death: after the fight the cut limbs are back, HP stays as it was', limbNames(defA).length === 0 && defA.hp === hpBefore,
+            'states ' + limbNames(defA) + ' hp ' + hpBefore + ' -> ' + defA.hp);
+        endPvp();
+        // por la espalda: el atacado pierde el primer turno
+        startPvp(false, true);
+        check('T44h attacked from behind: they lose their first turn', !defA.canInput() && lead.canInput(), 'def ' + defA.canInput() + ' att ' + lead.canInput());
+        endPvp();
+        // a muerte: la cabeza
+        startPvp(true);
+        mDef = mirrorOf(defA);
+        head = partOf(defA, 'head');
         if (head) {
             defA.clearResult(); // (como tras cada accion del combate)
             head.addState(head.deathStateId());
             var defParts = $gameTroop.members().filter(function(e) { return e._coopOwner === defA.actorId(); });
-            check('T44f to the death: the head = the character dies, their double falls, the battle ends',
+            check('T44i to the death: the head = the character dies, their double falls, the battle ends',
                 defA.isDead() && defParts.every(function(e) { return e.isDead(); }) && BattleManager.isAborting() && lead.isAlive(),
                 'dead ' + defA.isDead() + ' parts ' + defParts.filter(function(e) { return e.isDead(); }).length + '/' + defParts.length + ' phase ' + BattleManager._phase);
+            BattleManager.endBattle(1);
+            check('T44j to the death: the cut limbs stay (none here) and P1 alive: no game over', !BattleManager._coopPvpGameOver);
         }
-        $gameParty.onBattleEnd();
-        $gameParty._inBattle = false;
-        $gameTroop._coopPvp = null;
-        BattleManager._coopPvpEnded = false;
+        endPvp();
+        // a muerte y cae el protagonista (P1): fin de partida
+        defA.removeState(defA.deathStateId());
+        defA.setHp(defA.mhp);
+        startPvp(true);
+        var leadHead = partOf(lead, 'head');
+        if (leadHead) {
+            lead.clearResult();
+            leadHead.addState(leadHead.deathStateId());
+            BattleManager.endBattle(1);
+            check('T44k to the death, the protagonist (P1) is killed: game over', lead.isDead() && BattleManager._coopPvpGameOver === true,
+                'lead dead ' + lead.isDead() + ' flag ' + BattleManager._coopPvpGameOver);
+            BattleManager._coopPvpGameOver = false;
+            lead.removeState(lead.deathStateId());
+        }
+        endPvp();
         defA.clearStates();
         defA.setHp(defA.mhp);
         lead.setHp(lead.mhp);
-        BattleManager._phase = '';
+        BattleManager._coopPvpEnded = false;
         CoopLocal.setSetting('pvp', 'off');
         for (k = 0; k < 5; k++) frame();
     }

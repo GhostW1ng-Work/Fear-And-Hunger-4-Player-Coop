@@ -60,7 +60,7 @@ On every PC you can use WASD or the arrows, Z / Space / Enter (OK), X / Esc / Ba
 | **Bring character** | A guest can play the main character of one of their own saves (see below). |
 | **Input delay** | *Auto* (recommended) or a fixed number of frames (see below). |
 | **Battles** | *Together* or *Separate* (see below). The host's choice counts; set it before starting. |
-| **PvP (Termina)** | Off / not to the death / to the death - can players attack each other (OK facing another player). The host's choice; can be changed during the game. |
+| **PvP (Termina)** | Off / not to the death / to the death - can players attack each other (OK next to another player). The host's choice; can be changed during the game. |
 | **Revive (soul stones)** | On / Off - can dead players be brought back. The host's choice; can be changed during the game. |
 | **Played chars' NPCs** | Hidden / Shown - is a character a player plays also standing around as an NPC. The host's choice; can be changed during the game. |
 | **Cheats** | On / Off. The host's choice; can be changed during the game. |
