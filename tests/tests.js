@@ -1022,6 +1022,21 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var mine = lcalls[1];
         check('T41 P' + carrierN + ' has the same light as P1 around them (not darkness)', lcalls.length === 2 && !!mine &&
             mine[0] === sx(lp) && mine[1] === sy(lp) - 10 && mine[2] === 325 && mine[3] === '#FFEEDD' && mine[4] === 'lighter', JSON.stringify(lcalls));
+        // la camara a la derecha de P1 (en otro PC mira a su personaje): TerraxLighting pide la luz
+        // de P1 "al otro lado del mapa"; va en su sitio y la de P2 tambien sale
+        var oldDx = $gameMap._displayX;
+        $gameMap._displayX = $gamePlayer._realX + 1;
+        lcalls = [];
+        lt.beginMask(lmask);
+        fakeBmp._coopFilled = true;
+        fakeBmp._context.globalCompositeOperation = 'lighter';
+        var jumpX = tw / 2 + ($gameMap.width() - Math.floor($gameMap.displayX() - $gamePlayer._realX)) * tw;
+        fakeBmp.radialgradientFillRect(jumpX, sy($gamePlayer) - 10, 20, 325, '#FFEEDD', '#000000', false, 0);
+        fakeBmp._context.globalCompositeOperation = 'source-over';
+        lt.endMask(lmask);
+        check('T41b camera right of P1: P1 light where P1 is (not across the map), P' + carrierN + ' has one too',
+            lcalls.length === 2 && lcalls[0][0] === sx($gamePlayer) && lcalls[1][0] === sx(lp), 'jump ' + jumpX + ' ' + JSON.stringify(lcalls));
+        $gameMap._displayX = oldDx;
         lp.locate($gamePlayer.x, $gamePlayer.y);
     }
 

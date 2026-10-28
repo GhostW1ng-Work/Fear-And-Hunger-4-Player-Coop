@@ -963,18 +963,64 @@
         return { x: pw / 2 + $gameMap.adjustX(ch._realX) * pw, y: ph / 2 + $gameMap.adjustY(ch._realY) * ph };
     }
 
+    // TerraxLighting pone la luz de P1 "al otro lado del mapa" si la camara esta a la derecha o
+    // debajo de P1 (lo hace para los mapas que dan la vuelta): en la partida en red la camara de
+    // cada PC mira a su personaje y en los demas PC la luz de P1 se iba fuera de la pantalla.
+    // Donde dibujaria TerraxLighting la luz de P1 ({x, y} con ese salto, o null si no salta):
+    function terraxJump() {
+        const pw = $gameMap.tileWidth();
+        const ph = $gameMap.tileHeight();
+        const dx = $gameMap.displayX();
+        const dy = $gameMap.displayY();
+        const p = $gamePlayer;
+        return {
+            x: dx > p.x ? pw / 2 + ($gameMap.width() - Math.floor(dx - p._realX)) * pw : null,
+            y: dy > p.y ? ph / 2 + ($gameMap.height() - Math.floor(dy - p._realY)) * ph : null
+        };
+    }
+
+    // la luz de P1 que pide TerraxLighting: {x, y} donde debe ir y su dy (o null si no es la de P1)
+    function matchP1Light(x1, y1) {
+        if (!$gamePlayer) return null;
+        const pos = screenPos($gamePlayer);
+        const jump = terraxJump();
+        let x = null;
+        let dy = null;
+        if (Math.abs(x1 - pos.x) < 2) x = pos.x;
+        else if (jump.x !== null && Math.abs(x1 - jump.x) < 2 && !$gameMap.isLoopHorizontal()) x = pos.x;
+        if (Math.abs(y1 - pos.y) < 48) dy = y1 - pos.y;
+        else if (jump.y !== null && Math.abs(y1 - jump.y) < 48 && !$gameMap.isLoopVertical()) dy = y1 - jump.y;
+        return x === null || dy === null ? null : { x: x, y: pos.y + dy, dy: dy };
+    }
+
     function watchPlayerLight(target) {
         const _radial = target.radialgradientFillRect;
         target.radialgradientFillRect = function(x1, y1, r1, r2, color1, color2, flicker, brightness) {
             // (la primera luz de la mascara en el sitio de P1 es la suya)
-            if (this._coopMaskWatch && !p1Light && $gamePlayer) {
-                const pos = screenPos($gamePlayer);
-                if (Math.abs(x1 - pos.x) < 2 && Math.abs(y1 - pos.y) < 48) {
-                    p1Light = { dy: y1 - pos.y, r1: r1, r2: r2, color: color1, color2: color2, flicker: flicker, brightness: brightness };
+            if (this._coopMaskWatch && !p1Light) {
+                const m = matchP1Light(x1, y1);
+                if (m) {
+                    p1Light = { dy: m.dy, r1: r1, r2: r2, color: color1, color2: color2, flicker: flicker, brightness: brightness };
+                    const args = Array.prototype.slice.call(arguments);
+                    args[0] = m.x;
+                    args[1] = m.y;
+                    return _radial.apply(this, args);
                 }
             }
             return _radial.apply(this, arguments);
         };
+        // la linterna de P1 (el cono): tambien en su sitio
+        const _radial2 = target.radialgradientFillRect2;
+        if (_radial2) {
+            target.radialgradientFillRect2 = function(x1, y1) {
+                const m = this._coopMaskWatch && !p1Light ? matchP1Light(x1, y1) : null;
+                if (!m) return _radial2.apply(this, arguments);
+                const args = Array.prototype.slice.call(arguments);
+                args[0] = m.x;
+                args[1] = m.y;
+                return _radial2.apply(this, args);
+            };
+        }
     }
     if (Bitmap.prototype.radialgradientFillRect) watchPlayerLight(Bitmap.prototype);
 
