@@ -75,7 +75,10 @@
     const PING_MS = 1000;
     const DEFAULT_PORT = 47810;
     const ACTIONS = coop.actions;
-    const PEER_TIMEOUT = 5000;  // ms sin teclas de un invitado: se le da por desconectado
+    // ms que el anfitrion espera las teclas de un invitado para un cuadro; despues ese cuadro va sin
+    // teclas suyas (su PC se habra parado: minimizado, cargando...). Nadie espera mas ni se suelta a
+    // nadie: cuando su juego vuelve, recupera los cuadros (los tiene todos) y sigue.
+    const STALL_MS = 500;
     const COLOR_NET = '#7fb3ff';
 
     // ---- configuracion (www/coop_net.json) --------------------------------------
@@ -183,6 +186,8 @@
         joinQueue: [],          // jugadores que entran / vuelven en la proxima instantanea
         pendingEvents: [],      // sucesos para el proximo cuadro (p.ej. alguien se fue)
         blockedSince: 0,        // desde cuando se espera la tecla de algun invitado
+        waitSince: {},          // jugador -> desde cuando se esperan sus teclas
+        stalledLog: {},
         blockedOn: [],
         startRequested: false,
         stopRequested: false,
@@ -688,6 +693,7 @@
             _SceneManager_updateMain.call(this);
             return;
         }
+        if (Net.role === 'host') hostBuildFrames();
         // 60 cuadros de juego por segundo segun el reloj (no segun el monitor). Los cuadros que
         // llegan antes de tiempo esperan: son el margen de Net.delay. Si este PC se ha quedado
         // atras (hay muchos esperando), recupera alguno de mas.
@@ -704,7 +710,8 @@
             Net.clockAcc -= STEP_MS;
             steps++;
         }
-        if (Net.active && steps < MAX_CATCH_UP && framesWaiting() > Net.delay + 2) runFrame();
+        // (muy atras - estuvo parado: minimizado, cargando... -: recupera varios por cuadro de dibujo)
+        for (let extra = 0; Net.active && extra < 8 && framesWaiting() > Net.delay + 2; extra++) runFrame();
         this.renderScene();
         this.requestUpdate();
     };
@@ -1970,40 +1977,6 @@
         }
     }
 
-    // Minimizado o tapado por otra ventana, el navegador deja de llamar a la animacion (y frena
-    // los temporizadores a uno por segundo): el juego se paraba, los demas esperaban y a los 5 s el
-    // anfitrion soltaba a ese jugador. Un "worker" no se frena: mientras falte la animacion, la
-    // partida en red sigue con el.
-    let lastAnimFrame = performance.now();
-    const _SceneManager_update = SceneManager.update;
-    SceneManager.update = function() {
-        lastAnimFrame = performance.now();
-        return _SceneManager_update.apply(this, arguments);
-    };
-    try {
-        if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
-            const tick = new Worker(URL.createObjectURL(new Blob(['setInterval(function () { postMessage(0); }, 16);'], { type: 'application/javascript' })));
-            tick.onmessage = () => {
-                // (solo con la ventana de verdad oculta - minimizada -: un cuadro largo con la ventana a la
-                // vista, p.ej. al cargar un mapa, no; ahi se metia en el cambio de escena y cada carga iba a peor)
-                if (!Net.active || Net.noBackgroundTick || !document.hidden || performance.now() - lastAnimFrame < 250) return;
-                // (sin pedir otra animacion: cada peticion era otro bucle de dibujo mas, que seguia al
-                // volver la ventana - con cada parada larga el juego se actualizaba varias veces por cuadro)
-                const request = SceneManager.requestUpdate;
-                SceneManager.requestUpdate = function() {};
-                try {
-                    SceneManager.updateMain();
-                } catch (e) {
-                    logError('update in the background', e);
-                } finally {
-                    SceneManager.requestUpdate = request;
-                }
-            };
-        }
-    } catch (e) {
-        logError('background worker', e);
-    }
-
     function endSession(reason) {
         if (!Net.active) return;
         closeAllSubs();
@@ -2113,6 +2086,7 @@
 
     function hostStoreInput(f, player, bits, readySeq, battleReady) {
         if (!Net.active || f < Net.nextBuild) return;
+        if (f < Net.nextBuild) return; // (llego tarde: ese cuadro ya salio sin ella)
         if (!Net.inputs[f]) Net.inputs[f] = {};
         Net.inputs[f][player] = bits;
         if (player === 1) {
@@ -2138,12 +2112,27 @@
             const f = Net.nextBuild;
             if (Net.hold && f >= Net.hold.at) return;
             const got = Net.inputs[f] || {};
-            const missing = Net.players.filter(p => !Net.lost[p] && got[p] === undefined);
+            const missing = Net.players.filter(p => p !== 1 && !Net.lost[p] && got[p] === undefined);
+            if (got[1] === undefined) return; // (la tecla del propio anfitrion aun no)
+            const now = performance.now();
+            Net.players.forEach(p => { if (missing.indexOf(p) < 0) delete Net.waitSince[p]; });
             if (missing.length > 0) {
-                // el anfitrion ya tiene su tecla y espera a otros: se cuenta cuanto tiempo
-                if (got[1] !== undefined && !Net.blockedSince) Net.blockedSince = performance.now();
-                Net.blockedOn = missing;
-                return;
+                missing.forEach(p => { if (!Net.waitSince[p]) Net.waitSince[p] = now; });
+                if (missing.some(p => now - Net.waitSince[p] < STALL_MS)) {
+                    Net.blockedSince = Net.blockedSince || now;
+                    Net.blockedOn = missing;
+                    return;
+                }
+                // los que no llegan: este cuadro sin sus teclas
+                missing.forEach(p => {
+                    got[p] = 0;
+                    if (!Net.stalledLog[p]) {
+                        Net.stalledLog[p] = true;
+                        battleLog('P' + p + ' is not answering: the game goes on without their keys');
+                    }
+                });
+            } else {
+                Net.stalledLog = {};
             }
             Net.blockedSince = 0;
             const a = [0, 0, 0, 0, 0];
@@ -2693,13 +2682,6 @@
             const all = {};
             Net.peers.forEach(pp => { all[pp.player] = pp.ping; });
             Net.peers.forEach(pp => send(pp.sock, { t: 'pings', list: all }));
-            if (Net.active && Net.blockedSince && ts - Net.blockedSince > PEER_TIMEOUT) {
-                Net.blockedSince = 0;
-                Net.peers.filter(pp => pp.inSession && Net.blockedOn.indexOf(pp.player) >= 0).forEach(pp => {
-                    logError('P' + pp.player + ' sent nothing for ' + PEER_TIMEOUT + ' ms: dropped', '');
-                    pp.sock.destroy();
-                });
-            }
         } else if (Net.role === 'join' && Net.sock) {
             send(Net.sock, { t: 'ping', ts: ts });
         }

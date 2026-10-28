@@ -58,7 +58,7 @@ Options that change the game (*Always Dash*, *Command Remember*, battle speed...
 
 ## Joining, leaving, coming back
 
-- **Disconnect** (or the game closed / crashed): the game goes on for the others; that player's character goes back into the party as a normal follower (in a battle, the host commands it until the battle ends - in a separate battle, the next player fighting in it). A guest whose game freezes is dropped after 5 s, so the host never hangs.
+- **Disconnect** (or the game closed / crashed): the game goes on for the others; that player's character goes back into the party as a normal follower (in a battle, the host commands it until the battle ends - in a separate battle, the next player fighting in it). A guest whose game stops answering (minimized, frozen, loading) is not dropped and nobody waits for it: after 0.5 s the game goes on without its keys, and when it comes back it catches up.
 - **Reconnect / join mid-game**: the guest connects from the menu as at the start. The host waits for the next quiet moment (on the map, no event, dialogue or menu) and sends its world to everybody, like a save; the player gets their character back (a new guest gets the next free number, up to P4).
 - **Out of sync**: if the fingerprints differ, the host shows *PCs out of sync* and at the next quiet moment sends its world to everybody (*Back in sync*). Details go to `www/coop_net_desync.log` on both PCs.
 - Errors of the network game are written to `www/coop_net_error.log`.

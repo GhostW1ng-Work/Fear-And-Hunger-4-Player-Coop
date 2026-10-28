@@ -553,19 +553,25 @@ g2.ev('CoopNet.localKeys = 0')
 same, frames = aligned_worlds(net, [host, g2])
 check('P2 plays after the reconnect, same world', same, frames)
 
-# --- a guest that stops answering (frozen game) is dropped: the host does not hang ---
+# --- a guest that stops answering (frozen / minimized game): the host neither waits nor drops it ---
 fz = frame(host)
 for _ in range(600):  # 10 s: the host runs, the guest is frozen
     host.ev('__tick(%f)' % (1000 / 60))
     net.pump()
-check('frozen guest dropped after 5 s, host goes on', frame(host) > fz + 200, frame(host) - fz)
-check('frozen guest left the game', not host.ev('!!$gamePlayer2'))
-net.guests.remove(g2)
-g2 = Peer(2, 'join')
-net.add_guest(g2)
-g2.ev("CoopNet.open('join')")
-tick(net, [host, g2], 60)
-check('it can come back', g2.ev('CoopNet.active') and host.ev('!!$gamePlayer2'))
+check('frozen guest: the host goes on (it waits 0.5 s at most)', frame(host) > fz + 500, frame(host) - fz)
+check('frozen guest: not dropped, P2 is still in the game', host.ev('!!$gamePlayer2') and host.ev('CoopNet.peers.length') == 1)
+gz = frame(g2)
+tick(net, [host, g2], 300)  # it comes back: it has every frame, it catches up
+check('the guest comes back and catches up', frame(g2) > gz + 500, [gz, frame(g2), frame(host)])
+same, frames = aligned_worlds(net, [host, g2])
+check('after catching up: same world', same, frames)
+p2y = host.ev('$gamePlayer2.y')
+g2.ev('CoopNet.localKeys = 2')  # down
+tick(net, [host, g2], 40)
+g2.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 20)
+same, frames = aligned_worlds(net, [host, g2])
+check('and plays again (same world)', same, frames)
 
 # --- a third PC joins in the middle ---
 g3 = Peer(3, 'join')
