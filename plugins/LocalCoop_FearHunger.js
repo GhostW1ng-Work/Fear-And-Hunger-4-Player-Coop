@@ -1821,8 +1821,12 @@
         if (killerPlayer.refresh) killerPlayer.refresh();
         $gameMap.requestRefresh();
         $gameSystem._coopProtagonistChanges = ($gameSystem._coopProtagonistChanges || 0) + 1;
-        if (net && net.active) net.swapSeats(1, m);
-        else coop.banner(killer.name() + ' is the protagonist now', 'P' + m + ', take P1\'s controls - ' + victim.name() + "'s player takes P" + m + "'s", '#ffcc55', 420);
+        if (net && net.active) {
+            const me = net.swapSeats(1, m);
+            if (me === 1) coop.banner('You are the protagonist now', 'You killed ' + victim.name() + ' - you play P1: ' + killer.name(), '#ffcc55', 360);
+            else if (me === m) coop.banner(victim.name() + ' is dead', killer.name() + ' is the protagonist now. You are P' + m + ': wait for a character, or a soul stone', '#ff6655', 360);
+            else coop.banner(killer.name() + ' is the protagonist now', killer.name() + ' killed ' + victim.name(), '#ffcc55', 300);
+        } else coop.banner(killer.name() + ' is the protagonist now', 'P' + m + ', take P1\'s controls - ' + victim.name() + "'s player takes P" + m + "'s", '#ffcc55', 420);
         return true;
     }
     const _BattleManager_updateBattleEnd_pvp = BattleManager.updateBattleEnd;

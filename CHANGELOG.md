@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- PvP, local co-op: whoever kills the protagonist (P1) to the death becomes the protagonist (first in the party, the game's protagonist switch, played as P1 - the players swap places, the screen says so); the old protagonist is a dead companion of the killer's old player number (body, waiting, back with a soul stone as a companion). Online it is still game over for now.
+- PvP: whoever kills the protagonist (P1) to the death becomes the protagonist (first in the party, the game's protagonist switch). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number, on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion of the killer's old number (body, waiting, back with a soul stone as a companion).
 - Online, fixed: a battle started by a story scene that starts by itself (Autorun) - e.g. Per'kele on the Moon tower in ending B - began the scene again from the start after the battle, so the fight repeated forever (Rher never came). Such a scene now keeps the map waiting until its battle ends, as in the normal game.
 - Online: a player with no character (dead, waiting) watches the battle going on (P1's first), with its music; before they saw only the map.
 - Termina, cheats for testing ending B (Co-op menu, with *Cheats* on): *Contestants left: N* (the tower door opens only at 1, alone in the party), *Kill all contestants not in the party* (the way the game records a contestant's death; players' characters and the party are kept), *Teleport to the tower door*.

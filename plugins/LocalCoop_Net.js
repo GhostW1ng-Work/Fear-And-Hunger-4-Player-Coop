@@ -144,7 +144,8 @@
     const Net = {
         config: readConfig(),
         role: 'off',
-        player: 0,              // jugador de este PC (1 = anfitrion)
+        player: 0,              // jugador de este PC en el juego (P1 = el protagonista)
+        seat: 0,                // numero de este PC en la red (1 = anfitrion); casi siempre = player
         active: false,          // partida en red en marcha
         players: [1],           // jugadores de la partida
         frame: 0,               // siguiente cuadro a ejecutar
@@ -460,10 +461,55 @@
         else send(Net.sock, { t: 'in', f: f, b: bits, rs: myReadySeq(), br: myBattleReady() });
     }
 
+    // ---- quien lleva a quien -------------------------------------------------------------
+    // Cada PC tiene su numero en la red (seat: el anfitrion es 1, los invitados por orden de llegada)
+    // y lleva a un jugador del juego (player: P1 es el protagonista). Casi siempre son iguales; cuando
+    // alguien mata al protagonista en un PvP a muerte pasa a ser P1 (y el muerto, su numero): eso se
+    // guarda en la partida ($gameSystem._coopSeats: seat -> player) y las teclas de cada PC van a su
+    // jugador. Cambia en el mismo cuadro en todos los PC.
+    function seatTable() {
+        return (typeof $gameSystem !== 'undefined' && $gameSystem && $gameSystem._coopSeats) || null;
+    }
+    function slotOf(seat) {
+        const t = seatTable();
+        return t && t[seat] ? t[seat] : seat;
+    }
+    function seatOf(slot) {
+        const t = seatTable();
+        if (!t) return slot;
+        for (const k of Object.keys(t)) if (t[k] === slot) return Number(k);
+        return t[slot] ? 0 : slot;
+    }
+    function swapSeats(x, y) {
+        const t = Object.assign({}, seatTable() || {});
+        [x, y].concat(Net.players).forEach(n => { const st = seatOf(n); if (st && !t[st]) t[st] = n; });
+        const sx = seatOf(x), sy = seatOf(y);
+        t[sx] = y;
+        t[sy] = x;
+        $gameSystem._coopSeats = t;
+        const before = Net.player;
+        Net.player = slotOf(Net.seat);
+        // nadie sigue con las teclas que tenia el otro: se sueltan y cuentan al soltarlas
+        closeSub(x);
+        closeSub(y);
+        Net.players.forEach(n => {
+            if (Net.applied[n]) ACTIONS.forEach((action, i) => { if ((Net.applied[n] >> i) & 1) coop.injectAction(n, action, false); });
+            Net.applied[n] = 0;
+            Net.mask[n] = (Net.lastAll && Net.lastAll[seatOf(n)]) || 0; // (lo que su PC tiene pulsado: cuenta al soltarlo)
+        });
+        cameraHadChar = !coop.player(Net.player);
+        coop.setCamera(Net.player === 1 ? 'p1' : 'p' + Net.player);
+        battleLog('seats: P' + x + ' <-> P' + y + ' (this PC: P' + before + ' -> P' + Net.player + ')');
+        return Net.player;
+    }
+    Net.swapSeats = swapSeats;
+    Net.slotOf = slotOf;
+
     function applyActions(all) {
+        Net.lastAll = all;
         for (const p of Net.players) {
             const prev = Net.applied[p] || 0;
-            const raw = all[p] || 0;
+            const raw = all[seatOf(p)] || 0;
             Net.raw[p] = raw;
             // con su menu abierto, sus teclas son del menu; al cerrarlo, las que siguen pulsadas
             // no cuentan en el mapa hasta soltarlas (si no, Cancelar volveria a abrir el menu)
@@ -538,6 +584,7 @@
         (list || []).forEach(ev => {
             if (ev.k === 'qs') applyQuickSave(ev);
             if (ev.k === 'away') {
+                ev = Object.assign({}, ev, { n: slotOf(ev.n) });
                 closeSub(ev.n);
                 // en un combate su personaje lo lleva hasta el final otro jugador de ese combate:
                 // el anfitrion, o en un combate aparte el siguiente que lucha en el (si no queda nadie, la IA)
@@ -2022,6 +2069,7 @@
         closeSceneNow();
         DataManager.createGameObjects();
         DataManager.extractSaveContents(JsonEx.parse(saveJson));
+        Net.player = slotOf(Net.seat); // (la partida dice a quien lleva cada PC)
         $gameSystem.onAfterLoad(); // musica de la partida (si sigue siendo la misma, no se corta)
         syncTerraxClock();
         applySharedConfig(meta.config);
@@ -2290,7 +2338,7 @@
         peersNow.filter(pp => Net.joinQueue.indexOf(pp.player) >= 0).forEach(pp => {
             const id = bringHero(pp);
             if (id) {
-                brought[pp.player] = id;
+                brought[slotOf(pp.player)] = id;
                 if (pp.broughtNew) joinedWith.push('P' + pp.player + ' with ' + $gameActors.actor(id).name());
             }
         });
@@ -2326,8 +2374,8 @@
                 // quien vuelve tras irse: su personaje de antes, junto a P1
                 .concat(back.filter(n => !coop.player(n)).map(n => ({ n: n, actor: coop.lastActor(n), x: $gamePlayer.x, y: $gamePlayer.y, d: $gamePlayer.direction() }))),
             away: first ? [] : coop.awayPlayers(),
-            gone: Object.keys(Net.lost).map(Number),
-            back: back,
+            gone: Object.keys(Net.lost).map(Number).map(slotOf),
+            back: back.map(slotOf),
             reason: reason,
             actors: actors,
             config: ConfigManager.makeData()
@@ -2353,7 +2401,8 @@
 
     function hostStartSession() {
         if (Net.role !== 'host' || Net.active || !gameLoaded() || Net.peers.length === 0) return false;
-        Net.player = 1;
+        Net.seat = 1;
+        Net.player = slotOf(1);
         Net.players = [1];
         Net.lost = {};
         Net.pendingEvents = [];
@@ -2410,7 +2459,7 @@
             return out;
         }
         const out = Object.assign({}, Net.allPings);
-        if (Net.player) out[Net.player] = Net.ping;
+        if (Net.seat) out[Net.seat] = Net.ping;
         return out;
     }
 
@@ -2667,6 +2716,7 @@
             });
             readLines(sock, msg => {
                 if (msg.t === 'hi') {
+                    Net.seat = msg.player;
                     Net.player = msg.player;
                     banner('Connected to the host as P' + msg.player, 'Waiting for the host to start...', COLOR_NET, 300);
                 } else if (msg.t === 'full') {
@@ -2733,6 +2783,7 @@
         Net.rejected = '';
         Net.role = role;
         Net.player = Net.role === 'host' ? 1 : 0;
+        Net.seat = Net.player;
         if (Net.role === 'host') startHost();
         else if (Net.role === 'join') startJoin();
     }

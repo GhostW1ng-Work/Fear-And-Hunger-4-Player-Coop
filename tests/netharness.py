@@ -739,6 +739,35 @@ check('internet: back to Auto, full speed again', frame(lh) - f2 >= 285, frame(l
 same, frames = aligned_worlds(lnet, [lh, lg])
 check('internet: same world at the end', same, frames)
 
+# --- whoever kills the protagonist becomes P1: the PCs swap who they play (same frame on all) ---
+same, frames = aligned_worlds(lnet, [lh, lg])
+mine = [lh.ev('CoopNet.swapSeats(1, 2)'), lg.ev('CoopNet.swapSeats(1, 2)')]
+check('seats swapped: the guest PC plays P1 now, the host PC P2 (the host is still the host)',
+      mine == [2, 1] and lh.ev('CoopNet.role') == 'host' and lh.ev('CoopNet.seat') == 1 and lg.ev('CoopNet.seat') == 2, mine)
+pos = lambda p: p.ev('[$gamePlayer.x, $gamePlayer.y, $gamePlayer2 ? $gamePlayer2.x : -1, $gamePlayer2 ? $gamePlayer2.y : -1].join(",")')
+before = pos(lh)
+lg.ev('CoopNet.localKeys = 4')  # the guest presses left
+tick(lnet, [lh, lg], 60)
+lg.ev('CoopNet.localKeys = 0')
+tick(lnet, [lh, lg], 60)
+after = pos(lh)
+b, a = [int(v) for v in before.split(',')], [int(v) for v in after.split(',')]
+check("the guest's keys move P1 ($gamePlayer) now, not P2", a[0] != b[0] and a[2] == b[2], before + ' -> ' + after)
+before = after
+lh.ev('CoopNet.localKeys = 4')  # the host presses left
+tick(lnet, [lh, lg], 60)
+lh.ev('CoopNet.localKeys = 0')
+tick(lnet, [lh, lg], 60)
+after = pos(lh)
+b, a = [int(v) for v in before.split(',')], [int(v) for v in after.split(',')]
+check("the host's keys go to P2 now, not P1", a[0] == b[0] and (a[2] != b[2] or b[2] == -1), before + ' -> ' + after)
+same, frames = aligned_worlds(lnet, [lh, lg])
+check('same world after swapping who plays whom', same, frames)
+check('the swap is in the saved game (a snapshot keeps it)', lh.ev('JSON.stringify($gameSystem._coopSeats)') == lg.ev('JSON.stringify($gameSystem._coopSeats)') and lh.ev('CoopNet.slotOf(2)') == 1)
+lh.ev('CoopNet.swapSeats(1, 2)')
+lg.ev('CoopNet.swapSeats(1, 2)')
+check('swapped back', lh.ev('CoopNet.player') == 1 and lg.ev('CoopNet.player') == 2)
+tick(lnet, [lh, lg], 30)
 print('\n'.join(results))
 failed = [r for r in results if r.startswith('FAIL')]
 print('\n%d passed, %d failed' % (len(results) - len(failed), len(failed)))
