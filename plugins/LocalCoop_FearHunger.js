@@ -2223,6 +2223,13 @@
         this.scale.x *= sc;
         this.scale.y *= sc;
         this._coopScale = sc;
+        // (los numeros de dano salen donde estaba antes de ponerlo en su sitio: alli no)
+        (this._damages || []).forEach(sp => {
+            if (sp._coopPlaced) return;
+            sp._coopPlaced = true;
+            sp.x = this.x + (this.damageOffsetX ? this.damageOffsetX() : 0);
+            sp.y = this.y + (this.damageOffsetY ? this.damageOffsetY() : 0);
+        });
     };
 
     // en red, el rival tampoco esta en el grupo de este PC (ni su dibujo ni su fila)
