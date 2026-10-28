@@ -1168,6 +1168,28 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         $gameVariables.setValue(tvar, 0);
     }
 
+    // ---- trucos de la torre (final B de Termina) ----
+    if (window.CoopTower && /termina/i.test($dataSystem.gameTitle)) {
+        var cs = CoopTower.contestants();
+        var leftVar = $dataSystem.variables.indexOf('CHARACTERS_LEFT');
+        var swBefore = cs.map(function(c) { return $gameSwitches.value(c.deadSwitch); });
+        var leftBefore = $gameVariables.value(leftVar);
+        $gameVariables.setValue(leftVar, 14);
+        var inParty = cs.filter(function(c) { return c.actorId && $gameParty._actors.indexOf(c.actorId) >= 0; });
+        check('T45 the 14 contestants with their dead / soul switches (and the character of those that can join)',
+            cs.length === 14 && cs.every(function(c) { return c.deadSwitch > 0 && c.soul > 0; }) && cs.filter(function(c) { return c.actorId; }).length >= 8,
+            cs.map(function(c) { return c.name + '/' + c.actorId; }).join(' '));
+        cs.forEach(function(c) { $gameSwitches.setValue(c.deadSwitch, false); });
+        CoopTower.kill();
+        var dead = cs.filter(function(c) { return $gameSwitches.value(c.deadSwitch); });
+        check('T45b kill cheat: everybody not in the party is dead, the party is not; contestants left = 14 - dead',
+            dead.length === 14 - inParty.length && inParty.every(function(c) { return !$gameSwitches.value(c.deadSwitch); }) &&
+            $gameVariables.value(leftVar) === 14 - dead.length,
+            'dead ' + dead.length + ' in party ' + inParty.map(function(c) { return c.name; }) + ' left ' + $gameVariables.value(leftVar));
+        cs.forEach(function(c, i) { $gameSwitches.setValue(c.deadSwitch, swBefore[i]); if (c.soul > 0) $gameSwitches.setValue(c.soul, false); });
+        $gameVariables.setValue(leftVar, leftBefore);
+    }
+
     // ---- PvP (Termina): P1 ataca a P2; hay dos dobles, cada uno es su personaje ----
     if (window.CoopPvp && /termina/i.test($dataSystem.gameTitle) && carrierN) {
         var defN = carrierN, defA = CoopLocal.player(defN).actor(), lead = $gameParty.leader();

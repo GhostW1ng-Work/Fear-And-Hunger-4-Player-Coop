@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Termina, cheats for testing ending B (Co-op menu, with *Cheats* on): *Contestants left: N* (the tower door opens only at 1, alone in the party), *Kill all contestants not in the party* (the way the game records a contestant's death; players' characters and the party are kept), *Teleport to the tower door*.
+
 ## v1.8.8
 
 - **PvP in Termina** (setting *PvP (Termina)*: Off / On - not to the death / On - to the death; the host's in the network game, also a row in the network menu, can be changed while playing). Works in local co-op and online.

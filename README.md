@@ -200,6 +200,9 @@ For testing. They need *Cheats: On*; online, the host's choice counts.
 | Get a soul stone | Co-op menu | One soul stone. |
 | Restore HP, mind and hunger | Co-op menu | For the whole party. |
 | Get torches and fire | Co-op menu | 3 torches + Tinderbox / Matches / Lighter. |
+| *Contestants left: N* | Co-op menu (Termina) | Shows how many contestants are still alive. The tower door (ending B) opens only at 1, with nobody else in the party. |
+| Kill all contestants not in the party | Co-op menu (Termina) | Every contestant not in your party (and not a player's character) dies the way the game records it: gone from the map, their soul can be taken, the count goes down. **Cannot be undone - use a separate save slot.** |
+| Teleport to the tower door | Co-op menu (Termina) | When you close the menu, everybody is moved in front of the stone door of the tower (Temple site). |
 | Immortal party | Co-op settings | Never below 1 HP, nothing kills the party outright. |
 | Keep limbs | Co-op settings | Arms, legs and head are never cut off. |
 | One-hit kills | Co-op settings | Any damage the party deals kills the enemy (or the enemy part). |

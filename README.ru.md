@@ -200,6 +200,9 @@
 | Get a soul stone | меню Co-op | Один камень душ. |
 | Restore HP, mind and hunger | меню Co-op | Всему отряду. |
 | Get torches and fire | меню Co-op | 3 факела + Tinderbox / Matches / Lighter. |
+| *Contestants left: N* | меню Co-op (Termina) | Сколько участников ещё живо. Дверь башни (концовка B) открывается только при 1, когда в отряде больше никого нет. |
+| Kill all contestants not in the party | меню Co-op (Termina) | Все участники не в отряде (и не персонажи игроков) погибают так, как это записывает игра: пропадают с карты, их душу можно забрать, счётчик уменьшается. **Отменить нельзя — используйте отдельный слот сохранения.** |
+| Teleport to the tower door | меню Co-op (Termina) | Когда закроете меню, все переносятся к каменной двери башни (Temple site). |
 | Immortal party | Co-op settings | Отряд не опускается ниже 1 HP, мгновенно не умирает. |
 | Keep limbs | Co-op settings | Руки, ноги и голову не отрубают. |
 | One-hit kills | Co-op settings | Любой урон отряда сразу убивает врага (или часть врага). |

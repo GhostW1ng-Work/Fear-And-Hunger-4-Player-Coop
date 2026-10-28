@@ -747,6 +747,111 @@
         }
     });
 
+    // ---- trucos para probar el final B de Termina (la torre) ----------------------------------
+    // La puerta de la torre (Temple_site_2) solo se abre si en el grupo hay uno solo y quedan
+    // vivos como mucho 1 concursante (CHARACTERS_LEFT; empieza en 14). Al morir un concursante el
+    // juego enciende su interruptor de "muerto" (Abella1, levi1...: con el desaparece del mapa),
+    // el de su alma (mechanic_SOUL...) y resta 1 a CHARACTERS_LEFT.
+    const CONTESTANT_SOULS = {
+        levi1: 'exsoldier_SOUL', marina1: 'Occultist_SOUL', Daan1: 'doctor_SOUL', Abella1: 'mechanic_SOUL',
+        yellow_mage1: 'yellow_mage_SOUL', Marcoh1: 'fighter_SOUL', karin1: 'journalist_SOUL', Olivia1: 'botanist_SOUL',
+        Henryk1: 'chef_SOUL', August1: 'hunter_SOUL', Tanaka1: 'salaryman_SOUL', samarie1: 'apprentice_SOUL',
+        Pav1: 'lieutenant_SOUL', caligura1: 'mobster_SOUL'
+    };
+    const TOWER_DOOR = { mapId: 111, x: 21, y: 21 }; // delante de la puerta (21, 20), mirando arriba
+    function switchNamed(name) {
+        return ($dataSystem.switches || []).indexOf(name);
+    }
+    function variableNamed(name) {
+        return ($dataSystem.variables || []).indexOf(name);
+    }
+    // los concursantes: el interruptor de "muerto" de cada uno (del suceso "Character_CHART")
+    function contestants() {
+        const ce = ($dataCommonEvents || []).find(e => e && /^Character_CHART$/i.test(e.name));
+        const out = [];
+        (ce ? ce.list : []).forEach((c, n) => {
+            const next = ce.list[n + 1];
+            if (c.code === 111 && c.parameters[0] === 1 && /_dead$/i.test($dataSystem.variables[c.parameters[1]] || '') &&
+                next && next.code === 111 && next.parameters[0] === 0) {
+                const sw = next.parameters[1];
+                const name = $dataSystem.switches[sw];
+                // el personaje (si se puede llevar en el grupo): el que enciende ese interruptor al morir
+                let actorId = 0;
+                for (let id = 1; id < $dataActors.length && !actorId; id++) {
+                    if (deathEffectsOf(id).switches.indexOf(sw) >= 0) actorId = id;
+                }
+                out.push({ deadSwitch: sw, name: name, soul: switchNamed(CONTESTANT_SOULS[name] || ''), actorId: actorId });
+            }
+        });
+        return out;
+    }
+    function contestantsLeft() {
+        const v = variableNamed('CHARACTERS_LEFT');
+        return v > 0 ? $gameVariables.value(v) : 0;
+    }
+    // los personajes de los jugadores (en el grupo o esperando a volver)
+    function playersActorIds() {
+        const ids = $gameParty._actors.slice();
+        const waiting = coop.waiting();
+        Object.keys(waiting).forEach(n => { if (waiting[n]) ids.push(Number(waiting[n])); });
+        return ids;
+    }
+
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Contestants left: ' + contestantsLeft() + ' (the tower opens at 1, alone in the party)';
+        },
+        run() {
+            SoundManager.playCursor();
+        }
+    });
+    const killContestantsAction = {
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: kill all contestants not in the party';
+        },
+        run() {
+            const keep = playersActorIds();
+            const v = variableNamed('CHARACTERS_LEFT');
+            let killed = 0;
+            contestants().forEach(c => {
+                if ($gameSwitches.value(c.deadSwitch)) return;
+                if (c.actorId && keep.indexOf(c.actorId) >= 0) return;
+                $gameSwitches.setValue(c.deadSwitch, true);
+                if (c.soul > 0) $gameSwitches.setValue(c.soul, true);
+                if (v > 0) $gameVariables.setValue(v, Math.max(0, $gameVariables.value(v) - 1));
+                killed++;
+            });
+            if (killed === 0) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            $gameMap.requestRefresh();
+            SoundManager.playShop();
+            coop.banner(killed + ' contestants are dead', 'Contestants left: ' + contestantsLeft(), '#ff6655', 180);
+        }
+    };
+    coop.addAssignAction(killContestantsAction);
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: teleport to the tower door';
+        },
+        run() {
+            if (!$dataMapInfos[TOWER_DOOR.mapId]) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            // (al cerrar el menu: todos van con P1)
+            $gamePlayer.reserveTransfer(TOWER_DOOR.mapId, TOWER_DOOR.x, TOWER_DOOR.y, 8, 0);
+            SoundManager.playShop();
+        }
+    });
+
     // fuego: antorchas y con que encenderlas (Fear & Hunger 1: Tinderbox; Termina: Matches, Lighter)
     const FIRE_ITEMS = [['Torch', 3], ['Tinderbox', 1], ['Matches', 1], ['Lighter', 1]];
     coop.addAssignAction({
@@ -1879,6 +1984,7 @@
         });
     });
 
+    window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
     window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,

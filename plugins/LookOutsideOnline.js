@@ -3662,7 +3662,7 @@
     };
 
     function visibleActions() {
-        return assignActions.filter(a => !a.cheat || coopSettings.cheats !== false);
+        return assignActions.filter(a => (!a.cheat || coopSettings.cheats !== false) && (!a.visible || a.visible()));
     }
 
     Window_CoopAssign.prototype.maxItems = function() {
