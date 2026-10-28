@@ -1476,6 +1476,25 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         BattleManager.endBattle(2);
         stopSides();
         [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
+        // P3 llega a una pelea de P1 y P2: ayuda a P2, o contra todos
+        startSides([[1], [2]], false);
+        var jl = CoopPvp.joinEventList(3, 7, CoopPvp.info());
+        var jc = jl.filter(function(c) { return c.code === 102; })[0];
+        CoopPvp.addFighter(3, 1);
+        check('T49 P3 arrives at a fight of P1 and P2: "Help P1 / Help P2 / Attack everyone / Leave"; helping P2 = P2 side, their double appears, P1 sees two doubles',
+            jc && jc.parameters[0].length === 4 && /^Help P1/.test(jc.parameters[0][0]) && /^Help P2/.test(jc.parameters[0][1]) && jc.parameters[0][2] === 'Attack everyone' &&
+            CoopPvp.rivals(pC).join(',') === String(pA.actorId()) && !!torsoOf(pC) && own(pA) === [pB.actorId(), pC.actorId()].sort().join(',') &&
+            $gameParty.battleMembers().indexOf(pC) >= 0 && CoopPvp.shownOwners(CoopPvp.info(), pA).length === 2,
+            (jc ? jc.parameters[0].join(' / ') : '-') + ' | P3 -> ' + own(pC) + ' P1 -> ' + own(pA));
+        BattleManager.endBattle(2);
+        stopSides();
+        startSides([[1], [2]], false);
+        CoopPvp.addFighter(3, -1);
+        check('T49b or against everyone: a side of their own (hits both, both hit them)',
+            own(pC) === [pA.actorId(), pB.actorId()].sort().join(',') && own(pB) === [pA.actorId(), pC.actorId()].sort().join(','), 'P3 -> ' + own(pC) + ' P2 -> ' + own(pB));
+        BattleManager.endBattle(2);
+        stopSides();
+        [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
         // dos contra uno: P2 y P3 juntos contra P1
         startSides([[1], [2, 3]], false);
         var friends = pB.friendsUnit().members().map(function(a) { return a.actorId(); });

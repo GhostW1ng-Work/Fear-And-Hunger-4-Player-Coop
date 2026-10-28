@@ -1523,11 +1523,29 @@
         if (!b.started) applyJoins(b);
     }
 
+    // (la respuesta a "Join it?": ayudar a un bando o contra todos)
+    function pvpJoin(n, seq, side) {
+        const b = battles.find(x => x.seq === seq);
+        if (!b || !b.troop || !b.troop._coopPvp) return;
+        b.pvpSides = b.pvpSides || {};
+        b.pvpSides[n] = side;
+        queueJoin(n, side >= 0 ? 'helps side ' + side + ' in a PvP' : 'attacks everyone in a PvP', b);
+    }
+    Net.pvpJoin = pvpJoin;
+
     function applyJoins(b) {
         const joins = b.joins.splice(0);
         if (joins.length === 0) return;
         const before = $gameParty.battleMembers();
         battleLog('joined: P' + joins.join(', P') + ' (phase ' + BattleManager._phase + ')');
+        // PvP: su doble y su bando, antes de que cuente en el grupo del combate
+        if (b.troop && b.troop._coopPvp && window.CoopPvp) {
+            joins.forEach(n => {
+                const side = b.pvpSides && b.pvpSides[n] !== undefined ? b.pvpSides[n] : -1;
+                if (b.pvpSides) delete b.pvpSides[n];
+                CoopPvp.addFighter(n, side);
+            });
+        }
         joins.forEach(n => {
             closeSub(n);
             b.involved.push(n);
@@ -1570,7 +1588,17 @@
                 const q = m === 1 ? $gamePlayer : coop.player(m);
                 return q && Math.abs($gameMap.deltaX(q.x, p.x)) <= 1 && Math.abs($gameMap.deltaY(q.y, p.y)) <= 1;
             }));
-            if (near) queueJoin(n, 'OK next to a fighter', near);
+            if (!near) return;
+            // un PvP: antes, de que lado (ayudar a uno, o contra todos)
+            const pvp = near.troop && near.troop._coopPvp;
+            if (pvp && window.CoopPvp && CoopPvp.joinEventList) {
+                const it = $gameMap._interpreter;
+                if (it.isRunning() || $gameMessage.isBusy()) return;
+                it.setup(CoopPvp.joinEventList(n, near.seq, pvp), 0);
+                it._coopStarter = n; // (elige quien llega)
+                return;
+            }
+            queueJoin(n, 'OK next to a fighter', near);
         });
     }
 

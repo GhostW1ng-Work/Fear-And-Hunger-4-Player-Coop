@@ -1679,27 +1679,108 @@
             e._coopOwner = (data.members[i] && data.members[i].coopOwner) || info.fighters[0];
             e._coopPart = /\[torso\]/.test(nm) ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
         });
-        info.fighters.forEach(owner => {
-            const mine = this.members().filter(e => e._coopOwner === owner);
-            const torso = mine.find(e => e._coopPart === 'torso') || mine[0];
-            if (!torso) return;
-            torso._coopPart = 'torso';
-            torso._coopMirror = owner;
-            const a = $gameActors.actor(owner);
-            torso.recoverAll();
-            torso._hp = Math.max(1, Math.round(torso.mhp * a.hp / Math.max(1, a.mhp)));
-            torso._coopActorHp = a.hp;
-            // lo que ya le falta (de antes): esas partes del doble ya no estan
-            ['arm', 'leg'].forEach(kind => {
-                const lost = limbsLost(owner, kind);
-                mine.filter(e => e._coopPart === kind).slice(0, lost).forEach(part => {
-                    part._hp = 0;
-                    part._coopCut = true;
-                    part.addNewState(part.deathStateId());
-                });
+        info.fighters.forEach(owner => setupDouble(this, owner));
+    };
+
+    function partKind(enemy) {
+        const nm = enemy.enemy().name.toLowerCase();
+        return /\[torso\]/.test(nm) ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
+    }
+
+    // el doble de un personaje: su torso es su vida; lo que ya le falta (de antes) no esta
+    function setupDouble(troop, owner) {
+        const mine = troop.members().filter(e => e._coopOwner === owner);
+        const torso = mine.find(e => e._coopPart === 'torso') || mine[0];
+        if (!torso) return;
+        torso._coopPart = 'torso';
+        torso._coopMirror = owner;
+        const a = $gameActors.actor(owner);
+        torso.recoverAll();
+        torso._hp = Math.max(1, Math.round(torso.mhp * a.hp / Math.max(1, a.mhp)));
+        torso._coopActorHp = a.hp;
+        ['arm', 'leg'].forEach(kind => {
+            const lost = limbsLost(owner, kind);
+            mine.filter(e => e._coopPart === kind).slice(0, lost).forEach(part => {
+                part._hp = 0;
+                part._coopCut = true;
+                part.addNewState(part.deathStateId());
             });
         });
-    };
+    }
+
+    // alguien entra en un PvP en marcha (al empezar un turno): en el bando side (-1: uno nuevo, por su
+    // cuenta); su doble aparece en la tropa (y en la pantalla)
+    function addFighter(n, side) {
+        const info = pvpInfo();
+        const a = playerActor(n);
+        if (!info || !a || a.isDead() || info.fighters.indexOf(a.actorId()) >= 0) return false;
+        const id = a.actorId();
+        if (side >= 0 && info.sides[side] && sideInGame(info.sides[side], info)) {
+            info.sides[side].players.push(n);
+            info.sides[side].actors.push(id);
+        } else {
+            info.sides.push({ players: [n], actors: [id] });
+        }
+        info.fighters.push(id);
+        if (info.players.indexOf(n) < 0) info.players.push(n);
+        info.before = info.before || {};
+        info.before[id] = limbSnapshot(a);
+        const troop = $gameTroop;
+        const added = [];
+        bodyPartsOf(id).forEach(m => {
+            const e = new Game_Enemy(m.enemyId, m.x, m.y);
+            e._coopOwner = id;
+            e._coopPart = partKind(e);
+            e.onBattleStart();
+            troop._enemies.push(e);
+            added.push(e);
+        });
+        setupDouble(troop, id);
+        troop.makeUniqueNames();
+        // (en la pantalla del combate: sus sprites)
+        const ss = SceneManager._scene && SceneManager._scene._spriteset;
+        if (ss && ss._battleField && ss._enemySprites) {
+            added.forEach(e => {
+                const sp = new Sprite_Enemy(e);
+                ss._enemySprites.push(sp);
+                ss._battleField.addChild(sp);
+            });
+        }
+        const sd = side >= 0 && info.sides[side] ? info.sides[side] : null;
+        coop.banner(a.name() + ' joins the fight', sd && sd.players[0] !== n ? 'helping P' + sd.players[0] : 'against everyone', '#ff6655', 170);
+        return true;
+    }
+
+    // la pregunta de quien llega a un PvP en marcha: ayudar a uno de los bandos, o contra todos
+    function joinEventList(n, battleSeq, info) {
+        const opts = [];
+        const cmds = [];
+        info.sides.forEach((sd, i) => {
+            if (!sideInGame(sd, info)) return;
+            const lead = sd.players[0];
+            const a = $gameActors.actor(sd.actors[0]);
+            opts.push('Help P' + lead + (a ? ' (' + a.name() + ')' : ''));
+            cmds.push(i);
+        });
+        opts.push('Attack everyone');
+        cmds.push(-1);
+        opts.push('Leave');
+        const list = [
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: ['A fight between players' + (info.lethal ? ', to the death' : '') + '. Join it?'] },
+            { code: 102, indent: 0, parameters: [opts, opts.length - 1, 0, 2, 0] }
+        ];
+        cmds.forEach((side, i) => {
+            list.push({ code: 402, indent: 0, parameters: [i, opts[i]] });
+            list.push({ code: 355, indent: 1, parameters: ['CoopNet.pvpJoin(' + n + ', ' + battleSeq + ', ' + side + ')'] });
+            list.push({ code: 0, indent: 1, parameters: [] });
+        });
+        list.push({ code: 402, indent: 0, parameters: [opts.length - 1, 'Leave'] });
+        list.push({ code: 0, indent: 1, parameters: [] });
+        list.push({ code: 404, indent: 0, parameters: [] });
+        list.push({ code: 0, indent: 0, parameters: [] });
+        return list;
+    }
 
     // la vida del personaje que corresponde a la del doble (la misma parte)
     function actorHpFor(mirror, a) {
@@ -2096,14 +2177,52 @@
         return BattleManager.actor() || (subject && subject.isActor && subject.isActor() ? subject : null) || $gameActors.actor(info.fighters[info.fighters.length - 1]);
     }
 
+    // los dobles que ve este PC, en orden (los de los otros bandos que siguen en el combate)
+    function shownOwners(info, viewer) {
+        const vs = viewer ? sideIndexOf(viewer, info) : -1;
+        return info.fighters.filter(id => !info.out[id] && (vs < 0 || sideIndexOf($gameActors.actor(id), info) !== vs));
+    }
+    const SLOT_SCALE = [1, 1, 0.75, 0.6, 0.5];
+    // donde esta cada doble en el juego: su centro y sus pies (de sus partes)
+    function doubleFrame(owner) {
+        let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+        $gameTroop.members().forEach(e => {
+            if (e._coopOwner !== owner) return;
+            minX = Math.min(minX, e.screenX());
+            maxX = Math.max(maxX, e.screenX());
+            maxY = Math.max(maxY, e.screenY());
+        });
+        return { cx: (minX + maxX) / 2, bottom: maxY };
+    }
     const _Sprite_Enemy_update = Sprite_Enemy.prototype.update;
     Sprite_Enemy.prototype.update = function() {
+        // (deshacer lo de antes: el juego pone su escala y su sitio)
+        if (this._coopScale) {
+            this.scale.x /= this._coopScale;
+            this.scale.y /= this._coopScale;
+            this._coopScale = 0;
+        }
         _Sprite_Enemy_update.call(this);
         const e = this._enemy;
-        if (!e || !e._coopOwner) return;
+        const info = e && e._coopOwner && pvpInfo();
+        if (!info) return;
         const viewer = pvpViewer();
+        const shown = shownOwners(info, viewer);
+        const slot = shown.indexOf(e._coopOwner);
         // (los dobles de su bando no se ven: solo los de los otros; "renderable" es solo el dibujo)
-        this.renderable = !(viewer && sideIndexOf(viewer) === sideIndexOf($gameActors.actor(e._coopOwner)));
+        this.renderable = slot >= 0;
+        if (slot < 0) return;
+        if (shown.length < 2) return;
+        // varios: cada uno en su sitio de la fila, mas pequeno, con los pies en la misma linea
+        const k = shown.length;
+        const sc = SLOT_SCALE[Math.min(k, SLOT_SCALE.length - 1)];
+        const f = doubleFrame(e._coopOwner);
+        const slotX = Graphics.width * (slot + 1) / (k + 1);
+        this.x = slotX + (this.x - f.cx) * sc;
+        this.y = f.bottom + (this.y - f.bottom) * sc;
+        this.scale.x *= sc;
+        this.scale.y *= sc;
+        this._coopScale = sc;
     };
 
     // en red, el rival tampoco esta en el grupo de este PC (ni su dibujo ni su fila)
@@ -2167,7 +2286,7 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,
