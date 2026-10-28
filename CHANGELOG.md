@@ -1,15 +1,18 @@
 # Changelog
 
-## Unreleased
+## v1.8.9
 
-- Termina, the tower door (ending B) with other players in the party: instead of the moonscorched scene, *Only one may leave Termina* and a fight of everybody against everybody, to the death, in normal form (even with PvP off).
-- Online, fixed: a crash when the PC that plays P1 after a protagonist change disconnects; the host plays the protagonist then.
-- PvP: fights of several sides (each with its main player, helpers and companions): everybody fights the doubles of the other sides, the fallen leave, it ends when one side is left; killing P1 makes the main player of the side that finished them the protagonist. *Attack everyone* (with 3+ players): every player in one fight, each on their own. Several enemies stand side by side, smaller (only the picture). Online, OK next to players fighting each other: *Help P1 / Help P2 / Attack everyone / Leave* - you join at the next turn on that side (or your own), with your double.
-- When the game crashes (*Game has encountered a bug*) the mod writes what happened and where to `www/coop_crash.log` (scene, map, the event and its line, who this PC plays, the error).
-- PvP: whoever kills the protagonist (P1) to the death becomes the protagonist (first in the party, the game's protagonist switch). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number, on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion of the killer's old number (body, waiting, back with a soul stone as a companion).
-- Online, fixed: a battle started by a story scene that starts by itself (Autorun) - e.g. Per'kele on the Moon tower in ending B - began the scene again from the start after the battle, so the fight repeated forever (Rher never came). Such a scene now keeps the map waiting until its battle ends, as in the normal game.
-- Online: a player with no character (dead, waiting) watches the battle going on (P1's first), with its music; before they saw only the map.
-- Termina, cheats for testing ending B (Co-op menu, with *Cheats* on): *Contestants left: N* (the tower door opens only at 1, alone in the party), *Kill all contestants not in the party* (the way the game records a contestant's death; players' characters and the party are kept), *Teleport to the tower door*.
+- **The protagonist can change hands (Termina).** Whoever kills the protagonist (P1) in a fight to the death becomes the protagonist: first in the party, with the game's protagonist switch (the story treats them as the protagonist). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number - on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion: body, waiting, back with a soul stone - as a companion. If the PC playing P1 disconnects, the host plays the protagonist.
+- **PvP of several sides.**
+  - *Attack everyone* (3+ players): every player in one fight, each on their own.
+  - Online, OK next to players fighting each other: *Help P1 / Help P2 / Attack everyone / Leave* - you join at the next turn on that side (or your own), with your double.
+  - Everybody fights the doubles of the other sides; the fallen leave; it ends when one side is left. Killing P1 makes the main player of the side that finished them the protagonist (even if a helper or a companion hit).
+  - Several enemies stand side by side, smaller.
+- **Ending B with players.** The tower door with other players in the party: instead of the moonscorched scene, *Only one may leave Termina* and a fight of everybody against everybody, to the death, in normal form (even with PvP off).
+- **Cheats for testing ending B** (Co-op menu, *Cheats* on): *Contestants left: N*, *Kill all contestants not in the party*, *Teleport to the tower door*.
+- **Watching:** online, a player with no character (dead, waiting) watches the battle going on (P1's first), with its music.
+- **Crash log:** when the game crashes (*Game has encountered a bug*) the mod writes what happened and where to `www/coop_crash.log`.
+- **Fixed:** online, a battle started by a story scene that starts by itself (Per'kele on the Moon tower) began the scene again after the battle - the fight repeated forever.
 
 ## v1.8.8
 
