@@ -127,7 +127,8 @@ Settings for this (Co-op settings):
 Only in Termina, and only if the host turns it on: setting **PvP (Termina)** - *Off*, *On - not to the death* or *On - to the death*.
 
 - **How to attack:** stand right next to another player, face them and press OK - *Attack Marina (P2)?* - **Attack**. The other player is not asked: they are pulled into the battle at once.
-- **The battle:** the attacker fights **the other player's character the way Termina shows that contestant in a fight** - their own picture with body parts (torso, head, arms, legs). It has the HP and stats of the other player's character. **The other player controls it**: on their turns they choose their own skills and weapon and hit the attacker's character.
+- **The battle:** both players fight each other. Each one sees **the other player's character as an enemy**, the way Termina shows that contestant in a fight - their own picture with body parts (torso, head, arms, legs) - and in their party only their own character. Each player takes their own turns: chooses their skills or weapon and which body part of the other one to hit. The enemy has the HP and stats of that player's character, and what you do to it you do to them.
+- On one PC (local co-op) the screen shows the enemy of whoever is choosing right now.
 - **Body parts:** cutting off an arm or a leg of the opponent gives their character *Arm cut* / *Leg cut*. The head is fatal (or the end of the fight when not to the death). Damage to the torso is damage to their HP.
 - **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends.
 - **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off). If P1 dies, that is game over, as always.

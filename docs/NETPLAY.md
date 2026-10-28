@@ -108,7 +108,7 @@ With **Separate**:
 - A separate battle lost without P1 counts as an escape for the event that started it - the protagonist's defeat scenes (capture, blood pit...) don't play for everybody. The fighters stay dead as bodies.
 - If every player of a battle disconnects, that battle ends at once as an escape.
 - Battles without a player (cutscenes, story battles) are for everybody, as before.
-- **PvP** (Termina, if the host turned it on): a player who attacks another player starts a battle against that player's character; the attacked player is pulled into it and plays it with their own turns. See the README.
+- **PvP** (Termina, if the host turned it on): a player who attacks another player starts a battle of the two: each PC shows the other player's character as the enemy (with body parts) and only its own character in the party; each one takes their own turns and hits the other. See the README.
 
 ---
 

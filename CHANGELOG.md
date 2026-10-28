@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **PvP in Termina** (setting *PvP (Termina)*: Off / On - not to the death / On - to the death; the host's in the network game, also a row in the network menu, can be changed while playing). OK facing another player -> *Attack X?* -> a battle against that player's character, shown the way Termina shows that contestant in a fight (their picture and body parts), with the HP and stats of the character; the attacked player plays it with their own turns and hits the attacker. Cut arm / leg -> *Arm cut* / *Leg cut* on the character, the head is fatal; not to the death the loser is left with 1 HP. No consent needed. No experience or money. Works in local co-op and online (in a separate battle the attacked player joins the attacker's battle).
+- **PvP in Termina** (setting *PvP (Termina)*: Off / On - not to the death / On - to the death; the host's in the network game, also a row in the network menu, can be changed while playing). OK facing another player -> *Attack X?* -> a battle of the two: each player sees the other player's character as the enemy, the way Termina shows that contestant in a fight (their picture and body parts, with the HP and stats of that character), and only their own character in the party; each one takes their own turns and chooses which body part of the other to hit (on one PC: the enemy of whoever is choosing). Cut arm / leg -> *Arm cut* / *Leg cut* on the character, the head is fatal; not to the death the loser is left with 1 HP. No consent needed. No experience or money. Works in local co-op and online (in a separate battle the attacked player joins the attacker's battle).
 
 ## v1.8.7
 
