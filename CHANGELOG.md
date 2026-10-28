@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.6
 
 - Network game, separate battles: **several battles at once, each with its own enemy.** Before there was only one separate battle: when P2 was fighting one enemy and P1 touched another, P1 was pulled into P2's battle (and the second enemy waited to fight them too). Now P1 gets their own battle with that enemy, both run at the same time, each PC shows the battle of its player. Touching the *same* enemy, or pressing OK next to a fighter, still joins that battle. Each battle keeps its own troop and battle state; the map event that started it waits aside (the map stays free for the others: talking, chests, another battle) and goes on ("if you win...") as soon as the map is free; what it then does to the whole party ("AFTER BATTLE": recover, states...) does not touch those still fighting in another battle.
 - With two battles at once they don't disturb each other: when one battle started or ended, the game prepared / cleaned up the WHOLE party (actions, battle states), also the characters fighting in the other battle - their next attack failed and their battle closed ("won" by itself). Now only that battle's fighters. And the battle state the games keep in common switches and variables (*SKILLS_BATTLE*, *battle_phase1*, *Beartrap_set*...: troop pages start from them) is per battle: each battle sees what it changed itself, not what the other one did; the map sees the latest values, as before.

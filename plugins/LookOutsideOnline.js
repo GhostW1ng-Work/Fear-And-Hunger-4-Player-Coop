@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.8.5 Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
+ * @plugindesc v1.8.6 Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
  * @author TheTiranix
  *
  * @param MaxPlayers
@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.8.5';
+    const COOP_VERSION = '1.8.6';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 

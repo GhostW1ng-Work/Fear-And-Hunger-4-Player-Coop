@@ -48,6 +48,7 @@ Experimental. Every PC needs the game and the same version of the mod (the insta
 - Optional password. Keyboard and gamepad only (no mouse) in the network game.
 - While somebody fights a separate battle on the map, the others cannot leave it, sleep or save (doors, beds, save points, F6, *Save* in the menu) - otherwise the transfer took the fighters along too.
 - The network menu has **Cheats** and **Played chars' NPCs** rows: the host changes them also during the game, for everybody.
+- Nobody is dropped for being slow: if a player's game stalls (minimized, loading), the others go on without waiting and that game catches up when it comes back. A guest that loses the host goes back to the title and reconnects from there.
 - Every player's ping is shown at the top right (*Ping on screen* turns it off). F6 / F7 work on the host only in the network game.
 
 Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release ZIP).
