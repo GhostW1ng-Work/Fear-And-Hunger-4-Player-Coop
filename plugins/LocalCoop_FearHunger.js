@@ -1096,11 +1096,14 @@
     // pagina vacia del evento: sin dibujo ni comandos, con la condicion "Cahara_InTheParty!",
     // "INITIAL_MERCENARY" (el protagonista es el), "OCCULTIST_SELECT" (Termina)... El personaje que
     // un jugador elige en el mod no lo contrato la historia: esas paginas no salian y el NPC seguia
-    // ahi. Mientras un jugador lo lleva (o yace su cuerpo), esas condiciones cuentan como
-    // cumplidas, pero SOLO en las paginas vacias: el NPC desaparece y nada mas cambia (los
-    // interruptores no se tocan; si lo deja, vuelve). Que interruptores son se mira en el mapa:
-    //  - los que la historia enciende al contratarle (junto a "Anadir miembro" en su evento);
-    //  - los de "protagonista" (INITIAL_... / ..._SELECT) de sus eventos.
+    // ahi. Otras veces el NPC esta en una pagina "esperando" ("marina_waiting_at_train",
+    // "LEGARDE_WAITING") y al contratarle el juego apaga ese interruptor. Mientras un jugador lo
+    // lleva (o yace su cuerpo), para sus eventos esos interruptores cuentan como si ya le hubieran
+    // contratado, pero SOLO si asi el evento queda vacio o desaparece: el NPC no esta y nada mas
+    // cambia (si saldria otra pagina con algo - una escena -, queda la del juego; los interruptores
+    // no se tocan; si lo deja, vuelve). Que interruptores son se mira en el mapa:
+    //  - los que la historia enciende / apaga al contratarle (junto a "Anadir miembro");
+    //  - los de "protagonista" (INITIAL_... / ..._SELECT) de sus eventos (estos en cualquier evento).
     const ROLE_SWITCH = /INITIAL_|SELECT$/i;
     const NOT_JOIN_SWITCH = /suicide|^start$|cannotuse|trigger|starvation|hard_mode|INITIAL_|SELECT$/i;
 
@@ -1120,9 +1123,8 @@
     function npcSwitchesByActor() {
         if (npcMap.mapId === $gameMap.mapId() && npcMap.data === $dataMap) return npcMap.byActor;
         const names = ($dataSystem && $dataSystem.switches) || [];
-        const near = {};     // actor -> interruptores que se encienden al contratarle
+        const near = {};     // actor -> { interruptor: true (se enciende) / false (se apaga) } al contratarle
         const roles = {};    // interruptor de protagonista -> { actor: cuantas veces }
-        const joinedBy = {}; // interruptor -> actores en cuyo contrato se enciende
         (($dataMap && $dataMap.events) || []).forEach(ev => {
             if (!ev) return;
             const added = [];
@@ -1131,11 +1133,10 @@
                 const a = c.parameters[0];
                 if (added.indexOf(a) < 0) added.push(a);
                 pg.list.slice(Math.max(0, i - 8), i + 9).forEach(d => {
-                    if (d.code !== 121 || d.parameters[2] !== 0) return;
+                    if (d.code !== 121) return;
                     for (let s = d.parameters[0]; s <= d.parameters[1]; s++) {
                         if (NOT_JOIN_SWITCH.test(names[s] || '')) continue;
-                        (near[a] = near[a] || {})[s] = true;
-                        (joinedBy[s] = joinedBy[s] || {})[a] = true;
+                        (near[a] = near[a] || {})[s] = d.parameters[2] === 0;
                     }
                 });
             }));
@@ -1151,11 +1152,8 @@
         });
         // near: solo en sus eventos (los que le contratan o le dibujan); roles: en cualquiera
         const byActor = {};
-        const entry = a => (byActor[a] = byActor[a] || { near: [], roles: [] });
-        Object.keys(near).forEach(a => {
-            // (un interruptor que se enciende al contratar a varios no es "este esta en el grupo")
-            entry(a).near = Object.keys(near[a]).map(Number).filter(s => Object.keys(joinedBy[s]).length === 1);
-        });
+        const entry = a => (byActor[a] = byActor[a] || { near: {}, roles: [] });
+        Object.keys(near).forEach(a => { entry(a).near = near[a]; });
         Object.keys(roles).forEach(s => {
             const best = Object.keys(roles[s]).sort((x, y) => roles[s][y] - roles[s][x])[0];
             entry(best).roles.push(Number(s));
@@ -1191,7 +1189,7 @@
         return out;
     }
 
-    let npcHidden = null; // { roles: {interruptor}, near: {actor: {interruptor}} }: cuentan como encendidos
+    let npcHidden = null; // { roles: {interruptor: true}, near: {actor: {interruptor: valor}} }
     let npcHiddenKey = '';
     function updateNpcHiding() {
         const by = npcSwitchesByActor();
@@ -1201,10 +1199,9 @@
             const e = by[a];
             if (!e) return;
             e.roles.forEach(s => { roles[s] = true; });
-            if (e.near.length) near[a] = {};
-            e.near.forEach(s => { near[a][s] = true; });
+            if (Object.keys(e.near).length) near[a] = e.near;
         });
-        const key = Object.keys(roles).join(',') + '|' + Object.keys(near).map(a => a + ':' + Object.keys(near[a]).join(',')).join(';');
+        const key = Object.keys(roles).join(',') + '|' + Object.keys(near).join(',');
         npcHidden = key !== '|' ? { roles: roles, near: near } : null;
         if (key !== npcHiddenKey) {
             npcHiddenKey = key;
@@ -1218,31 +1215,35 @@
         _Game_Map_update_npcs.call(this, sceneActive);
     };
 
-    const _Game_Event_meetsConditions = Game_Event.prototype.meetsConditions;
-    // los interruptores que cuentan para este evento
+    // los interruptores que cuentan para este evento ({interruptor: valor}, o null)
     function hiddenFor(ev) {
         const h = npcHidden;
-        if (!h) return null;
+        const data = h && ev.event();
+        if (!data) return null;
         const set = Object.assign({}, h.roles);
-        const data = ev.event();
-        const owners = data ? npcActorsOf(data) : {};
+        const owners = npcActorsOf(data);
         Object.keys(h.near).forEach(a => { if (owners[a]) Object.assign(set, h.near[a]); });
-        return set;
+        return Object.keys(set).length ? set : null;
     }
 
-    Game_Event.prototype.meetsConditions = function(page) {
-        const hidden = npcHidden && isHidePage(page) ? hiddenFor(this) : null;
-        if (!hidden || !pageSwitches(page).some(s => hidden[s])) return _Game_Event_meetsConditions.call(this, page);
+    const _Game_Event_findProperPageIndex = Game_Event.prototype.findProperPageIndex;
+    Game_Event.prototype.findProperPageIndex = function() {
+        const normal = _Game_Event_findProperPageIndex.call(this);
+        const hidden = npcHidden ? hiddenFor(this) : null;
+        if (!hidden) return normal;
         const real = Game_Switches.prototype.value;
         const sw = $gameSwitches;
         sw.value = function(id) {
-            return !!hidden[id] || real.call(this, id);
+            return hidden[id] !== undefined ? hidden[id] : real.call(this, id);
         };
+        let alt = normal;
         try {
-            return _Game_Event_meetsConditions.call(this, page);
+            alt = _Game_Event_findProperPageIndex.call(this);
         } finally {
             delete sw.value;
         }
+        // solo si asi el NPC no esta (pagina vacia o ninguna); si saldria otra cosa, la del juego
+        return alt !== normal && (alt < 0 || isHidePage(this.event().pages[alt])) ? alt : normal;
     };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,

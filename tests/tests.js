@@ -1071,6 +1071,28 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             'A page ' + evA._pageIndex + ' B page ' + evB._pageIndex + ' by ' + JSON.stringify(CoopRevive.npcSwitchesByActor()[hx]));
         check('T42b the game switch itself is not touched', !$gameSwitches.value(joinSw));
         // P2 deja el personaje: el NPC vuelve
+        // "esperando": el juego apaga ese interruptor al contratarle; y si asi saldria otra pagina con algo, nada
+        var waitSw = freeSw(otherSw + 1), sceneSw = freeSw(waitSw + 1);
+        var origNames2 = [$dataSystem.switches[waitSw], $dataSystem.switches[sceneSw]];
+        $dataSystem.switches[waitSw] = 'Test_waiting_at_train';
+        $dataSystem.switches[sceneSw] = 'Test_scene_waiting';
+        $gameSwitches.setValue(waitSw, true);
+        $gameSwitches.setValue(sceneSw, true);
+        var recruitOff = function(sw) { return [{ code: 121, indent: 0, parameters: [sw, sw, 1] }, { code: 129, indent: 0, parameters: [hx, 0, false] }, { code: 0, indent: 0, parameters: [] }]; };
+        var idC = idB + 1, idD = idB + 2;
+        $dataMap = Object.assign({}, $dataMap, { events: $dataMap.events.slice() });
+        $dataMap.events[idC] = { id: idC, name: 'waiting_test', note: '', x: 2, y: 0, pages: [pg(waitSw, npcImg, recruitOff(waitSw))] };
+        $dataMap.events[idD] = { id: idD, name: 'scene_test', note: '', x: 3, y: 0, pages: [pg(0, npcImg, talk), pg(sceneSw, npcImg, recruitOff(sceneSw))] };
+        var evC = new Game_Event($gameMap.mapId(), idC), evD = new Game_Event($gameMap.mapId(), idD);
+        $gameMap._events[idC] = evC; $gameMap._events[idD] = evD;
+        for (k = 0; k < 3; k++) frame();
+        evC.refresh(); evD.refresh();
+        check('T42d the NPC waiting for them (switch the game turns off when hiring) is hidden too', evC._pageIndex === -1, 'C page ' + evC._pageIndex);
+        check('T42e but if that would show something else (a scene), the game page stays', evD._pageIndex === 1, 'D page ' + evD._pageIndex);
+        $gameSwitches.setValue(waitSw, false);
+        $gameSwitches.setValue(sceneSw, false);
+        delete $gameMap._events[idC]; delete $gameMap._events[idD];
+        $dataSystem.switches[waitSw] = origNames2[0]; $dataSystem.switches[sceneSw] = origNames2[1];
         $gameParty.removeActor(hx); // (sale del grupo: P2 espera)
         for (k = 0; k < 5; k++) frame();
         evA.refresh();
