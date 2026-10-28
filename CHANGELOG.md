@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- When the game crashes (*Game has encountered a bug*) the mod writes what happened and where to `www/coop_crash.log` (scene, map, the event and its line, who this PC plays, the error).
 - PvP: whoever kills the protagonist (P1) to the death becomes the protagonist (first in the party, the game's protagonist switch). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number, on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion of the killer's old number (body, waiting, back with a soul stone as a companion).
 - Online, fixed: a battle started by a story scene that starts by itself (Autorun) - e.g. Per'kele on the Moon tower in ending B - began the scene again from the start after the battle, so the fight repeated forever (Rher never came). Such a scene now keeps the map waiting until its battle ends, as in the normal game.
 - Online: a player with no character (dead, waiting) watches the battle going on (P1's first), with its music; before they saw only the map.

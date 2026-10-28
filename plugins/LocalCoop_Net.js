@@ -2107,6 +2107,7 @@
         // flechas eran de P2 y en el menu de P1 no se movia el cursor)
         Net.leftovers = Net.players.filter(n => n !== 1);
         removeLeftovers();
+        Net.player = Net.seat; // (fuera de la partida en red cada PC vuelve a ser su numero)
         Net.players = [1];
         Net.peers.forEach(pp => { pp.inSession = false; });
         // el invitado jugaba el mundo del anfitrion: sin el, esa copia seguia sola (y se separaba:

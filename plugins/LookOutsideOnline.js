@@ -2250,6 +2250,61 @@
     };
     window.CoopLocal = CoopView;
 
+    // ---- registro de fallos ------------------------------------------------------------
+    // Cuando el juego se rompe ("Game has encountered a bug") se apunta en www/coop_crash.log que
+    // paso y donde (escena, mapa, suceso y su linea, quien juega en este PC): sin captura de pantalla.
+    function crashReport(e) {
+        const lines = [];
+        try {
+            const sc = SceneManager._scene;
+            lines.push(new Date().toISOString() + '  mod v' + COOP_VERSION + '  ' + gameTitle());
+            lines.push('scene: ' + (sc ? sc.constructor.name : '-') + (typeof $gameMap !== 'undefined' && $gameMap ? '  map ' + $gameMap.mapId() : ''));
+            const net = window.CoopNet;
+            if (net && net.active) lines.push('network: ' + net.role + ', this PC P' + net.player + ' (seat ' + net.seat + '), frame ' + net.frame);
+            const interps = [];
+            if (typeof $gameMap !== 'undefined' && $gameMap && $gameMap._interpreter) interps.push(['map', $gameMap._interpreter]);
+            if (typeof $gameTroop !== 'undefined' && $gameTroop && $gameTroop._interpreter) interps.push(['troop', $gameTroop._interpreter]);
+            interps.forEach(pair => {
+                let it = pair[1];
+                let depth = 0;
+                while (it && it.isRunning() && depth < 5) {
+                    const cmd = it._list && it._list[it._index];
+                    lines.push(pair[0] + (depth ? ' (child ' + depth + ')' : '') + ': event ' + it._eventId + ' line ' + it._index +
+                        (cmd ? ' code ' + cmd.code + ' ' + JSON.stringify(cmd.parameters).slice(0, 160) : ''));
+                    it = it._childInterpreter;
+                    depth++;
+                }
+            });
+            if (typeof $gameParty !== 'undefined' && $gameParty) lines.push('party: ' + $gameParty._actors.join(','));
+        } catch (err) {
+            lines.push('(while describing: ' + err.message + ')');
+        }
+        lines.push(String((e && (e.stack || e.message)) || e));
+        lines.push('');
+        try {
+            const fs = require('fs');
+            const path = require('path');
+            const base = path.dirname(process.mainModule.filename);
+            const file = path.join(base, 'coop_crash.log');
+            let old = '';
+            try { old = fs.readFileSync(file, 'utf8'); } catch (err) { old = ''; }
+            if (old.length > 100000) old = old.slice(-50000);
+            fs.writeFileSync(file, old + lines.join('\n') + '\n');
+        } catch (err) {
+            // (sin disco: en el navegador)
+        }
+    }
+    const _SceneManager_catchException = SceneManager.catchException;
+    SceneManager.catchException = function(e) {
+        crashReport(e);
+        return _SceneManager_catchException.apply(this, arguments);
+    };
+    const _SceneManager_onError = SceneManager.onError;
+    SceneManager.onError = function(e) {
+        crashReport(e && e.error ? e.error : e);
+        return _SceneManager_onError.apply(this, arguments);
+    };
+
     // Fuentes de luz del jugador: { sprite, pos(jugador) -> [x, y] en pantalla }.
     //  - Imagenes por nombre (Look Outside: "Darkness"). No se filtra por posicion: el juego a veces
     //    las deja desfasadas unos cuadros, y entonces dejarian de reconocerse y taparian todo.

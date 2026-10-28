@@ -245,6 +245,7 @@ Full guide: **[docs/NETPLAY.md](docs/NETPLAY.md)** ([по-русски](docs/NET
 | Online: can't connect over the internet | Use Radmin VPN / ZeroTier, or check the port forwarding (TCP 47810) and the Windows firewall. |
 | Online: "PCs out of sync" | The game fixes it by itself at the next quiet moment. If it keeps happening, send the `www/coop_net_desync.log` file from every PC. |
 | Something broke online | Send `www/coop_net_error.log` and `www/coop_net_battle.log` from every PC. |
+| The game crashed (*Game has encountered a bug*) | The mod writes what happened and where to `www/coop_crash.log` (no screenshot needed) - send that file. |
 | Two copies on one PC are slow | Normal: they share the graphics card. With separate PCs it is smooth. |
 
 Report bugs on the [Issues](../../issues) page. A checklist of things to test: [docs/TEST_CHECKLIST.md](docs/TEST_CHECKLIST.md).
