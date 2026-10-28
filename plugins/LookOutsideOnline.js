@@ -1738,6 +1738,14 @@
     // acompanantes, atravesando todo para no estorbar ni quedarse atascados. Solo si de verdad lo
     // lleva a otra casilla: si la ruta solo le gira (abrir un barril, mirar a un enemigo), no.
     const CUTSCENE_FOLLOW_TILES = 3;
+
+    // el evento que se esta ejecutando (o el comun al que llama) aun tiene un "Trasladar jugador"
+    function eventWillTransfer() {
+        for (let it = $gameMap._interpreter, d = 0; it && it._list && d < 5; it = it._childInterpreter, d++) {
+            for (let i = Math.max(0, it._index); i < it._list.length; i++) if (it._list[i].code === 201) return true;
+        }
+        return false;
+    }
     Game_CoopPlayer.prototype.updateCutsceneFollow = function() {
         if (!$gameMap.isEventRunning() || !$gamePlayer.isMoveRouteForcing()) {
             this._coopRouteFrom = null;
@@ -1753,6 +1761,8 @@
         }
         // (un paso o dos - entrar por una puerta, un empujon - no: P2-P4 siguen a lo suyo; solo
         // si la escena se lleva a P1 lejos)
+        // (ni si la escena acaba llevando a todos a otro sitio: puertas, pasillos)
+        if (!this._coopFollowing && eventWillTransfer()) return;
         if (!this._coopFollowing && Math.max(Math.abs($gameMap.deltaX($gamePlayer.x, from[0])), Math.abs($gameMap.deltaY($gamePlayer.y, from[1]))) < CUTSCENE_FOLLOW_TILES) return;
         this._coopFollowing = true;
         this.followLeader();

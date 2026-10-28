@@ -766,8 +766,13 @@
         }
     });
 
-    // ---- la luz del protagonista (TerraxLighting: "Fire radius 300", "Flashlight on"...) ----------
-    // La antorcha / linterna que enciende P2-P4 desde su menu la lleva su personaje, no P1.
+    // ---- la antorcha de cada jugador (TerraxLighting: "Fire radius 300"...) -------------------
+    // Fear & Hunger 1: el evento comun del objeto ("Light torch") enciende la luz del protagonista,
+    // pone el tiempo que dura (variable TORCH_TIMER) y su interruptor; el evento en paralelo
+    // TORCH_TIMER la va gastando y pone al protagonista el dibujo con la antorcha. El juego solo
+    // tiene una (la de P1). La que enciende P2-P4 desde su menu es suya: el mod lleva su luz
+    // (alrededor de su personaje), su tiempo (como el del juego) y su dibujo con la antorcha. La
+    // de P1 sigue siendo la del juego; cada una se apaga por su cuenta.
     const _Game_Interpreter_setupReservedCommonEvent = Game_Interpreter.prototype.setupReservedCommonEvent;
     Game_Interpreter.prototype.setupReservedCommonEvent = function() {
         const started = _Game_Interpreter_setupReservedCommonEvent.call(this);
@@ -787,26 +792,93 @@
         if (this._childInterpreter) this._childInterpreter._coopUsedItem = this._coopUsedItem;
     };
 
-    const _Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
-    Game_Interpreter.prototype.pluginCommand = function(command, args) {
-        _Game_Interpreter_pluginCommand.call(this, command, args);
-        if (!this._coopUsedItem) return;
-        const cmd = String(command).toLowerCase();
-        const a0 = String((args && args[0]) || '').toLowerCase();
-        const on = (cmd === 'flashlight' && a0 === 'on') || ((cmd === 'light' || cmd === 'fire') && a0 === 'radius' && Number(args[1]) > 0);
-        if (on) $gameSystem._coopLightBy = this._coopStarter >= 2 ? this._coopStarter : 0;
-    };
+    const TORCH_UNITS = 40; // (si el evento no dice cuanto dura: lo de Fear & Hunger 1)
 
-    function lightCarrier() {
-        const n = $gameSystem && $gameSystem._coopLightBy;
-        const p = n ? coop.player(n) : null;
-        return p && p.actor() ? p : null;
+    // "Fire radius 300 #FFFFFF" / "Light radius 100": la luz que se enciende (o null)
+    function lightOn(command, args) {
+        const cmd = String(command).toLowerCase();
+        if ((cmd !== 'fire' && cmd !== 'light') || String((args && args[0]) || '').toLowerCase() !== 'radius') return null;
+        const radius = Number(args[1]);
+        if (!(radius > 0)) return null;
+        return { radius: radius, color: /^#[0-9a-f]{6}$/i.test(args[2] || '') ? args[2] : '#FFFFFF', flicker: cmd === 'fire' };
     }
 
-    // El dibujo con la antorcha en la mano: en Fear & Hunger 1 el temporizador de la antorcha
-    // enciende el interruptor "<Clase>_torch" del protagonista (segun su "..._SELECT") y el evento
-    // comun del traje de ese personaje le pone el dibujo con antorcha. Si la lleva P2-P4, se enciende
-    // el de su personaje. Que interruptor es de que personaje se mira en esos eventos comunes:
+    function isLightCommand(command) {
+        return /^(fire|light|flashlight)$/i.test(String(command));
+    }
+
+    const torchLists = new WeakMap();
+    function listLightsTorch(list) {
+        if (!list) return false;
+        if (!torchLists.has(list)) {
+            torchLists.set(list, list.some(c => c && c.code === 356 && (() => {
+                const parts = String(c.parameters[0]).split(' ');
+                return !!lightOn(parts[0], parts.slice(1));
+            })()));
+        }
+        return torchLists.get(list);
+    }
+
+    // este interprete es el de "encender la antorcha" de P2-P4
+    function playerTorchStarter(it) {
+        return it._coopUsedItem && it._coopStarter >= 2 && listLightsTorch(it._list) ? it._coopStarter : 0;
+    }
+
+    function torches() {
+        if (!$gameSystem._coopTorches) $gameSystem._coopTorches = {};
+        return $gameSystem._coopTorches;
+    }
+
+    const _Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
+    Game_Interpreter.prototype.pluginCommand = function(command, args) {
+        const n = playerTorchStarter(this);
+        if (n && isLightCommand(command)) {
+            const light = lightOn(command, args);
+            const p = coop.player(n);
+            if (light && p && p.actor()) {
+                const old = torches()[n];
+                torches()[n] = { actorId: p.actor().actorId(), units: old ? old.units : TORCH_UNITS, wait: TORCH_WAIT[0][1],
+                    radius: light.radius, color: light.color, flicker: light.flicker };
+            }
+            return; // (la luz del juego es la de P1: no se toca)
+        }
+        _Game_Interpreter_pluginCommand.call(this, command, args);
+    };
+
+    // el tiempo y el interruptor del temporizador del juego son los de P1: en el de P2-P4, suyos
+    const _Game_Interpreter_command122 = Game_Interpreter.prototype.command122;
+    Game_Interpreter.prototype.command122 = function() {
+        const n = playerTorchStarter(this);
+        if (!n) return _Game_Interpreter_command122.call(this);
+        const p = this._params;
+        const tc = torches()[n];
+        if (tc && p[3] === 0 && (p[2] === 0 || p[2] === 1) && Number(p[4]) > 0) {
+            tc.units = p[2] === 0 ? Number(p[4]) : tc.units + Number(p[4]);
+            tc.wait = torchWait(tc.units);
+        }
+        return true;
+    };
+
+    const _Game_Interpreter_command121 = Game_Interpreter.prototype.command121;
+    Game_Interpreter.prototype.command121 = function() {
+        if (playerTorchStarter(this)) return true;
+        return _Game_Interpreter_command121.call(this);
+    };
+
+    // como el evento TORCH_TIMER: cada cuantos cuadros se gasta una unidad, y la luz al final
+    const TORCH_WAIT = [[5, 300], [2, 100], [1, 70], [0, 40]];
+    function torchWait(units) {
+        return (TORCH_WAIT.find(w => units > w[0]) || TORCH_WAIT[TORCH_WAIT.length - 1])[1];
+    }
+
+    function torchRadius(tc) {
+        const k = tc.units > 10 ? 1 : tc.units > 5 ? 280 / 300 : tc.units > 2 ? 250 / 300 : 245 / 300;
+        return Math.round(tc.radius * k);
+    }
+
+    // El dibujo con la antorcha en la mano: el temporizador del juego enciende el interruptor
+    // "<Clase>_torch" del protagonista y el evento comun del traje de ese personaje le pone el
+    // dibujo con antorcha. Que interruptor es de que personaje se mira en esos eventos comunes:
     // "Si el interruptor Knight_torch..." y luego "$gameActors.actor(3).setCharacterImage(...)".
     let torchSwitches = null; // { switchId: actorId }
     function torchSwitchMap() {
@@ -831,22 +903,74 @@
         return torchSwitches;
     }
 
-    const _Game_Switches_setValue = Game_Switches.prototype.setValue;
-    Game_Switches.prototype.setValue = function(switchId, value) {
-        if (value && this === $gameSwitches) {
-            const map = torchSwitchMap();
-            const carrier = map[switchId] ? lightCarrier() : null;
-            const actor = carrier && carrier.actor();
-            if (actor && map[switchId] !== actor.actorId()) {
-                const mine = Object.keys(map).map(Number).find(id => map[id] === actor.actorId());
-                if (mine) {
-                    // la antorcha es de quien la encendio: solo su dibujo la lleva
-                    Object.keys(map).map(Number).forEach(id => { if (id !== mine && this.value(id)) _Game_Switches_setValue.call(this, id, false); });
-                    switchId = mine;
-                }
+    function torchSwitchOf(actorId) {
+        const map = torchSwitchMap();
+        return Object.keys(map).map(Number).find(id => map[id] === actorId) || 0;
+    }
+
+    function updateTorches() {
+        const list = torches();
+        Object.keys(list).forEach(k => {
+            const n = Number(k);
+            const tc = list[k];
+            const p = coop.player(n);
+            const sw = torchSwitchOf(tc.actorId);
+            // (si ya no lleva ese personaje, la antorcha se va con el)
+            const gone = !p || !p.actor() || p.actor().actorId() !== tc.actorId;
+            if (!gone && --tc.wait <= 0) {
+                tc.units--;
+                tc.wait = torchWait(tc.units);
             }
+            if (gone || tc.units <= 0) {
+                delete list[k];
+                if (sw && $gameSwitches.value(sw) && !isP1Torch(sw)) $gameSwitches.setValue(sw, false);
+                if (!gone) coop.banner(p.actor().name() + "'s torch died down", '', '#ffcc66', 150);
+                return;
+            }
+            if (sw && !$gameSwitches.value(sw)) $gameSwitches.setValue(sw, true);
+        });
+    }
+
+    // el interruptor es del protagonista con su antorcha del juego encendida
+    function isP1Torch(sw) {
+        const lead = $gameParty.leader();
+        return !!lead && torchSwitchMap()[sw] === lead.actorId();
+    }
+
+    const _Game_Map_update_torches = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        if ($gameSystem._coopTorches && this.mapId() > 0) updateTorches();
+        _Game_Map_update_torches.call(this, sceneActive);
+    };
+
+    // la luz de las antorchas de P2-P4: se suma a la mascara de luz del mapa, como la del protagonista
+    function drawPlayerTorches(mask) {
+        const list = $gameSystem && $gameSystem._coopTorches;
+        if (!list || !mask._maskBitmap || !mask._maskBitmap.radialgradientFillRect || !mask._maskBitmap._coopFilled) return;
+        const bmp = mask._maskBitmap;
+        const ctx = bmp._context;
+        const pw = $gameMap.tileWidth();
+        const ph = $gameMap.tileHeight();
+        const before = ctx.globalCompositeOperation;
+        ctx.globalCompositeOperation = 'lighter';
+        try {
+            Object.keys(list).forEach(k => {
+                const p = coop.player(Number(k));
+                if (!p || p.isTransparent()) return;
+                const x = pw / 2 + $gameMap.adjustX(p._realX) * pw;
+                const y = ph / 2 + $gameMap.adjustY(p._realY) * ph;
+                bmp.radialgradientFillRect(x, y, 20, torchRadius(list[k]), list[k].color, 'black', list[k].flicker, 0);
+            });
+        } finally {
+            ctx.globalCompositeOperation = before;
         }
-        _Game_Switches_setValue.call(this, switchId, value);
+    }
+
+    // (para saber si este cuadro se dibujo la mascara: empieza rellenandola de negro)
+    const _Bitmap_fillRect = Bitmap.prototype.fillRect;
+    Bitmap.prototype.fillRect = function(x, y, w, h, color) {
+        if (this._coopMaskWatch) this._coopFilled = true;
+        return _Bitmap_fillRect.apply(this, arguments);
     };
 
     // (la clase de la luz no es global: se toma de la primera que se crea)
@@ -855,25 +979,28 @@
         Spriteset_Map.prototype.createLightmask = function() {
             _Spriteset_Map_createLightmask.apply(this, arguments);
             const proto = this._lightmask && Object.getPrototypeOf(this._lightmask);
-            if (!proto || !proto._updateMask || proto._coopLightCarrier) return;
-            proto._coopLightCarrier = true;
+            if (!proto || !proto._updateMask || proto._coopTorches) return;
+            proto._coopTorches = true;
             const _updateMask = proto._updateMask;
-            // la luz del "protagonista" se dibuja donde esta quien la lleva
             proto._updateMask = function() {
-                const p = lightCarrier();
-                if (!p) return _updateMask.apply(this, arguments);
-                const real = $gamePlayer;
-                $gamePlayer = p;
-                try {
-                    return _updateMask.apply(this, arguments);
-                } finally {
-                    $gamePlayer = real;
+                const bmp = this._maskBitmap;
+                if (bmp) {
+                    bmp._coopMaskWatch = true;
+                    bmp._coopFilled = false;
                 }
+                const out = _updateMask.apply(this, arguments);
+                if (bmp) bmp._coopMaskWatch = false;
+                try {
+                    drawPlayerTorches(this);
+                } catch (e) {
+                    console.error('LocalCoop_FearHunger: torches', e);
+                }
+                return out;
             };
         };
     }
 
-    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent };
+    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches };
 
     // ---- el cuerpo en el mapa (Fear & Hunger 1 y quien no tiene cadaver propio en Termina) ----
     function Game_CoopCorpse(c) {

@@ -967,26 +967,37 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T36c cheat fire: torches given', !!torch && $gameParty.numItems(torch) === torches + 3, torches + ' -> ' + (torch && $gameParty.numItems(torch)));
     }
 
-    // ---- la antorcha que enciende P2 desde su menu la lleva P2 ----
+    // ---- la antorcha que enciende P2 desde su menu es suya (luz, tiempo, dibujo) ----
     var carrierN = [2, 3, 4].filter(function(n) { return !!CoopLocal.player(n); })[0];
-    if (carrierN) {
+    var lightCe = $dataCommonEvents.filter(function(ce) { return ce && /^light torch$/i.test(ce.name); })[0];
+    if (carrierN && lightCe && !window.__skipT37) {
+        var cp = CoopLocal.player(carrierN);
+        var gameVarsBefore = $gameVariables._data.join(',');
+        var gameSwBefore = $gameSwitches._data.map(function(v, i) { return v ? i : ''; }).join(',');
         var li = new Game_Interpreter();
-        li.setup([{ code: 356, indent: 0, parameters: ['Fire radius 300 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
-        li._coopUsedItem = true; // (como un evento comun de un objeto)
+        li.setup(lightCe.list.filter(function(c) { return c.code !== 101 && c.code !== 401; }), 0); // (sin el mensaje)
+        li._coopUsedItem = true; // (como el evento comun del objeto)
         li._coopStarter = carrierN;
-        li.update();
-        check('T37 a torch lit from the menu of P' + carrierN + ': P' + carrierN + ' carries the light', $gameSystem._coopLightBy === carrierN, $gameSystem._coopLightBy);
-        var li2 = new Game_Interpreter();
-        li2.setup([{ code: 356, indent: 0, parameters: ['Light radius 100 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
-        li2._coopStarter = 1;
-        li2.update();
-        check('T37b a map event changing the light does not take it from P' + carrierN, $gameSystem._coopLightBy === carrierN, $gameSystem._coopLightBy);
-        li._coopUsedItem = true;
-        li._coopStarter = 0;
-        li.setup([{ code: 356, indent: 0, parameters: ['Fire radius 300 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
-        li._coopUsedItem = true;
-        li.update();
-        check('T37c P1 lights one: P1 carries it again', !$gameSystem._coopLightBy, $gameSystem._coopLightBy);
+        for (k = 0; k < 20 && li.isRunning(); k++) li.update();
+        var tc = CoopRevive.torches()[carrierN];
+        check('T37 P' + carrierN + ' lights a torch from their menu: it is theirs', !!tc && tc.actorId === cp.actor().actorId() && tc.units > 0 && tc.radius > 0, JSON.stringify(tc));
+        check("T37b the game's torch (P1's timer and switch) is not touched", $gameVariables._data.join(',') === gameVarsBefore &&
+            $gameSwitches._data.map(function(v, i) { return v ? i : ''; }).join(',') === gameSwBefore);
+        var torchSwP = Object.keys($dataSystem.switches).filter(function(id) {
+            return /_torch$/i.test($dataSystem.switches[id] || '');
+        });
+        for (k = 0; k < 3; k++) frame();
+        var onNames = torchSwP.filter(function(id) { return $gameSwitches.value(Number(id)); }).map(function(id) { return $dataSystem.switches[id]; });
+        if (torchSwP.length > 0) {
+            var words = cp.actor().name().toLowerCase().split(/[^a-z]+/).filter(function(w) { return w.length > 2; });
+            check('T37c the torch in the hand: on ' + cp.actor().name() + ' (P' + carrierN + ') only',
+                onNames.length === 1 && words.some(function(w) { return onNames[0].toLowerCase().indexOf(w.slice(0, 4)) === 0; }), 'on: ' + onNames.join(','));
+        }
+        tc.units = 1;
+        tc.wait = 1;
+        for (k = 0; k < 3; k++) frame();
+        check('T37d it burns out by itself (and the torch in the hand goes)', !CoopRevive.torches()[carrierN] &&
+            torchSwP.every(function(id) { return !$gameSwitches.value(Number(id)); }), JSON.stringify(CoopRevive.torches()));
     }
 
     // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
@@ -1003,25 +1014,6 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         for (k = 0; k < 5; k++) frame();
         check('T38 left inside a wall after following P1: back next to P1', walker.x === $gamePlayer.x && walker.y === $gamePlayer.y && !walker._through,
             walker.x + ',' + walker.y + ' through=' + walker._through + ' wall ' + wall);
-    }
-
-    // ---- el dibujo con antorcha: el del que la encendio (Fear & Hunger 1: "Knight_torch"...) ----
-    var swNames = $dataSystem.switches;
-    var torchIds = [];
-    swNames.forEach(function(nm, id) { if (/_torch$/i.test(nm || '')) torchIds.push(id); });
-    var carrierP = carrierN && CoopLocal.player(carrierN);
-    if (torchIds.length > 1 && carrierP && carrierP.actor()) {
-        var leadName = ($gameParty.leader().name() || '').toLowerCase();
-        var p1Torch = torchIds.filter(function(id) { return swNames[id].toLowerCase().indexOf(leadName.split(' ')[0]) === 0; })[0] || torchIds[0];
-        $gameSystem._coopLightBy = carrierN;
-        torchIds.forEach(function(id) { $gameSwitches.setValue(id, false); });
-        $gameSwitches.setValue(p1Torch, true); // lo que hace el temporizador de la antorcha
-        var onNow = torchIds.filter(function(id) { return $gameSwitches.value(id); }).map(function(id) { return swNames[id]; });
-        var carrierWords = carrierP.actor().name().toLowerCase().split(/[^a-z]+/).filter(function(w) { return w.length > 2; });
-        check('T39 the torch in the hand: the one of P' + carrierN + ' (' + carrierP.actor().name() + '), not P1',
-            onNow.length === 1 && carrierWords.some(function(w) { return onNow[0].toLowerCase().indexOf(w.slice(0, 4)) === 0; }), 'on: ' + onNow.join(',') + ' P1 would be ' + swNames[p1Torch]);
-        torchIds.forEach(function(id) { $gameSwitches.setValue(id, false); });
-        $gameSystem._coopLightBy = 0;
     }
 
     // ---- una escena mueve a P1 un paso (entrar por una puerta): P2 no va detras ----
