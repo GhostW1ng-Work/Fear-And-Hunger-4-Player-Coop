@@ -1229,11 +1229,23 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         if (leg) leg.addState(leg.deathStateId());
         check('T44d leg cut off: the head of that double is easy to hit, "Leg cut" on the character', !head || (eva0 > 0.5 && head.eva <= 0.05) && limbNames(defA).indexOf('Leg cut') >= 0,
             'head eva ' + eva0 + ' -> ' + (head && head.eva) + ' states ' + limbNames(defA));
-        if (arm) arm.addState(arm.deathStateId());
+        if (arm) {
+            arm.addState(arm.deathStateId());
+            // el juego refresca la parte ya muerta y vuelve a ponerle la muerte: no es otro brazo
+            arm.removeState(arm.deathStateId());
+            arm.addState(arm.deathStateId());
+        }
         check('T44e arm cut off: that character hits much weaker', CoopPvp.armFactor(defA) < 1 && CoopPvp.armFactor(lead) === 1 && limbNames(defA).indexOf('Arm cut') >= 0,
             'factor ' + CoopPvp.armFactor(defA) + ' / ' + CoopPvp.armFactor(lead));
+        // como en el combate: el interprete de la tropa (reservado + paginas) y el del mapa
+        for (var q = 0; q < 60; q++) {
+            if (!$gameTroop._interpreter.isRunning()) $gameTroop.setupBattleEvent();
+            $gameTroop.updateInterpreter();
+            if ($gameMessage.isBusy()) $gameMessage.clear();
+            if (q === 30) { BattleManager._phase = 'turnEnd'; $gameTroop._eventFlags = {}; }
+        }
         runReserved();
-        check('T44e2 the game records the lost arm (its switch, as in a normal fight: battle picture, weapon)', armSw.length > 0 && $gameSwitches.value(armSw[0]),
+        check('T44e2 the game records ONE lost arm (its switch, as in a normal fight: battle picture, weapon)', armSw.length > 0 && $gameSwitches.value(armSw[0]) && !$gameSwitches.value(armSw[1]),
             'arm switches ' + armSw + ' -> ' + armSw.map(function(id) { return $gameSwitches.value(id); }));
         // huir ("Run") acaba el combate; sin muerte lo cortado vuelve
         var runCe = $dataCommonEvents.filter(function(ce) { return ce && /skills_run/i.test(ce.name); })[0];

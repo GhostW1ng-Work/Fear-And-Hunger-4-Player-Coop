@@ -1502,6 +1502,7 @@
                 const lost = limbsLost(owner, kind);
                 mine.filter(e => e._coopPart === kind).slice(0, lost).forEach(part => {
                     part._hp = 0;
+                    part._coopCut = true;
                     part.addNewState(part.deathStateId());
                 });
             });
@@ -1561,6 +1562,9 @@
         const wasDead = enemyPart && this.isDead();
         _Game_Battler_addState_pvp.call(this, stateId);
         if (!info || !enemyPart || wasDead || stateId !== this.deathStateId()) return;
+        // (el juego vuelve a "matar" la parte ya cortada al refrescarla: cuenta una sola vez)
+        if (this._coopCut) return;
+        this._coopCut = true;
         const a = $gameActors.actor(this._coopOwner);
         if (!a) return;
         if (this._coopPart === 'torso' || this._coopPart === 'head') {
