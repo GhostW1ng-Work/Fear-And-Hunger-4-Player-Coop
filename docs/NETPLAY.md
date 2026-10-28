@@ -60,12 +60,13 @@ On every PC you can use WASD or the arrows, Z / Space / Enter (OK), X / Esc / Ba
 | **Bring character** | A guest can play the main character of one of their own saves (see below). |
 | **Input delay** | *Auto* (recommended) or a fixed number of frames (see below). |
 | **Battles** | *Together* or *Separate* (see below). The host's choice counts; set it before starting. |
+| **PvP (Termina)** | Off / not to the death / to the death - can players attack each other (OK facing another player). The host's choice; can be changed during the game. |
 | **Revive (soul stones)** | On / Off - can dead players be brought back. The host's choice; can be changed during the game. |
 | **Played chars' NPCs** | Hidden / Shown - is a character a player plays also standing around as an NPC. The host's choice; can be changed during the game. |
 | **Cheats** | On / Off. The host's choice; can be changed during the game. |
 | **Ping on screen** | Show every player's ping at the top right (green / yellow / red). |
 
-When the host changes *Revive*, *Played chars' NPCs* or *Cheats* during the game, everybody sees a message.
+When the host changes *PvP*, *Revive*, *Played chars' NPCs* or *Cheats* during the game, everybody sees a message.
 
 ---
 
@@ -107,6 +108,7 @@ With **Separate**:
 - A separate battle lost without P1 counts as an escape for the event that started it - the protagonist's defeat scenes (capture, blood pit...) don't play for everybody. The fighters stay dead as bodies.
 - If every player of a battle disconnects, that battle ends at once as an escape.
 - Battles without a player (cutscenes, story battles) are for everybody, as before.
+- **PvP** (Termina, if the host turned it on): a player who attacks another player starts a battle against that player's character; the attacked player is pulled into it and plays it with their own turns. See the README.
 
 ---
 

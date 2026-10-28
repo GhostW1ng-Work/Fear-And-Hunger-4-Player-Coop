@@ -21,6 +21,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 - [How co-op works](#how-co-op-works)
 - [Death and soul stones](#death-and-soul-stones)
 - [Torches, light and NPCs](#torches-light-and-npcs)
+- [Players against each other (PvP, Termina)](#players-against-each-other-pvp-termina)
 - [The Co-op menu](#the-co-op-menu)
 - [Settings](#settings)
 - [Cheats](#cheats)
@@ -121,6 +122,20 @@ Settings for this (Co-op settings):
 
 ---
 
+## Players against each other (PvP, Termina)
+
+Only in Termina, and only if the host turns it on: setting **PvP (Termina)** - *Off*, *On - not to the death* or *On - to the death*.
+
+- **How to attack:** stand right next to another player, face them and press OK - *Attack Marina (P2)?* - **Attack**. The other player is not asked: they are pulled into the battle at once.
+- **The battle:** the attacker fights **the other player's character the way Termina shows that contestant in a fight** - their own picture with body parts (torso, head, arms, legs). It has the HP and stats of the other player's character. **The other player controls it**: on their turns they choose their own skills and weapon and hit the attacker's character.
+- **Body parts:** cutting off an arm or a leg of the opponent gives their character *Arm cut* / *Leg cut*. The head is fatal (or the end of the fight when not to the death). Damage to the torso is damage to their HP.
+- **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends.
+- **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off). If P1 dies, that is game over, as always.
+- No experience or money for these fights. You can run away from them.
+- Online it works with both *Together* and *Separate* battles; in a separate battle the attacked player joins the attacker's battle.
+
+---
+
 ## The Co-op menu
 
 In P1's game menu, **Co-op**:
@@ -161,6 +176,7 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | *Revived with* | 30% | HP and mind of a character brought back. |
 | *Mind cost of reviving* | 30% | How much mind the one who revives loses. |
 | *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. |
+| *PvP (Termina)* | Off | Players can attack each other (OK facing another player). Not to the death / to the death. |
 | *Cheats* | On | Allows F6 / F7 anywhere and the cheats below. |
 
 ---
@@ -197,7 +213,7 @@ Experimental. Every player needs the game and **the same version of the mod** (t
 - **Battles**: *Together* (everybody fights, like on one PC) or *Separate* (only who an enemy touches; the others keep walking and can join by pressing OK next to a fighter). Several separate battles can run at once - P1 with one enemy, P2 with another.
 - While somebody fights a separate battle on the map, nobody can leave the map, sleep or save (otherwise the transfer would take the fighters along).
 - **Nobody gets kicked for lagging.** If someone's game stops for a moment (minimized, loading), the others go on and that game catches up. A player who loses the host goes back to the title and reconnects by themselves.
-- The host can change **Revive**, **Cheats** and **Played chars' NPCs** right in the online menu, also during the game.
+- The host can change **PvP**, **Revive**, **Cheats** and **Played chars' NPCs** right in the online menu, also during the game.
 - You can **bring your own character** from one of your saves, and set a **password**.
 - In the online game only the keyboard and gamepads work (no mouse). F6 / F7 work on the host only.
 

@@ -1696,6 +1696,14 @@
         b.foe = foe;
         Net.battleSeq = b.seq;
         battles.push(b);
+        // PvP (un jugador ataca a otro): el atacado lucha en el mismo combate, con sus turnos
+        const pvp = b.troop && b.troop._coopPvp;
+        if (pvp && pvp.defender && pvp.defender !== starter && !inSeparateBattle(pvp.defender)) {
+            closeSub(pvp.defender);
+            b.involved.push(pvp.defender);
+            b.inputs[pvp.defender] = newVirtualInput(Net.raw[pvp.defender] || 0);
+            if (pvp.defender === Net.player) battleStartAudio(b);
+        }
         // el evento del mapa que lo empezo se aparta: el mapa queda libre (otro jugador puede
         // empezar su combate con otro enemigo, hablar, abrir cofres...)
         for (let it = $gameMap._interpreter; it; it = it._childInterpreter) {
@@ -2703,8 +2711,9 @@
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
     // (la fila de los NPC solo si el plugin de Fear & Hunger la pone)
-    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'revive', 'npcs', 'cheats', 'showPing', 'action', 'stop']
-        .filter(k => (k !== 'npcs' || coop.setting('hideNpcs') !== undefined) && (k !== 'revive' || coop.setting('reviveAllowed') !== undefined));
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'pvp', 'revive', 'npcs', 'cheats', 'showPing', 'action', 'stop']
+        .filter(k => (k !== 'npcs' || coop.setting('hideNpcs') !== undefined) && (k !== 'revive' || coop.setting('reviveAllowed') !== undefined) &&
+            (k !== 'pvp' || coop.setting('pvp') !== undefined));
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -2802,6 +2811,10 @@
             return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
         }
         if (key === 'showPing') return '< ' + (this._cfg.showPing ? 'On' : 'Off') + ' >';
+        if (key === 'pvp') {
+            const m = coop.setting('pvp');
+            return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (m === 'death' ? 'On - to the death' : m === 'duel' ? 'On - not to the death' : 'Off') + ' >';
+        }
         if (key === 'revive') {
             return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (coop.setting('reviveAllowed') === false ? 'Off (death is for good)' : 'On') + ' >';
         }
@@ -2836,7 +2849,7 @@
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'showPing') return true;
         // (jugando, este menu es el de P1 y va igual en todos los PC: el cambio llega a todos)
-        if (key === 'cheats' || key === 'npcs' || key === 'revive') return Net.active || Net.role !== 'join';
+        if (key === 'cheats' || key === 'npcs' || key === 'revive' || key === 'pvp') return Net.active || Net.role !== 'join';
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
@@ -2846,7 +2859,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', revive: 'Revive (soul stones)', npcs: "Played chars' NPCs", cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', pvp: 'PvP (Termina)', revive: 'Revive (soul stones)', npcs: "Played chars' NPCs", cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2905,6 +2918,7 @@
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
         if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
         if (NET_ROWS[this.index()] === 'revive') this.changeRevive();
+        if (NET_ROWS[this.index()] === 'pvp') this.changePvp(1);
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2918,6 +2932,7 @@
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
         if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
         if (NET_ROWS[this.index()] === 'revive') this.changeRevive();
+        if (NET_ROWS[this.index()] === 'pvp') this.changePvp(-1);
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2934,6 +2949,22 @@
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    Window_CoopNet.prototype.changePvp = function(dir) {
+        if (!this.isRowEnabled('pvp')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        const modes = ['off', 'duel', 'death'];
+        const i = Math.max(0, modes.indexOf(coop.setting('pvp') || 'off'));
+        coop.setSetting('pvp', modes[(i + dir + modes.length) % modes.length]);
+        SoundManager.playCursor();
+        if (Net.active && Net.role === 'host') {
+            const m = coop.setting('pvp');
+            banner('PvP: ' + (m === 'death' ? 'on - to the death' : m === 'duel' ? 'on - not to the death' : 'off'), 'For everybody', COLOR_NET, 150);
+        }
+        this.refresh();
+    };
+
     Window_CoopNet.prototype.changeRevive = function() {
         if (!this.isRowEnabled('revive')) {
             SoundManager.playBuzzer();
@@ -3020,6 +3051,8 @@
             this.changeNpcs();
         } else if (key === 'revive') {
             this.changeRevive();
+        } else if (key === 'pvp') {
+            this.changePvp(1);
         } else if (key === 'bring') {
             this.changeBring(1);
         } else if (key === 'found') {

@@ -1253,6 +1253,331 @@
         return alt !== normal && (alt < 0 || isHidePage(this.event().pages[alt])) ? alt : normal;
     };
 
+    // ---- PvP (Termina): un jugador ataca a otro ------------------------------------------------
+    // OK delante de otro jugador -> "Attack X?" -> combate contra X: contra el que ataca esta el
+    // propio X tal como lo pelea el juego (su tropa de partes: torso, cabeza, brazos, piernas), con
+    // la vida y los atributos del personaje de ese jugador, y lo maneja ese jugador con sus turnos
+    // (sus habilidades y su arma, contra el personaje del que ataca). Lo que le pasa al "doble" le
+    // pasa a su personaje: el torso es su vida; brazo / pierna cortados -> "Arm cut" / "Leg cut";
+    // la cabeza -> muerto (o 1 de vida). Sin muerte: quien llega a 0 se queda con 1 y se acaba.
+    coop.addSettings([
+        { key: 'pvp', name: 'PvP (Termina)', values: ['off', 'duel', 'death'], labels: ['Off', 'On - not to the death', 'On - to the death'],
+            after: 'reviveCost',
+            help: 'OK facing another player: attack them (no consent needed). They fight you as their character, with their own turns. Not to the death: the loser is left with 1 HP.' }
+    ], true);
+
+    function isTermina() {
+        return !!gameProfile() && gameProfile() === GAME_PROFILES.termina;
+    }
+
+    function pvpMode() {
+        const m = coop.setting('pvp');
+        return isTermina() && (m === 'duel' || m === 'death') ? m : null;
+    }
+
+    function playerNumberOf(ch) {
+        if (ch === $gamePlayer) return 1;
+        return ch && ch.coopIndex ? ch.coopIndex() : 0;
+    }
+
+    function playerActor(n) {
+        if (n === 1) return $gameParty.leader();
+        const p = coop.player(n);
+        return p ? p.actor() : null;
+    }
+
+    function inAnyBattle(n) {
+        const net = window.CoopNet;
+        return !!(net && net.battles && net.battles().some(b => b.involved.indexOf(n) >= 0));
+    }
+
+    function stateIdNamed(re) {
+        const s = ($dataStates || []).find(st => st && re.test(st.name));
+        return s ? s.id : 0;
+    }
+
+    // la tropa del combate contra un personaje: la del juego (sus partes, sin sus paginas de
+    // sucesos: dialogos, historia) o, si no tiene, la de un aldeano con su nombre
+    const pvpTroopIds = {}; // actorId -> id de la tropa creada
+    function pvpTroopFor(actorId) {
+        if (pvpTroopIds[actorId]) return pvpTroopIds[actorId];
+        const actor = $gameActors.actor(actorId);
+        const name = (actor ? actor.name() : '').toLowerCase();
+        const isMine = m => {
+            const en = $dataEnemies[m.enemyId];
+            return en && !m.hidden && en.name.toLowerCase().indexOf(name + ' [') === 0;
+        };
+        let source = name && $dataTroops.find(t => t && t.members.some(m => isMine(m) && /\[torso\]/i.test($dataEnemies[m.enemyId].name)));
+        let members = source ? source.members.filter(isMine) : [];
+        if (members.length === 0) {
+            source = $dataTroops.find(t => t && /^villager1$/i.test(t.name)) || $dataTroops.find(t => t && t.members.length > 0);
+            members = source.members.filter(m => !m.hidden);
+        }
+        const id = $dataTroops.length;
+        $dataTroops[id] = {
+            id: id, name: (actor ? actor.name() : 'Player'),
+            members: members.map(m => ({ enemyId: m.enemyId, x: m.x, y: m.y, hidden: false })),
+            pages: [{ conditions: { actorHp: 50, actorId: 1, actorValid: false, enemyHp: 50, enemyIndex: 0, enemyValid: false,
+                switchId: 1, switchValid: false, turnA: 0, turnB: 0, turnEnding: false, turnValid: false },
+                list: [{ code: 0, indent: 0, parameters: [] }], span: 0 }]
+        };
+        pvpTroopIds[actorId] = id;
+        return id;
+    }
+
+    const pvpPending = {}; // troopId -> { attacker, defender, actorId, lethal } del combate que va a empezar
+
+    function pvpEventList(attacker, defender) {
+        const actor = playerActor(defender);
+        const lethal = pvpMode() === 'death';
+        return [
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: ['Attack ' + actor.name() + ' (P' + defender + ')?' + (lethal ? ' To the death.' : '')] },
+            { code: 102, indent: 0, parameters: [['Attack', 'Leave'], 1, 0, 2, 0] },
+            { code: 402, indent: 0, parameters: [0, 'Attack'] },
+            { code: 355, indent: 1, parameters: ['CoopPvp.prepare(this, ' + attacker + ', ' + defender + ')'] },
+            { code: 301, indent: 1, parameters: [0, 0, true, false] },
+            { code: 0, indent: 1, parameters: [] },
+            { code: 402, indent: 0, parameters: [1, 'Leave'] },
+            { code: 0, indent: 1, parameters: [] },
+            { code: 404, indent: 0, parameters: [] },
+            { code: 0, indent: 0, parameters: [] }
+        ];
+    }
+
+    // OK delante de otro jugador
+    function tryPvp(character, n) {
+        if (!pvpMode() || !(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || $gameParty.inBattle()) return false;
+        const x = $gameMap.roundXWithDirection(character.x, character.direction());
+        const y = $gameMap.roundYWithDirection(character.y, character.direction());
+        const target = coop.allPlayers().find(p => p && p !== character && p.x === x && p.y === y);
+        const m = playerNumberOf(target);
+        if (!target || !m || m === n) return false;
+        const me = playerActor(n);
+        const them = playerActor(m);
+        if (!me || !them || me.isDead() || them.isDead() || me === them) return false;
+        if (inAnyBattle(n) || inAnyBattle(m)) return false;
+        const it = $gameMap._interpreter;
+        it.setup(pvpEventList(n, m), 0);
+        it._coopStarter = n; // (elige la respuesta quien ataca)
+        return true;
+    }
+
+    // (desde el evento, justo antes de "Procesar combate": pone la tropa y lo que es)
+    function prepare(it, attacker, defender) {
+        const battleCmd = it._list[it._index + 1];
+        const them = playerActor(defender);
+        const me = playerActor(attacker);
+        if (!pvpMode() || !them || !me || them.isDead() || me.isDead() || inAnyBattle(defender) || inAnyBattle(attacker)) {
+            if (battleCmd && battleCmd.code === 301) battleCmd.code = 108; // (ya no: sin combate)
+            return;
+        }
+        const troopId = pvpTroopFor(them.actorId());
+        pvpPending[troopId] = { attacker: attacker, defender: defender, actorId: them.actorId(), lethal: pvpMode() === 'death' };
+        if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
+        coop.banner('P' + attacker + ' attacks P' + defender + '!', me.name() + ' vs ' + them.name(), '#ff6655', 180);
+    }
+
+    function pvpInfo() {
+        return $gameParty && $gameParty.inBattle() && $gameTroop && $gameTroop._coopPvp || null;
+    }
+
+    const _Game_Troop_setup = Game_Troop.prototype.setup;
+    Game_Troop.prototype.setup = function(troopId) {
+        _Game_Troop_setup.call(this, troopId);
+        const info = pvpPending[troopId];
+        this._coopPvp = info ? Object.assign({}, info) : null;
+        delete pvpPending[troopId];
+        if (!info) return;
+        const actor = $gameActors.actor(info.actorId);
+        let torso = this.members().find(e => /\[torso\]/i.test(e.enemy().name)) || this.members()[0];
+        this.members().forEach(e => {
+            const nm = e.enemy().name.toLowerCase();
+            e._coopPart = e === torso ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
+        });
+        torso._coopMirror = info.actorId;
+        torso.recoverAll();
+        torso._hp = actor.hp;
+        torso._mp = actor.mp;
+    };
+
+    // el doble es su personaje: sus atributos y su vida
+    const _Game_Enemy_paramBase = Game_Enemy.prototype.paramBase;
+    Game_Enemy.prototype.paramBase = function(paramId) {
+        if (this._coopMirror) {
+            const a = $gameActors.actor(this._coopMirror);
+            if (a) return a.paramBase(paramId) + a.paramPlus(paramId);
+        }
+        return _Game_Enemy_paramBase.call(this, paramId);
+    };
+
+    // sin muerte: quien llegaria a 0 se queda con 1 y el combate se acaba
+    function pvpNonLethalEnd(loserName) {
+        if (BattleManager._phase === 'aborting' || BattleManager._coopPvpEnded) return;
+        BattleManager._coopPvpEnded = true;
+        BattleManager._logWindow && BattleManager._logWindow.push && BattleManager._logWindow.push('addText', loserName + ' gives up.');
+        BattleManager.abort();
+    }
+
+    Game_Enemy.prototype.setHp = function(hp) {
+        const info = this._coopMirror && pvpInfo();
+        if (!info) return Game_BattlerBase.prototype.setHp.call(this, hp);
+        const a = $gameActors.actor(this._coopMirror);
+        if (!info.lethal && hp <= 0) {
+            hp = 1;
+            pvpNonLethalEnd(a.name());
+        }
+        a.setHp(hp);
+        this._hp = a.hp;
+        this.refresh();
+    };
+
+    Game_Actor.prototype.setHp = function(hp) {
+        const info = pvpInfo();
+        if (info && !info.lethal && hp <= 0 && this.isBattleMember && $gameParty.battleMembers().indexOf(this) >= 0) {
+            hp = 1;
+            pvpNonLethalEnd(this.name());
+        }
+        return Game_BattlerBase.prototype.setHp.call(this, hp);
+    };
+
+    // partes del doble: lo que le pasa a cada una le pasa a su personaje
+    const _Game_Battler_addState_pvp = Game_Battler.prototype.addState;
+    Game_Battler.prototype.addState = function(stateId) {
+        const info = pvpInfo();
+        if (info && !info.lethal && stateId === this.deathStateId() && this.isActor() && $gameParty.battleMembers().indexOf(this) >= 0 && !this.isStateAffected(stateId)) {
+            // (muerte de golpe sin muerte: 1 de vida y se acaba)
+            Game_BattlerBase.prototype.setHp.call(this, Math.max(1, this.hp));
+            pvpNonLethalEnd(this.name());
+            return;
+        }
+        const wasDead = this.isEnemy && this.isEnemy() && this.isDead();
+        _Game_Battler_addState_pvp.call(this, stateId);
+        if (!info || !this.isEnemy || !this.isEnemy() || !this._coopPart || wasDead || stateId !== this.deathStateId()) return;
+        const a = $gameActors.actor(info.actorId);
+        if (!a) return;
+        if (this._coopPart === 'torso' || this._coopPart === 'head') {
+            // sin torso o sin cabeza no queda nada del doble
+            if (this._coopPart === 'head') {
+                if (info.lethal) a.setHp(0);
+                else pvpNonLethalEnd(a.name());
+            }
+            $gameTroop.members().forEach(e => { if (e !== this && e.isAlive()) _Game_Battler_addState_pvp.call(e, e.deathStateId()); });
+            if (info.lethal && this._coopPart === 'head') a.addState(a.deathStateId());
+        } else if (this._coopPart === 'arm' || this._coopPart === 'leg') {
+            const st = this._coopPart === 'arm' ? stateIdNamed(/^arm cut$/i) : stateIdNamed(/^leg cut$/i);
+            if (st && !coop.cheat('cheatLimbs')) a.addState(st);
+        }
+    };
+
+    // el doble no hace nada por si mismo (lo maneja su jugador con su personaje)
+    const _Game_Enemy_makeActions = Game_Enemy.prototype.makeActions;
+    Game_Enemy.prototype.makeActions = function() {
+        if (pvpInfo()) {
+            this.clearActions();
+            return;
+        }
+        _Game_Enemy_makeActions.call(this);
+    };
+    ['exp', 'gold'].forEach(name => {
+        const orig = Game_Enemy.prototype[name];
+        Game_Enemy.prototype[name] = function() { return pvpInfo() ? 0 : orig.call(this); };
+    });
+    const _Game_Enemy_makeDropItems = Game_Enemy.prototype.makeDropItems;
+    Game_Enemy.prototype.makeDropItems = function() { return pvpInfo() ? [] : _Game_Enemy_makeDropItems.call(this); };
+
+    // los dos bandos del combate
+    function Game_CoopSide() {
+        this.initialize.apply(this, arguments);
+    }
+    Game_CoopSide.prototype = Object.create(Game_Unit.prototype);
+    Game_CoopSide.prototype.constructor = Game_CoopSide;
+    Game_CoopSide.prototype.initialize = function(defender) {
+        Game_Unit.prototype.initialize.call(this);
+        this._coopDefender = defender;
+        this._inBattle = true;
+    };
+    Game_CoopSide.prototype.members = function() {
+        const info = pvpInfo();
+        return $gameParty.battleMembers().filter(a => info && ((coop.battleOwnerOf(a) === info.defender) === this._coopDefender));
+    };
+
+    function isDefenderSide(actor) {
+        const info = pvpInfo();
+        return !!info && coop.battleOwnerOf(actor) === info.defender;
+    }
+
+    const _Game_Actor_opponentsUnit = Game_Actor.prototype.opponentsUnit;
+    Game_Actor.prototype.opponentsUnit = function() {
+        if (pvpInfo() && isDefenderSide(this)) return new Game_CoopSide(false);
+        return _Game_Actor_opponentsUnit.call(this);
+    };
+    const _Game_Actor_friendsUnit = Game_Actor.prototype.friendsUnit;
+    Game_Actor.prototype.friendsUnit = function() {
+        if (pvpInfo()) return new Game_CoopSide(isDefenderSide(this));
+        return _Game_Actor_friendsUnit.call(this);
+    };
+
+    // en el combate solo estan los dos (y los companeros que maneja quien ataca)
+    const _Game_Party_battleMembers_pvp = Game_Party.prototype.battleMembers;
+    Game_Party.prototype.battleMembers = function() {
+        const list = _Game_Party_battleMembers_pvp.call(this);
+        const info = this._inBattle && $gameTroop && $gameTroop._coopPvp;
+        if (!info) return list;
+        return list.filter(a => a.actorId() === info.actorId || coop.battleOwnerOf(a) === info.attacker);
+    };
+
+    // pierde quien se queda sin nadie en pie (el grupo tiene a los dos bandos)
+    const _Game_Party_isAllDead_pvp = Game_Party.prototype.isAllDead;
+    Game_Party.prototype.isAllDead = function() {
+        if (pvpInfo()) return new Game_CoopSide(false).isAllDead();
+        return _Game_Party_isAllDead_pvp.call(this);
+    };
+
+    // el doble cae cuando cae su personaje (por veneno, sangrado...)
+    const _Game_Troop_isAllDead_pvp = Game_Troop.prototype.isAllDead;
+    Game_Troop.prototype.isAllDead = function() {
+        const info = this._coopPvp && pvpInfo();
+        if (info) {
+            const a = $gameActors.actor(info.actorId);
+            const mirror = this.members().find(e => e._coopMirror);
+            if (a && mirror && mirror.isAlive()) {
+                mirror._hp = a.hp;
+                if (a.isDead()) {
+                    this.members().forEach(e => { if (e.isAlive()) _Game_Battler_addState_pvp.call(e, e.deathStateId()); });
+                }
+            }
+        }
+        return _Game_Troop_isAllDead_pvp.call(this);
+    };
+
+    // el que se defiende ataca al personaje del otro: sin elegir enemigo (el doble es el suyo)
+    const _Scene_Battle_selectEnemySelection = Scene_Battle.prototype.selectEnemySelection;
+    Scene_Battle.prototype.selectEnemySelection = function() {
+        const actor = BattleManager.actor();
+        if (actor && pvpInfo() && isDefenderSide(actor)) {
+            const action = BattleManager.inputtingAction();
+            if (action) action.setTarget(0);
+            this.selectNextCommand();
+            return;
+        }
+        _Scene_Battle_selectEnemySelection.call(this);
+    };
+
+    // y la fila de OK: atacar (antes que los cuerpos; solo si la casilla de delante es de un jugador)
+    ['checkEventTriggerThere'].forEach(name => {
+        [Game_Player.prototype, window.Game_CoopPlayer && Game_CoopPlayer.prototype].forEach(proto => {
+            if (!proto || !proto[name]) return;
+            const orig = proto[name];
+            proto[name] = function(triggers) {
+                if (triggers && triggers.includes(0) && tryPvp(this, playerNumberOf(this))) return;
+                orig.call(this, triggers);
+            };
+        });
+    });
+
+    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo };
+
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,
         lightTest: { watchPlayerLight: watchPlayerLight, beginMask: beginMask, endMask: endMask } };
