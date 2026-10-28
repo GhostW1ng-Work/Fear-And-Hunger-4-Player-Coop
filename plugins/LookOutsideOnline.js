@@ -1737,6 +1737,7 @@
     // Cuando una escena mueve al protagonista (ruta de movimiento), P2-P4 lo siguen como
     // acompanantes, atravesando todo para no estorbar ni quedarse atascados. Solo si de verdad lo
     // lleva a otra casilla: si la ruta solo le gira (abrir un barril, mirar a un enemigo), no.
+    const CUTSCENE_FOLLOW_TILES = 3;
     Game_CoopPlayer.prototype.updateCutsceneFollow = function() {
         if (!$gameMap.isEventRunning() || !$gamePlayer.isMoveRouteForcing()) {
             this._coopRouteFrom = null;
@@ -1750,7 +1751,9 @@
             this._coopFollowing = false;
             return;
         }
-        if (!this._coopFollowing && $gamePlayer.x === from[0] && $gamePlayer.y === from[1]) return;
+        // (un paso o dos - entrar por una puerta, un empujon - no: P2-P4 siguen a lo suyo; solo
+        // si la escena se lleva a P1 lejos)
+        if (!this._coopFollowing && Math.max(Math.abs($gameMap.deltaX($gamePlayer.x, from[0])), Math.abs($gameMap.deltaY($gamePlayer.y, from[1]))) < CUTSCENE_FOLLOW_TILES) return;
         this._coopFollowing = true;
         this.followLeader();
     };

@@ -414,11 +414,11 @@ var p2x0 = $gamePlayer2.x;
 for (f = 0; f < 30; f++) frame();
 check('T20 a route that does not move P1 (turn, wait): P2 stays where it is', $gamePlayer2.x === p2x0, p2x0 + ' -> ' + $gamePlayer2.x);
 $gamePlayer.locate(px, py); $gamePlayer._x = px; // la escena lo lleva a otra casilla
-$gamePlayer.locate(px - 1, py);
+$gamePlayer.locate(px - 3, py); // (lejos: un paso o dos no cuentan)
 var d0 = Math.abs($gamePlayer2.x - $gamePlayer.x);
 for (f = 0; f < 120; f++) { $gamePlayer.updateRoutineMove && $gamePlayer.updateRoutineMove(); frame(); }
 var d1 = Math.abs($gamePlayer2.x - $gamePlayer.x) + Math.abs($gamePlayer2.y - $gamePlayer.y);
-check('T20b the route moves P1: P2 walks to P1', d1 < d0 && d1 <= 2, d0 + ' -> ' + d1);
+check('T20b the route takes P1 3 tiles away: P2 walks to P1', d1 < d0 && d1 <= 2, d0 + ' -> ' + d1);
 $gamePlayer._moveRouteForcing = false;
 
 // --- T21: la escena desplaza la camara -> el mod no la recentra hasta que termina ---
@@ -1003,6 +1003,40 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         for (k = 0; k < 5; k++) frame();
         check('T38 left inside a wall after following P1: back next to P1', walker.x === $gamePlayer.x && walker.y === $gamePlayer.y && !walker._through,
             walker.x + ',' + walker.y + ' through=' + walker._through + ' wall ' + wall);
+    }
+
+    // ---- el dibujo con antorcha: el del que la encendio (Fear & Hunger 1: "Knight_torch"...) ----
+    var swNames = $dataSystem.switches;
+    var torchIds = [];
+    swNames.forEach(function(nm, id) { if (/_torch$/i.test(nm || '')) torchIds.push(id); });
+    var carrierP = carrierN && CoopLocal.player(carrierN);
+    if (torchIds.length > 1 && carrierP && carrierP.actor()) {
+        var leadName = ($gameParty.leader().name() || '').toLowerCase();
+        var p1Torch = torchIds.filter(function(id) { return swNames[id].toLowerCase().indexOf(leadName.split(' ')[0]) === 0; })[0] || torchIds[0];
+        $gameSystem._coopLightBy = carrierN;
+        torchIds.forEach(function(id) { $gameSwitches.setValue(id, false); });
+        $gameSwitches.setValue(p1Torch, true); // lo que hace el temporizador de la antorcha
+        var onNow = torchIds.filter(function(id) { return $gameSwitches.value(id); }).map(function(id) { return swNames[id]; });
+        var carrierWords = carrierP.actor().name().toLowerCase().split(/[^a-z]+/).filter(function(w) { return w.length > 2; });
+        check('T39 the torch in the hand: the one of P' + carrierN + ' (' + carrierP.actor().name() + '), not P1',
+            onNow.length === 1 && carrierWords.some(function(w) { return onNow[0].toLowerCase().indexOf(w.slice(0, 4)) === 0; }), 'on: ' + onNow.join(',') + ' P1 would be ' + swNames[p1Torch]);
+        torchIds.forEach(function(id) { $gameSwitches.setValue(id, false); });
+        $gameSystem._coopLightBy = 0;
+    }
+
+    // ---- una escena mueve a P1 un paso (entrar por una puerta): P2 no va detras ----
+    if (walker) {
+        walker.locate($gamePlayer.x, $gamePlayer.y);
+        for (k = 0; k < 5; k++) frame();
+        var wFrom = walker.x + ',' + walker.y;
+        var dirs = [2, 4, 6, 8].filter(function(d) { return $gamePlayer.canPass($gamePlayer.x, $gamePlayer.y, d); });
+        if (dirs.length) {
+            var mcode = { 2: 1, 4: 2, 6: 3, 8: 4 }[dirs[0]];
+            $gameMap._interpreter.setup([{ code: 205, indent: 0, parameters: [-1, { list: [{ code: mcode, indent: null }, { code: 15, parameters: [60], indent: null }, { code: 0 }], repeat: false, skippable: true, wait: true }] },
+                { code: 0, indent: 0, parameters: [] }], 0);
+            for (k = 0; k < 90; k++) frame();
+            check('T40 a scene moves P1 one step: P2 does not walk after them', walker.x + ',' + walker.y === wFrom, wFrom + ' -> ' + walker.x + ',' + walker.y);
+        }
     }
 })();
 

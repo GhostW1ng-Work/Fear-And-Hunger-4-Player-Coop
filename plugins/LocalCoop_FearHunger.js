@@ -803,6 +803,52 @@
         return p && p.actor() ? p : null;
     }
 
+    // El dibujo con la antorcha en la mano: en Fear & Hunger 1 el temporizador de la antorcha
+    // enciende el interruptor "<Clase>_torch" del protagonista (segun su "..._SELECT") y el evento
+    // comun del traje de ese personaje le pone el dibujo con antorcha. Si la lleva P2-P4, se enciende
+    // el de su personaje. Que interruptor es de que personaje se mira en esos eventos comunes:
+    // "Si el interruptor Knight_torch..." y luego "$gameActors.actor(3).setCharacterImage(...)".
+    let torchSwitches = null; // { switchId: actorId }
+    function torchSwitchMap() {
+        if (torchSwitches) return torchSwitches;
+        torchSwitches = {};
+        const names = ($dataSystem && $dataSystem.switches) || [];
+        ($dataCommonEvents || []).forEach(ce => {
+            if (!ce) return;
+            ce.list.forEach((c, i) => {
+                if (c.code !== 111 || c.parameters[0] !== 0 || !/_torch$/i.test(names[c.parameters[1]] || '')) return;
+                const id = c.parameters[1];
+                if (torchSwitches[id]) return;
+                for (let k = i + 1; k < Math.min(ce.list.length, i + 8); k++) {
+                    const m = ce.list[k].code === 355 && /\$gameActors\.actor\((\d+)\)\.setCharacterImage/.exec(ce.list[k].parameters[0]);
+                    if (m) {
+                        torchSwitches[id] = Number(m[1]);
+                        break;
+                    }
+                }
+            });
+        });
+        return torchSwitches;
+    }
+
+    const _Game_Switches_setValue = Game_Switches.prototype.setValue;
+    Game_Switches.prototype.setValue = function(switchId, value) {
+        if (value && this === $gameSwitches) {
+            const map = torchSwitchMap();
+            const carrier = map[switchId] ? lightCarrier() : null;
+            const actor = carrier && carrier.actor();
+            if (actor && map[switchId] !== actor.actorId()) {
+                const mine = Object.keys(map).map(Number).find(id => map[id] === actor.actorId());
+                if (mine) {
+                    // la antorcha es de quien la encendio: solo su dibujo la lleva
+                    Object.keys(map).map(Number).forEach(id => { if (id !== mine && this.value(id)) _Game_Switches_setValue.call(this, id, false); });
+                    switchId = mine;
+                }
+            }
+        }
+        _Game_Switches_setValue.call(this, switchId, value);
+    };
+
     // (la clase de la luz no es global: se toma de la primera que se crea)
     if (Spriteset_Map.prototype.createLightmask) {
         const _Spriteset_Map_createLightmask = Spriteset_Map.prototype.createLightmask;
