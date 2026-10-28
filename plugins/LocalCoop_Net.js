@@ -1276,8 +1276,12 @@
     }
 
     // quien no tiene personaje (muerto, esperando) mira un combate en marcha: el de P1 si lo hay
+    // (y la pelea de la puerta de la torre la miran todos los que no luchan)
     function watchedBattle() {
-        if (!Net.active || Net.player === 1 || battleOf(Net.player) || coop.player(Net.player)) return null;
+        if (!Net.active || battleOf(Net.player)) return null;
+        const story = battles.find(b => b.started && b.troop && b.troop._coopPvp && b.troop._coopPvp.story);
+        if (story) return story;
+        if (Net.player === 1 || coop.player(Net.player)) return null;
         return battles.find(b => b.started && b.involved.indexOf(1) >= 0) || battles.find(b => b.started) || null;
     }
 

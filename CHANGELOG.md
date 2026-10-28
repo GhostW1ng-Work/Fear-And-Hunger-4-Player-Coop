@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Termina, the tower door with other players in the party: before the fight each player chooses *Fight* or *End it*; everyone says their line (a line of their own for each playable character); who ends it dies; those who fight fight to the death (the others watch); if only one fights, they are the one left (and the protagonist; P1 who chose to end it dies at the end); everybody ends it - game over.
+
 ## v1.8.9
 
 - **The protagonist can change hands (Termina).** Whoever kills the protagonist (P1) in a fight to the death becomes the protagonist: first in the party, with the game's protagonist switch (the story treats them as the protagonist). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number - on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion: body, waiting, back with a soul stone - as a companion. If the PC playing P1 disconnects, the host plays the protagonist.

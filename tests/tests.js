@@ -1527,13 +1527,45 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             doorIt.executeCommand();
             var child = doorIt._childInterpreter;
             var texts = child ? child._list.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ') : '';
+            var asks = child ? child._list.filter(function(c) { return c.code === 102; }) : [];
+            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", and each player is asked: Fight / End it',
+                $gameVariables.value(crazedVar) === 0 && /Only one may leave/.test(texts) && asks.length === 3 &&
+                asks.every(function(c) { return c.parameters[0].join('/') === 'Fight/End it' && c.parameters[1] === -1; }),
+                'var ' + $gameVariables.value(crazedVar) + ' asks ' + asks.length);
+            // P1 y P3 luchan, P2 acaba con su vida
+            CoopPvp.doorChoice(1, 'fight'); CoopPvp.doorChoice(2, 'end'); CoopPvp.doorChoice(3, 'fight');
+            var resIt = new Game_Interpreter();
+            resIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopPvp.doorResolve(resIt);
+            var rl = resIt._childInterpreter ? resIt._childInterpreter._list : [];
+            var said = rl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' | ');
+            var scripts = rl.filter(function(c) { return c.code === 355; }).map(function(c) { return c.parameters[0]; }).join(' ; ');
+            check('T50b then everyone says their line; who ends it dies (P2); the ones who fight (P1, P3) fight to the death',
+                said.indexOf(pA.name() + ': "') >= 0 && said.indexOf(pB.name() + ': "') >= 0 && /ends their own life/.test(said) &&
+                /doorEnd\(2\)/.test(scripts) && /prepareDoorFight\(this, \[1,3\]\)/.test(scripts) && rl.some(function(c) { return c.code === 301; }),
+                said.slice(0, 120) + ' || ' + scripts);
             var fakeDoor = { _list: [{ code: 355, indent: 0, parameters: [''] }, { code: 301, indent: 0, parameters: [0, 0, false, false] }], _index: 0 };
-            CoopPvp.prepareAll(fakeDoor, 1, true);
+            CoopPvp.prepareDoorFight(fakeDoor, [1, 3]);
             var doorFight = CoopPvp.pending[fakeDoor._list[1].parameters[1]];
-            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", then everybody against everybody, to the death (even with PvP off)',
-                $gameVariables.value(crazedVar) === 0 && /Only one may leave/.test(texts) && !!child && child._list.some(function(c) { return c.code === 301; }) &&
-                !!doorFight && doorFight.lethal === true && doorFight.sides.length === 3,
-                'var ' + $gameVariables.value(crazedVar) + ' text ' + texts.slice(0, 60) + ' fight ' + (doorFight ? doorFight.sides.length + ' sides, lethal ' + doorFight.lethal : '-'));
+            check('T50c the door fight: only those who fight, to the death', !!doorFight && doorFight.lethal === true && doorFight.sides.length === 2,
+                doorFight ? JSON.stringify(doorFight.sides) : '-');
+            // solo uno lucha y P1 acaba con su vida: sin pelea, P1 muere al final y el otro es el protagonista
+            CoopPvp.doorChoice(1, 'end'); CoopPvp.doorChoice(2, 'end'); CoopPvp.doorChoice(3, 'fight');
+            var res2 = new Game_Interpreter();
+            res2.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopPvp.doorResolve(res2);
+            var rl2 = res2._childInterpreter ? res2._childInterpreter._list : [];
+            var sc2 = rl2.filter(function(c) { return c.code === 355; }).map(function(c) { return c.parameters[0]; }).join(' ; ');
+            check('T50d 3 of them end it: no fight - the one left becomes the protagonist (P1 dies last)',
+                !rl2.some(function(c) { return c.code === 301; }) && /doorEnd\(2\)/.test(sc2) && !/doorEnd\(1\)/.test(sc2) && /doorEndProtagonist/.test(sc2), sc2);
+            // todos acaban: fin de partida
+            CoopPvp.doorChoice(1, 'end'); CoopPvp.doorChoice(2, 'end'); CoopPvp.doorChoice(3, 'end');
+            var res3 = new Game_Interpreter();
+            res3.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopPvp.doorResolve(res3);
+            var rl3 = res3._childInterpreter ? res3._childInterpreter._list : [];
+            check('T50e everybody ends it: game over', rl3.some(function(c) { return c.code === 353; }));
+            $gameSystem._coopDoorChoices = {};
             if (doorFight) delete CoopPvp.pending[fakeDoor._list[1].parameters[1]];
         }
         for (k = 0; k < 5; k++) frame();

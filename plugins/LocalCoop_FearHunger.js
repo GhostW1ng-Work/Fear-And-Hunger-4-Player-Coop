@@ -1674,20 +1674,143 @@
         const others = pvpCandidates().filter(n => n !== 1);
         if (others.length === 0) return false;
         const starter = it._coopStarter || 1;
-        const lines = [
-            'The stone slab does not move. Something ancient is watching you all...',
-            'Only one may leave Termina. Only the last one standing.'
+        const players = [1].concat(others);
+        $gameSystem._coopDoorChoices = {};
+        const list = [
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: ['The stone slab does not move. Something ancient is watching you all...'] },
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: ['Only one may leave Termina. Only the last one standing.'] }
         ];
-        it.setupChild([
-            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: [lines[0]] },
-            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: [lines[1]] },
-            { code: 355, indent: 0, parameters: ['CoopPvp.prepareAll(this, ' + starter + ', true)'] },
-            { code: 301, indent: 0, parameters: [0, 0, false, false] },
+        // cada uno elige (contesta su jugador): luchar o acabar con su vida
+        players.forEach(n => {
+            const a = playerActor(n);
+            list.push(
+                { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
+                { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+                { code: 401, indent: 0, parameters: ['P' + n + ' - ' + (a ? a.name() : '?') + '. What will you do?'] },
+                { code: 102, indent: 0, parameters: [['Fight', 'End it'], -1, 0, 2, 0] },
+                { code: 402, indent: 0, parameters: [0, 'Fight'] },
+                { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "fight")'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 402, indent: 0, parameters: [1, 'End it'] },
+                { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "end")'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 404, indent: 0, parameters: [] }
+            );
+        });
+        list.push(
+            { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + starter + ')'] },
+            { code: 355, indent: 0, parameters: ['CoopPvp.doorResolve(this)'] },
             { code: 0, indent: 0, parameters: [] }
-        ], it._eventId);
+        );
+        it.setupChild(list, it._eventId);
         return true;
+    }
+
+    // quien contesta ahora (el interprete del mapa lo dice; tambien el de esta escena)
+    function doorOwner(it, n) {
+        for (let x = $gameMap._interpreter; x; x = x._childInterpreter) x._coopStarter = n;
+        if (it) it._coopStarter = n;
+    }
+    function doorChoice(n, what) {
+        $gameSystem._coopDoorChoices = $gameSystem._coopDoorChoices || {};
+        $gameSystem._coopDoorChoices[n] = what;
+    }
+
+    // lo que dice cada uno al final (por su personaje)
+    const DOOR_LINES = {
+        1: ["I've survived worse than this. I'm not stopping now.", "...I'm done fighting. Tell them I tried."],
+        3: ["I didn't come back to this cursed town to die at its door.", 'The visions were right... This is where my story ends.'],
+        4: ['Forgive me. I want to live.', "I've seen enough suffering. I won't add to it."],
+        5: ["Sorry, mates. I'm getting out of here, ay?", "Nah... I'm not killing any of you. I'm done."],
+        6: ['The tower calls for the strongest. Come, then.', 'So be it. My path ends here, by my own hand.'],
+        13: ["Fine. Let's get this over with.", '...Go on. Get out of this hell for the both of us.'],
+        14: ["Someone has to make it out and tell the story. It'll be me.", "I'd rather end it myself than become one of them."],
+        15: ["I'm sorry... I have to try.", "I can't hurt anyone. Not anymore."]
+    };
+    const DOOR_LINES_ANY = ['Only one leaves. It will be me.', "I won't fight you. Let it end here."];
+
+    // todos han elegido: dicen lo suyo; quien acaba con su vida muere; los que luchan, a muerte
+    // (P1, si acaba con su vida y hay otros que luchan, muere al final: el que quede es el protagonista)
+    function doorResolve(it) {
+        const ch = $gameSystem._coopDoorChoices || {};
+        const players = Object.keys(ch).map(Number).sort((x, y) => x - y);
+        const fighters = players.filter(n => ch[n] === 'fight' && playerActor(n) && playerActor(n).isAlive());
+        const enders = players.filter(n => ch[n] === 'end');
+        const list = [];
+        players.forEach(n => {
+            const a = playerActor(n);
+            if (!a) return;
+            const lines = DOOR_LINES[a.actorId()] || DOOR_LINES_ANY;
+            list.push(
+                { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+                { code: 401, indent: 0, parameters: [a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"'] }
+            );
+        });
+        // los que acaban con su vida (P1 al final si alguien lucha)
+        enders.filter(n => n !== 1 || fighters.length === 0).forEach(n => {
+            list.push(
+                { code: 224, indent: 0, parameters: [[255, 0, 0, 170], 40, true] },
+                { code: 355, indent: 0, parameters: ['CoopPvp.doorEnd(' + n + ')'] },
+                { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+                { code: 401, indent: 0, parameters: [(playerActor(n) ? playerActor(n).name() : 'P' + n) + ' ends their own life.'] }
+            );
+        });
+        if (fighters.length === 0) {
+            list.push({ code: 353, indent: 0, parameters: [] });
+        } else if (fighters.length >= 2) {
+            list.push(
+                { code: 355, indent: 0, parameters: ['CoopPvp.prepareDoorFight(this, [' + fighters.join(',') + '])'] },
+                { code: 301, indent: 0, parameters: [0, 0, false, false] }
+            );
+        }
+        // P1 eligio acabar con su vida y otros lucharon: ahora (el que queda en pie es el protagonista)
+        if (fighters.length > 0 && enders.indexOf(1) >= 0) {
+            list.push(
+                { code: 224, indent: 0, parameters: [[255, 0, 0, 170], 40, true] },
+                { code: 355, indent: 0, parameters: ['CoopPvp.doorEndProtagonist()'] }
+            );
+        }
+        list.push({ code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+
+    function doorEnd(n) {
+        const a = playerActor(n);
+        if (!a || a.isDead()) return;
+        Game_BattlerBase.prototype.setHp.call(a, 0);
+        a.addState(a.deathStateId());
+        $gamePlayer.refresh();
+    }
+
+    // la pelea de la puerta solo entre los que quieren luchar (a muerte)
+    function prepareDoorFight(it, fighters) {
+        const battleCmd = it._list[it._index + 1];
+        const alive = fighters.filter(n => playerActor(n) && playerActor(n).isAlive() && !inAnyBattle(n));
+        if (alive.length < 2) {
+            if (battleCmd && battleCmd.code === 301) battleCmd.code = 108;
+            return;
+        }
+        const actors = alive.map(n => playerActor(n).actorId());
+        const troopId = pvpTroopFor(actors);
+        const info = { lethal: true, story: true, sides: alive.map((n, i) => ({ players: [n], actors: [actors[i]] })), backstabbed: [], before: {} };
+        actors.forEach(id => { info.before[id] = limbSnapshot($gameActors.actor(id)); });
+        pvpPending[troopId] = info;
+        if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
+        coop.banner('Only one may leave', alive.map(n => playerActor(n).name()).join(' vs '), '#ff6655', 220);
+    }
+
+    // P1 acaba con su vida despues de la pelea: el que sigue vivo de los que lucharon es el protagonista
+    function doorEndProtagonist() {
+        const hero = $gameActors.actor($gameParty._actors[0]);
+        const ch = $gameSystem._coopDoorChoices || {};
+        if (!hero || hero.isDead()) return;
+        const heir = Object.keys(ch).map(Number).filter(n => n !== 1 && ch[n] === 'fight').map(n => playerActor(n)).find(a => a && a.isAlive());
+        Game_BattlerBase.prototype.setHp.call(hero, 0);
+        hero.addState(hero.deathStateId());
+        coop.banner(hero.name() + ' ends their own life', heir ? heir.name() + ' walks on alone' : '', '#ff6655', 220);
+        if (!heir || !takeOverProtagonist(hero, heir)) SceneManager.goto(Scene_Gameover);
     }
     // (el juego pone TEMPLE_SQ_CRAZED_SCENE = 1 para empezar la escena de los companeros)
     const _Game_Interpreter_command122_tower = Game_Interpreter.prototype.command122;
@@ -2330,7 +2453,8 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
+        doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,
