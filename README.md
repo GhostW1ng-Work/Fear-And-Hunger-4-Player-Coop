@@ -104,7 +104,7 @@ Numpad keys work with NumLock on or off. In the online game each PC has only one
 Only **the death of P1 ends the game**. When another character dies:
 
 - **Their body stays where they died** (in Fear & Hunger 1 it is the game's own corpse). It stays there even if you leave the map and come back.
-- **That player waits.** The host can give them a free character in the Co-op menu (`< Pn >`), or they wait for a new companion.
+- **That player waits.** The host can give them a free character in the Co-op menu (`< Pn >`), or they wait for a new companion. Online, while they wait, their screen **shows the battle going on** (P1's first), with its music.
 - **Bringing them back:** any player with a **filled soul stone** (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK - *bring them back?* The stone is used up, the character comes back with 30% of HP and mind, and the one who did it loses 30% of their mind. Both numbers can be changed in the settings.
 - In Fear & Hunger 1, without a filled stone the game's own options for the body stay (for example catching the soul with an empty stone).
 

@@ -97,7 +97,7 @@ A guest can choose one of their **own saves** in **Bring character**. Its main c
 *Battles* row in the network menu:
 
 - **Together** (default) - everybody fights, like on one PC.
-- **Separate** (experimental) - a battle is only for the player an enemy touched (or who touched it): their character and the companions they control fight; everybody else stays on the map and keeps walking. Only the fighters see the battle and hear its music.
+- **Separate** (experimental) - a battle is only for the player an enemy touched (or who touched it): their character and the companions they control fight; everybody else stays on the map and keeps walking. Only the fighters see the battle and hear its music - and a player who has no character now (dead, waiting), who watches it (P1's first). A battle that a story scene starting by itself begins (e.g. a boss) keeps the map waiting until it ends, as in the normal game.
 
 With **Separate**:
 - **Joining a battle:** stand next to a fighting player (any of the 8 tiles around them) and press OK - or touch **that same** enemy. You enter at the start of the next turn.

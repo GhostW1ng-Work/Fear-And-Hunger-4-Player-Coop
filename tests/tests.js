@@ -1125,6 +1125,34 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         for (k = 0; k < 3; k++) frame();
     }
 
+    // ---- (con el plugin de red) un combate de una escena que empieza sola ("Autorun"): el evento no se
+    // aparta (con el mapa libre volveria a empezar desde el principio: Per'kele en la torre) ----
+    if (window.CoopNet && CoopNet.isAutorunRoot) {
+        var arCond = { actorId: 1, actorValid: false, itemId: 1, itemValid: false, selfSwitchCh: 'A', selfSwitchValid: false,
+            switch1Id: 1, switch1Valid: false, switch2Id: 1, switch2Valid: false, variableId: 1, variableValid: false, variableValue: 0 };
+        var arPage = function(trigger) { return { conditions: arCond, image: { characterName: '', characterIndex: 0, direction: 2, pattern: 0, tileId: 0 },
+            list: [{ code: 301, indent: 0, parameters: [0, 1, false, false] }, { code: 0, indent: 0, parameters: [] }], moveType: 0, moveSpeed: 3, moveFrequency: 3,
+            moveRoute: { list: [{ code: 0 }], repeat: true, skippable: false, wait: false }, walkAnime: true, stepAnime: false, directionFix: false, through: false, priorityType: 1, trigger: trigger }; };
+        var realMap2 = $dataMap;
+        $dataMap = Object.assign({}, realMap2, { events: realMap2.events.slice() });
+        var idAr = $dataMap.events.length, idTalk = idAr + 1;
+        $dataMap.events[idAr] = { id: idAr, name: 'autorun_test', note: '', x: 0, y: 1, pages: [arPage(3)] };
+        $dataMap.events[idTalk] = { id: idTalk, name: 'talk_test', note: '', x: 1, y: 1, pages: [arPage(0)] };
+        $gameMap._events[idAr] = new Game_Event($gameMap.mapId(), idAr);
+        $gameMap._events[idTalk] = new Game_Event($gameMap.mapId(), idTalk);
+        $gameMap._events[idAr]._erased = true; // (que no empiece de verdad)
+        var itAr = new Game_Interpreter(), itTalk = new Game_Interpreter();
+        $gameMap._events[idAr]._erased = false;
+        $gameMap._events[idAr].refresh(); $gameMap._events[idTalk].refresh();
+        itAr.setup($dataMap.events[idAr].pages[0].list, idAr);
+        itTalk.setup($dataMap.events[idTalk].pages[0].list, idTalk);
+        check('T46 a battle from a scene that starts by itself (Autorun) keeps its event (the map waits), one from talking to someone does not',
+            CoopNet.isAutorunRoot(itAr) === true && CoopNet.isAutorunRoot(itTalk) === false,
+            'autorun ' + CoopNet.isAutorunRoot(itAr) + ' talk ' + CoopNet.isAutorunRoot(itTalk));
+        delete $gameMap._events[idAr]; delete $gameMap._events[idTalk];
+        $dataMap = realMap2;
+    }
+
     // ---- (con el plugin de red) dos combates aparte a la vez: cada uno ve sus interruptores y variables ----
     if (window.CoopNet && CoopNet.withBattle && CoopNet.battles) {
         var fakeBattle = function(n) { return { scene: new Scene_Base(), stack: [], involved: [n], inputs: {}, message: new Game_Message(), screen: new Game_Screen(),

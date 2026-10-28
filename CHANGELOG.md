@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Online, fixed: a battle started by a story scene that starts by itself (Autorun) - e.g. Per'kele on the Moon tower in ending B - began the scene again from the start after the battle, so the fight repeated forever (Rher never came). Such a scene now keeps the map waiting until its battle ends, as in the normal game.
+- Online: a player with no character (dead, waiting) watches the battle going on (P1's first), with its music; before they saw only the map.
 - Termina, cheats for testing ending B (Co-op menu, with *Cheats* on): *Contestants left: N* (the tower door opens only at 1, alone in the party), *Kill all contestants not in the party* (the way the game records a contestant's death; players' characters and the party are kept), *Teleport to the tower door*.
 
 ## v1.8.8

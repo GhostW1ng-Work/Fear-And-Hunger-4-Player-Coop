@@ -1075,12 +1075,38 @@
             return;
         }
         const sub = Net.active && subs[Net.player];
+        const watch = sub ? null : watchedBattle();
+        updateWatchAudio(watch);
+        if (watch) {
+            Graphics.render(watch.scene);
+            return;
+        }
         if (!sub || !(this._scene instanceof Scene_Map) || !this._sceneStarted) {
             _SceneManager_renderScene.call(this);
             return;
         }
         Graphics.render(sub.scene);
     };
+
+    // (solo el sonido de este PC: al empezar a mirar suena el combate; al dejarlo, el mapa)
+    let watching = null;
+    function updateWatchAudio(watch) {
+        if (watch === watching) return;
+        const prev = watching;
+        watching = watch;
+        if (watch) {
+            const mapBgm = AudioManager.saveBgm();
+            const mapBgs = AudioManager.saveBgs();
+            watch._watchMapAudio = [mapBgm, mapBgs];
+            AudioManager.stopBgs();
+            AudioManager.playBgm(watch._bgm || $gameSystem.battleBgm());
+            banner('Watching P' + watch.involved[0] + "'s battle", 'You have no character now', '#9fb6ff', 150);
+        } else if (prev && battles.indexOf(prev) >= 0 && prev._watchMapAudio) {
+            // (sigue el combate pero ya no se mira: vuelve la musica del mapa)
+            AudioManager.playBgm(prev._watchMapAudio[0]);
+            AudioManager.playBgs(prev._watchMapAudio[1]);
+        }
+    }
 
     // ---- combates aparte ------------------------------------------------------------------
     // Con "Battles: Separate", un combate que empieza un jugador (un enemigo le toca, o habla
@@ -1196,6 +1222,12 @@
         return !!battleOf(n);
     }
 
+    // quien no tiene personaje (muerto, esperando) mira un combate en marcha: el de P1 si lo hay
+    function watchedBattle() {
+        if (!Net.active || Net.player === 1 || battleOf(Net.player) || coop.player(Net.player)) return null;
+        return battles.find(b => b.started && b.involved.indexOf(1) >= 0) || battles.find(b => b.started) || null;
+    }
+
     // de quien son las teclas en el combate (si es de alguien que no lucha o que se fue, del primero
     // que sigue luchando: el que empezo el combate puede haberse desconectado)
     function battleInputOwner() {
@@ -1240,12 +1272,21 @@
         coop.setMenuOwner(0);
         $gameTimer.update = function() {}; // el mapa ya lo avanza
         // el sonido del combate solo en los PC de los que luchan (es solo sonido)
-        const muted = b.involved.indexOf(Net.player) < 0;
+        const muted = b.involved.indexOf(Net.player) < 0 && watchedBattle() !== b;
+        if (!muted) {
+            const play = saved.audio.playBgm = AudioManager.playBgm;
+            AudioManager.playBgm = function(bgm) {
+                if (bgm && bgm.name) b._bgm = bgm;
+                return play.apply(this, arguments);
+            };
+        }
         if (muted) {
             AUDIO_CALLS.forEach(name => {
                 saved.audio[name] = AudioManager[name];
                 AudioManager[name] = function() {};
             });
+            // (la musica que pone el combate: para quien empiece a mirarlo)
+            AudioManager.playBgm = function(bgm) { if (bgm && bgm.name) b._bgm = bgm; };
         }
         inSub = true;
         inBattleCtx = true;
@@ -1278,6 +1319,7 @@
             coop.setMenuOwner(saved.owner);
             $gameTimer.update = saved.timer;
             if (muted) AUDIO_CALLS.forEach(name => { AudioManager[name] = saved.audio[name]; });
+            else AudioManager.playBgm = saved.audio.playBgm;
             b.troop = $gameTroop;
             b.bm = bmState();
             $gameTroop = saved.troop;
@@ -1706,7 +1748,9 @@
         }
         // el evento del mapa que lo empezo se aparta: el mapa queda libre (otro jugador puede
         // empezar su combate con otro enemigo, hablar, abrir cofres...)
-        for (let it = $gameMap._interpreter; it; it = it._childInterpreter) {
+        // (no una escena de la historia que empieza sola: con el mapa libre volveria a empezar
+        // desde el principio; esa espera al combate como siempre)
+        for (let it = $gameMap._interpreter; it && !isAutorunRoot($gameMap._interpreter); it = it._childInterpreter) {
             if (it !== this) continue;
             b.root = $gameMap._interpreter;
             $gameMap._interpreter = new Game_Interpreter();
@@ -1734,6 +1778,15 @@
         }
         return result;
     };
+
+    // un evento de "Autorun" (o un evento comun de inicio automatico): empieza solo en cuanto el
+    // mapa queda libre
+    function isAutorunRoot(it) {
+        if (!it || !it.isRunning()) return false;
+        const ev = it._eventId > 0 && it._mapId === $gameMap.mapId() ? $gameMap.event(it._eventId) : null;
+        if (ev) return !!ev.page() && ev.page().trigger === 3;
+        return ($dataCommonEvents || []).some(ce => ce && ce.trigger === 1 && ce.list === it._list);
+    }
 
     // el evento que empezo el combate espera a que termine (y luego sigue: "si gana", etc.)
     const _Game_Interpreter_updateWaitMode = Game_Interpreter.prototype.updateWaitMode;
@@ -3370,6 +3423,7 @@
     Net.battle = () => battles[0] || null;
     Net.battles = () => battles;
     Net.withBattle = withBattle; // (para pruebas: mirar un combate como si fuera la escena actual)
+    Net.isAutorunRoot = isAutorunRoot; // (para pruebas)
     Net.close = stopNetworking;
     window.CoopNet = Net;
 })();
