@@ -7,6 +7,8 @@
 - Fix: after bringing someone back, their body (the picture drawn by the mod, e.g. in Fear & Hunger 1) and its name are removed at once.
 - **Cheats** setting (Options > Co-op > Co-op settings, the host's in the network game): F6 / F7 save / load anywhere and the cheats of the Co-op menu (soul stone). On by default.
 - New cheats for testing (Co-op settings, need *Cheats* On, the host's in the network game): **immortal party** (never below 1 HP, nothing kills it outright), **keep limbs** (no arm / leg / head cut), **one-hit kills** (any damage the party deals kills the enemy or enemy part).
+- More cheats: **open locks** (Co-op settings: a door / chest / cell that asks for a key or a lockpick opens as if you had it), and in the Co-op menu **restore HP, mind and hunger** and **get torches and fire** (Torch x3 + Tinderbox / Matches / Lighter).
+- Fix: Fear & Hunger 1 puts its own corpse of a dead companion on the map (event "DeadDarkpriest"... with the "...BODY" switch); after bringing them back with a soul stone that corpse stayed (and came back). Now its switch is turned off too; while dead, the game's corpse is the body (OK with a filled soul stone brings them back; without it the game's own options stay, e.g. catching the soul with an empty one) and the mod does not draw a second one.
 - Network menu: a **Cheats** row - the host turns cheats on / off, also during the game (for everybody).
 
 ## v1.8.3

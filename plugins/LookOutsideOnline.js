@@ -2092,12 +2092,16 @@
         addSettings(rows, rule) {
             rows.forEach(row => {
                 if (SETTINGS_ROWS.some(r => r.key === row.key)) return;
-                SETTINGS_ROWS.splice(SETTINGS_ROWS.length - 1, 0, row);
+                // (row.after: justo detras de esa fila, p.ej. con los otros trucos)
+                const after = row.after ? SETTINGS_ROWS.findIndex(r => r.key === row.after) : -1;
+                SETTINGS_ROWS.splice(after >= 0 ? after + 1 : SETTINGS_ROWS.length - 1, 0, row);
                 if (coopSettings[row.key] === undefined) coopSettings[row.key] = row.values[row.default || 0];
                 if (rule && RULE_KEYS.indexOf(row.key) < 0) RULE_KEYS.push(row.key);
             });
         },
         setting(key) { return coopSettings[key]; },
+        // un truco encendido (y los trucos permitidos)
+        cheat(key) { return coopSettings.cheats !== false && !!coopSettings[key]; },
         // cambia un ajuste del co-op y lo guarda (p.ej. desde el menu de red)
         setSetting(key, value) {
             coopSettings[key] = value;

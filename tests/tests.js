@@ -862,6 +862,9 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var body = CoopRevive.corpses().filter(function(c) { return c.actorId === mine; })[0];
         check('T33c the body stays on the map, P3 waits', !!body && !whoP(), JSON.stringify(body));
         if (!body) return;
+        // el cadaver del propio juego (Fear & Hunger 1: evento "DeadDarkpriest" con "DarkpriestBODY")
+        var bodySw = CoopRevive.bodySwitchesOf(mine);
+        bodySw.forEach(function(id) { $gameSwitches.setValue(id, true); });
         var stone = CoopRevive.soulStone();
         $gameParty.gainItem(stone, 1);
         body.x = $gamePlayer.x;
@@ -881,6 +884,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             $gameParty._actors.indexOf(mine) >= 0 && dead.isAlive() && dead.hp === Math.max(1, Math.round(dead.mhp * 0.3)) && !$gameParty.hasItem(stone),
             dead.hp + '/' + dead.mhp + ' stones=' + $gameParty.numItems(stone));
         check('T33f the game no longer sees them dead (switches off)', fx.switches.every(function(id) { return !$gameSwitches.value(id); }));
+        check('T33f2 the body of the game is gone too (its BODY switch off)', bodySw.every(function(id) { return !$gameSwitches.value(id); }), 'body switches ' + JSON.stringify(bodySw));
         check('T33g the one who did it lost mind', leader.mp === leader.mmp - Math.round(leader.mmp * 0.3), leader.mp + '/' + leader.mmp);
         check('T33h P3 plays their character again', !!whoP() && whoP()._coopActorId === mine, (whoP() && whoP()._coopActorId));
         check('T33i the body is gone', CoopRevive.corpses().length === 0);
@@ -891,7 +895,9 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var err = '';
         try {
             var w = new Window_CoopAssign(0, 0, 816, 500);
-            w.select(w.maxItems() - 1);
+            for (var rr = $gameParty.members().length; rr < w.maxItems(); rr++) {
+                if (/soul|lesser/i.test(w.actionAt(rr).name())) w.select(rr);
+            }
             w.processOk();
         } catch (e) { err = e.message; }
         check('T34 Co-op menu cheat gives a soul stone', $gameParty.numItems(stone) === before + 1, before + ' -> ' + $gameParty.numItems(stone) + ' ' + err);
@@ -922,6 +928,36 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var dmg = act.makeDamageValue(foe, false);
         check('T35d cheat one-hit kills: the damage is at least the enemy HP', dmg >= foe.hp || foe.hp === 0, dmg + ' vs ' + foe.hp);
         CoopLocal.setSetting('cheatOneShot', false);
+        // abrir cerraduras: "si tiene la llave" es si
+        var keyItem = $dataItems.filter(function(i) { return i && /\bkeys?\b/i.test(i.name); })[0];
+        if (keyItem) {
+            $gameParty.loseItem(keyItem, 99);
+            var it36 = new Game_Interpreter();
+            it36.setup([{ code: 111, indent: 0, parameters: [8, keyItem.id] }, { code: 121, indent: 1, parameters: [1999, 1999, 0] },
+                { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 0);
+            $gameSwitches.setValue(1999, false);
+            CoopLocal.setSetting('cheatUnlock', true);
+            for (k = 0; k < 5 && it36.isRunning(); k++) it36.update();
+            check('T36 cheat open locks: "has the key?" says yes', $gameSwitches.value(1999), keyItem.name);
+            CoopLocal.setSetting('cheatUnlock', false);
+            $gameSwitches.setValue(1999, false);
+        }
+        // reponer vida, mente y hambre; antorchas
+        var wNow = new Window_CoopAssign(0, 0, 816, 500);
+        var rows = [];
+        for (var r = $gameParty.members().length; r < wNow.maxItems(); r++) rows.push(wNow.actionAt(r).name());
+        hero.setHp(1);
+        hero.setMp(0);
+        var restoreRow = rows.findIndex(function(t) { return /restore/i.test(t); });
+        wNow.select($gameParty.members().length + restoreRow);
+        wNow.processOk();
+        check('T36b cheat restore: full HP and mind', restoreRow >= 0 && hero.hp === hero.mhp && hero.mp === hero.mmp,
+            hero.hp + '/' + hero.mhp + ' ' + hero.mp + '/' + hero.mmp + ' dead=' + hero.isDead() + ' inParty=' + ($gameParty.members().indexOf(hero) >= 0));
+        var torch = $dataItems.filter(function(i) { return i && i.name === 'Torch'; })[0];
+        var torches = torch ? $gameParty.numItems(torch) : -1;
+        wNow.select($gameParty.members().length + rows.findIndex(function(t) { return /torches/i.test(t); }));
+        wNow.processOk();
+        check('T36c cheat fire: torches given', !!torch && $gameParty.numItems(torch) === torches + 3, torches + ' -> ' + (torch && $gameParty.numItems(torch)));
     }
 })();
 
