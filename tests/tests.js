@@ -1359,11 +1359,51 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         if (leadHead) {
             lead.clearResult();
             leadHead.addState(leadHead.deathStateId());
+            var killerPl = CoopLocal.player(defN);
+            var swLead = CoopPvp.selectSwitchOf(lead.actorId()), swDef = CoopPvp.selectSwitchOf(defA.actorId());
+            var swBefore2 = [$gameSwitches.value(swLead), $gameSwitches.value(swDef)];
+            var posP1 = [$gamePlayer.x, $gamePlayer.y], posK = [killerPl.x, killerPl.y];
+            var partyBefore = $gameParty._actors.slice();
+            $gameSwitches.setValue(swLead, true); $gameSwitches.setValue(swDef, false);
             BattleManager.endBattle(1);
-            check('T44k to the death, the protagonist (P1) is killed: game over', lead.isDead() && BattleManager._coopPvpGameOver === true,
-                'lead dead ' + lead.isDead() + ' flag ' + BattleManager._coopPvpGameOver);
+            check('T44k to the death, P2 kills the protagonist (P1): no game over, the killer is the protagonist now (first in the party, its SELECT switch, played as P1)',
+                lead.isDead() && !BattleManager._coopPvpGameOver && $gameParty._actors[0] === defA.actorId() &&
+                $gameSwitches.value(swDef) && !$gameSwitches.value(swLead) && $gameParty.leader() === defA,
+                'lead dead ' + lead.isDead() + ' over ' + BattleManager._coopPvpGameOver + ' party ' + $gameParty._actors + ' sw ' + [$gameSwitches.value(swLead), $gameSwitches.value(swDef)]);
+            check('T44l the dead old protagonist is now the dead companion of the killer player number; the new one stands where the killer was',
+                killerPl._coopActorId === lead.actorId() && $gamePlayer.x === posK[0] && $gamePlayer.y === posK[1] && killerPl.x === posP1[0] && killerPl.y === posP1[1],
+                'P' + defN + ' actor ' + killerPl._coopActorId + ' P1 at ' + [$gamePlayer.x, $gamePlayer.y] + ' was ' + posK);
+            BattleManager._phase = '';
+            $gameParty._inBattle = false;
+            var startSw = $dataSystem.switches.indexOf('START');
+            var startWas = startSw > 0 && $gameSwitches.value(startSw);
+            if (startSw > 0) $gameSwitches.setValue(startSw, true); // (el suceso comun "deathCheck" va con START)
+            var hadGalv = typeof Galv !== 'undefined';
+            if (!hadGalv) window.Galv = { SPAWN: { overlap: '', event: function() {} } };
+            for (k = 0; k < 30; k++) frame();
+            var body = ($gameSystem._coopCorpses || []).filter(function(c) { return c.actorId === lead.actorId(); })[0];
+            check('T44m then the game treats the old protagonist as a dead companion: out of the party, their body stays, their player waits',
+                $gameParty._actors.indexOf(lead.actorId()) < 0 && !!body && !CoopLocal.player(defN),
+                'party ' + $gameParty._actors + ' body ' + JSON.stringify(body) + ' P' + defN + ' ' + (CoopLocal.player(defN) ? 'plays' : 'waits'));
+            if (startSw > 0) $gameSwitches.setValue(startSw, startWas);
+            if (!hadGalv) delete window.Galv;
+            // (todo como estaba para las pruebas siguientes: vuelve con una piedra de alma, ya de companero)
             BattleManager._coopPvpGameOver = false;
+            if (body && window.CoopRevive && CoopRevive.revive) CoopRevive.revive(lead.actorId(), 1);
+            for (k = 0; k < 10; k++) frame();
+            check('T44n brought back with a soul stone: back as a companion (P' + defN + '), not the protagonist',
+                $gameParty._actors[0] === defA.actorId() && !!CoopLocal.player(defN) && CoopLocal.player(defN)._coopActorId === lead.actorId(),
+                'party ' + $gameParty._actors + ' P' + defN + ' ' + (CoopLocal.player(defN) ? CoopLocal.player(defN)._coopActorId : 'waits'));
             lead.removeState(lead.deathStateId());
+            lead.setHp(lead.mhp);
+            if ($gameParty._actors.indexOf(lead.actorId()) < 0) $gameParty.addActor(lead.actorId());
+            $gameParty._actors = partyBefore;
+            killerPl = CoopLocal.player(defN) || killerPl;
+            killerPl._coopActorId = defA.actorId();
+            $gameSwitches.setValue(swLead, swBefore2[0]); $gameSwitches.setValue(swDef, swBefore2[1]);
+            $gamePlayer.locate(posP1[0], posP1[1]); killerPl.locate(posK[0], posK[1]);
+            $gamePlayer.refresh();
+            $gameSystem._coopProtagonistChanges = 0;
         }
         endPvp();
         defA.clearStates();

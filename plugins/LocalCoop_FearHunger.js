@@ -1765,10 +1765,66 @@
                 [info.actorId, info.attActorId].forEach(id => limbRestore($gameActors.actor(id), info.before && info.before[id]));
             }
             const hero = $gameActors.actor($gameParty._actors[0]);
-            if (info.lethal && hero && hero.isDead() && (hero.actorId() === info.actorId || hero.actorId() === info.attActorId)) this._coopPvpGameOver = true;
+            if (info.lethal && hero && hero.isDead() && (hero.actorId() === info.actorId || hero.actorId() === info.attActorId)) {
+                const killerId = hero.actorId() === info.actorId ? info.attActorId : info.actorId;
+                if (!takeOverProtagonist(hero, $gameActors.actor(killerId))) this._coopPvpGameOver = true;
+            }
         }
         _BattleManager_endBattle_pvp.call(this, result);
     };
+
+    // ---- quien mata al protagonista ocupa su lugar ----------------------------------------
+    // El que mata a P1 en un combate a muerte pasa a ser el protagonista: su personaje va el primero
+    // del grupo, con el interruptor "SELECT" de protagonista (el que mira la historia), y lo lleva P1.
+    // El muerto queda como companero muerto del numero que tenia el que le mato: su cuerpo, esperar,
+    // volver con una piedra de alma (ya como companero). En el co-op local se cambian de sitio los
+    // jugadores (mandos / lado del teclado): lo dice la pantalla.
+    const PROTAGONIST_SELECT_EXTRA = { 6: 2401 }; // (O'saa: YELLOW_MAGE_SELECT)
+    function selectSwitchOf(actorId) {
+        const prof = gameProfile();
+        return (prof && prof.select[actorId]) || (isTermina() && PROTAGONIST_SELECT_EXTRA[actorId]) || 0;
+    }
+    function takeOverProtagonist(victim, killer) {
+        if (!victim || !killer || killer.isDead() || !isTermina()) return false;
+        const net = window.CoopNet;
+        if (net && net.active && !net.swapSeats) return false; // (en red: hasta que se puedan cambiar los PC)
+        const oldSw = selectSwitchOf(victim.actorId());
+        const newSw = selectSwitchOf(killer.actorId());
+        if (!oldSw || !newSw) return false;
+        const killerPlayer = coop.players().find(pl => pl._coopActorId === killer.actorId());
+        const m = killerPlayer ? killerPlayer.coopIndex() : 0;
+        if (!m) return false;
+        // la historia: quien es el protagonista
+        $gameSwitches.setValue(oldSw, false);
+        $gameSwitches.setValue(newSw, true);
+        // el grupo: el que mato va el primero, el muerto ocupa su puesto
+        const actors = $gameParty._actors;
+        const iv = actors.indexOf(victim.actorId());
+        const ik = actors.indexOf(killer.actorId());
+        if (iv < 0 || ik < 0) return false;
+        actors[iv] = killer.actorId();
+        actors[ik] = victim.actorId();
+        killerPlayer._coopActorId = victim.actorId();
+        const owners = $gameSystem._coopOwners;
+        if (owners) {
+            delete owners[killer.actorId()];
+            delete owners[victim.actorId()];
+        }
+        // en el mapa: el nuevo protagonista donde estaba el que mato (y el cuerpo, donde cayo P1)
+        const a = { x: $gamePlayer.x, y: $gamePlayer.y, d: $gamePlayer.direction() };
+        const b = { x: killerPlayer.x, y: killerPlayer.y, d: killerPlayer.direction() };
+        $gamePlayer.locate(b.x, b.y);
+        $gamePlayer.setDirection(b.d);
+        killerPlayer.locate(a.x, a.y);
+        killerPlayer.setDirection(a.d);
+        $gamePlayer.refresh();
+        if (killerPlayer.refresh) killerPlayer.refresh();
+        $gameMap.requestRefresh();
+        $gameSystem._coopProtagonistChanges = ($gameSystem._coopProtagonistChanges || 0) + 1;
+        if (net && net.active) net.swapSeats(1, m);
+        else coop.banner(killer.name() + ' is the protagonist now', 'P' + m + ', take P1\'s controls - ' + victim.name() + "'s player takes P" + m + "'s", '#ffcc55', 420);
+        return true;
+    }
     const _BattleManager_updateBattleEnd_pvp = BattleManager.updateBattleEnd;
     BattleManager.updateBattleEnd = function() {
         _BattleManager_updateBattleEnd_pvp.call(this);
@@ -1985,7 +2041,7 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,
