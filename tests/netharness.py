@@ -644,6 +644,12 @@ tick(bnet, [bh, bg2], 300)  # the guest retries every 3 s
 check('host reopened the game: the guest is P2 again', bg2.ev('CoopNet.player') == 2 and bh.ev('CoopNet.peers.length') == 1,
       [bg2.ev('CoopNet.player'), bh.ev('CoopNet.peers.length')])
 
+# the network game stopped: the guest's character went back to the party (P2 is not a local player of the host)
+check('stopped game: P2 is no longer a local player on the host', not bh.ev('!!$gamePlayer2'))
+bh.ev('CoopNet.startRequested = true')
+tick(bnet, [bh, bg2], 90)
+check('started again: P2 has the same hero', bh.ev('!!$gamePlayer2 && $gamePlayer2._coopActorId === 5'), bh.ev('$gamePlayer2 && $gamePlayer2._coopActorId'))
+
 # --- a player who leaves: in the battle another player (the host) commands their character, not the AI ---
 tk = "(function(){ var a = $gameActors.actor($gamePlayer2._coopActorId); return [CoopLocal.battleOwnerOf(a), a.isAutoBattle()].join(','); })()"
 bh.ev('CoopLocal.setAway(2, true, 1)')

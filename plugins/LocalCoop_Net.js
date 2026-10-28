@@ -1000,6 +1000,8 @@
         if (Net.active && !inSub) {
             updateBattle();
             updateSubs();
+        } else if (!Net.active) {
+            removeLeftovers();
         }
         _Scene_Map_update.call(this);
     };
@@ -1628,6 +1630,7 @@
         if (Net.active) return;
         Net.localConfig = ConfigManager.makeData();
         Net.active = true;
+        Net.leftovers = [];
         Math.random = seededRandom;
         Net.clockAcc = 0;
         Net.clockLast = 0;
@@ -1709,9 +1712,20 @@
         Net.hold = null;
         Net.joinQueue = [];
         Net.lost = {};
+        // los jugadores de los otros PC ya no estan aqui: sus personajes vuelven a ser seguidores
+        // (si no, seguian como P2-P4 del co-op local y el teclado se repartia entre ellos: las
+        // flechas eran de P2 y en el menu de P1 no se movia el cursor)
+        Net.leftovers = Net.players.filter(n => n !== 1);
+        removeLeftovers();
         Net.players = [1];
         Net.peers.forEach(pp => { pp.inSession = false; });
         banner('Network game stopped', reason || '', '#ffaa44', 300);
+    }
+
+    function removeLeftovers() {
+        if (!Net.leftovers || Net.leftovers.length === 0) return;
+        if (!(SceneManager._scene instanceof Scene_Map) || !SceneManager._sceneStarted || SceneManager._nextScene) return;
+        Net.leftovers = Net.leftovers.filter(n => coop.player(n) && !coop.removePlayer(n));
     }
 
     // ---- presentacion --------------------------------------------------------------------
