@@ -25,10 +25,14 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 | **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
 | **Fear & Hunger 1** | Same features; P2-P4 shoot with a bow (Short bow / Cursed short bow + arrows) like P1, and the character picker offers the four classes and the recruitable companions (Le'garde, Moonless, Nas'hrah). Event audit: [docs/AUDIT_FH1.md](docs/AUDIT_FH1.md). |
 | **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. Each player keeps their character when the game rearranges the party; in solo story parts players wait and come back by themselves; in cutscenes P2-P4 follow / hide with P1. See [docs/AUDIT_SUMMARY.md](docs/AUDIT_SUMMARY.md). |
+| **Own torch, own light** | A torch lit from a player's menu is theirs: it lights up around their character, they hold it in their hand (Fear & Hunger 1) and it burns down on its own timer. The light the game keeps around the protagonist (and Termina's circle of sight) is around every player, not only P1. |
+| **No duplicate NPCs** | The character a player picks in the mod is not also standing around as an NPC (waiting on the Termina train, in Cahara's cell, in Mahabre...). The mod uses the game's own "already in the party" pages; no game switch is touched and the NPC comes back if the player gives the character up. Setting *Played characters' NPCs: Hidden / Shown*. |
 | **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
 | **Quick save (testing)** | Optional plugin: `F6` save screen (choose the slot) / `F7` load screen; `Shift+F6` / `Shift+F7` instant save / load in slot 99. |
 
-**Death and soul stones (Fear & Hunger 1 and Termina).** Only the death of P1 ends the game. When another character dies (a player's or a companion), the body stays where they died and that player waits: the host can give them a free character in **Co-op** (*"Pn plays it"*), otherwise they watch. Any player with a filled soul stone (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK: *bring them back?* - the stone is used up, the character returns with 30% HP and mind, and whoever did it loses 30% of their mind (both in *Co-op settings*). **Co-op** also has a cheat that gives one soul stone. *When P2-P4 die: Game over* brings back the original rule (any player's death is game over).
+**Death and soul stones (Fear & Hunger 1 and Termina).** Only the death of P1 ends the game. When another character dies (a player's or a companion), the body stays where they died and that player waits: the host can give them a free character in **Co-op** (*"Pn plays it"*), otherwise they watch. Any player with a filled soul stone (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK: *bring them back?* - the stone is used up, the character returns with 30% HP and mind, and whoever did it loses 30% of their mind (both in *Co-op settings*). **Co-op** also has a cheat that gives one soul stone. *When P2-P4 die: Game over* brings back the original rule (any player's death is game over). The body stays on the map where they died, also after leaving the map and coming back (in Fear & Hunger 1 it is the game's own corpse: without a filled stone its options stay, e.g. catching the soul with an empty one).
+
+**Co-op menu** (in P1's game menu): who plays each extra character in battle (P1..P4 or AI), mark a player away, take a player's character, give a free character to a player who is waiting (*"< Pn >"*), and - with *Cheats* on - get a soul stone, restore HP / mind / hunger of the party, get torches and fire.
 
 ## Network game
 
@@ -42,6 +46,9 @@ Experimental. Every PC needs the game and the same version of the mod (the insta
 - **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter.
 - **Bring your own character**: a guest can pick one of their own saves; its main character joins the host's party (if it has fewer than 4 members).
 - Optional password. Keyboard and gamepad only (no mouse) in the network game.
+- While somebody fights a separate battle on the map, the others cannot leave it, sleep or save (doors, beds, save points, F6, *Save* in the menu) - otherwise the transfer took the fighters along too.
+- The network menu has **Cheats** and **Played chars' NPCs** rows: the host changes them also during the game, for everybody.
+- Every player's ping is shown at the top right (*Ping on screen* turns it off). F6 / F7 work on the host only in the network game.
 
 Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release ZIP).
 
@@ -74,6 +81,20 @@ The installer checks the game (title, RPG Maker version, Termina data version it
 
 In the game: **Options > Co-op > Co-op settings...** - local co-op on / off (off: arrows, Enter, numpad and gamepads are normal P1 keys), camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading, check for updates (a notice on the title screen when a newer version is out). They are saved with the game config (like the volume) and apply to every save.
 
+Rules of the co-op (in the network game the **host's** count for everybody):
+
+| Setting | Default | |
+|---|---|---|
+| *When P2-P4 die* | The party goes on | Only the death of P1 ends the game; *Game over* = the original rule. |
+| *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply). |
+| *Revived with* / *Mind cost of reviving* | 30% / 30% | HP and mind after a soul stone; mind the one who used it loses. (Fear & Hunger) |
+| *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. (Fear & Hunger) |
+| *Cheats* | On | F6 / F7 anywhere and the cheats of the Co-op menu; also needed by the cheats below. |
+| *Cheat: immortal party* | Off | Never below 1 HP, nothing kills the party outright. |
+| *Cheat: keep limbs* | Off | No arm / leg / head is cut off. |
+| *Cheat: one-hit kills* | Off | Any damage the party deals kills the enemy (or the enemy part). |
+| *Cheat: open locks* | Off | Doors, chests and cells that ask for a key or a lockpick open as if you had it. (Fear & Hunger) |
+
 ## Parameters (`LookOutsideOnline`)
 
 Defaults for the settings above, plus a few advanced ones. Set them in `www/js/plugins.js`, e.g. `"parameters": {"MaxPlayers": "3"}`.
@@ -93,7 +114,7 @@ Defaults for the settings above, plus a few advanced ones. Set them in `www/js/p
 
 ## Tests
 
-`tests/` runs the real RPG Maker MV engine of your installed game in V8 (graphics stubbed) with the plugins from this repository, and checks ~60 co-op scenarios: joining, gamepads, combat turns, dialogue choices, menus, save/load, auto camera...
+`tests/` runs the real RPG Maker MV engine of your installed game in V8 (graphics stubbed) with the plugins from this repository, and checks ~180 co-op scenarios (and `tests/netharness.py` ~90 network ones: 2-3 copies of the engine with fake sockets): joining, gamepads, combat turns, dialogue choices, menus, save/load, auto camera...
 
 ```
 pip install mini-racer

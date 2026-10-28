@@ -47,8 +47,12 @@ With *Separate*, a battle that a player starts (an enemy touches them, or they t
 - **Joining**: stand next to the fighting player's character (any of the 8 tiles around it) and press OK (Z / Space / Enter / A) - or touch an enemy / let one touch you. You enter at the start of the next turn.
 - While a battle is on, events the others start (talking, doors, items) wait until it ends: there is only one message window.
 - One battle at a time: a second enemy battle waits for the first (or the player joins it).
+- **Nobody leaves while somebody fights**: doors and other transfers, beds (sleeping), save points, F6 and *Save* in the menu are refused until the battle ends (a message says who is fighting). The transfer would take the fighters along too - and that was a way to run from any battle.
+- A separate battle lost without P1 ends for the map event like an escape (the protagonist's defeat scenes - guards, blood pit... - don't play for everybody); the fighters stay dead as bodies.
 - Battles without a player (cutscenes, common events) are for everybody, as before.
 
+
+The co-op rules (*Co-op settings*: death rule, revive, cheats, *Played characters' NPCs*) are the host's too. The network menu has rows for **Cheats** and **Played chars' NPCs**: the host changes them before or during the game, for everybody.
 
 Options that change the game (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC; volume, keys and camera stay each player's own. A guest's own settings come back when the network game ends (they are not overwritten on disk).
 
