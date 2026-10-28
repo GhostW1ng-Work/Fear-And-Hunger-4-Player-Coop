@@ -1131,8 +1131,26 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             JSON.stringify(seen.a) === '[true,7]' && JSON.stringify(seen.b) === '[false,5]' && seen.b2 === 9 && JSON.stringify(seen.a2) === '[true,7]',
             JSON.stringify(seen));
         check('T43b the map sees the latest values (they stay after the battles)', JSON.stringify(seen.map) === '[true,9]', JSON.stringify(seen.map));
-        list.splice(list.indexOf(bA), 1);
+        // lo que hace el evento del enemigo despues ("Recuperar todo" el grupo) no toca a quien lucha en otro combate
         list.splice(list.indexOf(bB), 1);
+        var fighterP = CoopLocal.player(2);
+        var fighterA = fighterP && fighterP.actor();
+        if (fighterA) {
+            bA.involved = [2];
+            var lead = $gameParty.leader();
+            fighterA.setHp(1);
+            lead.setHp(1);
+            var ai = new Game_Interpreter();
+            ai.setup([{ code: 314, indent: 0, parameters: [0, 0] }, { code: 0, indent: 0, parameters: [] }], 0);
+            ai._coopAfterBattle = true;
+            var aerr = '';
+            CoopNet.active = true;
+            try { ai.update(); } catch (e) { aerr = String(e); } finally { CoopNet.active = false; }
+            check('T43c after a battle, "recover all" while another battle runs: no error, the fighter of the other battle is not touched',
+                !aerr && lead.hp === lead.mhp && fighterA.hp === 1, aerr + ' lead ' + lead.hp + '/' + lead.mhp + ' fighter ' + fighterA.hp);
+            fighterA.setHp(fighterA.mhp);
+        }
+        list.splice(list.indexOf(bA), 1);
         $gameSwitches.setValue(tsw, false);
         $gameVariables.setValue(tvar, 0);
     }

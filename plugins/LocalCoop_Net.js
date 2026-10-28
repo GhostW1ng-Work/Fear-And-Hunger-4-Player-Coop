@@ -1600,8 +1600,11 @@
         }
         const party = $gameParty;
         const all = Game_Party.prototype.allMembers;
+        // (quien lucha se mira antes de cambiar la lista: battleOwnerOf mira el grupo, y con la lista
+        // ya cambiada se llamaba a si mismo sin fin)
+        const fighting = all.call(party).filter(a => battles.some(b => b.involved.indexOf(coop.battleOwnerOf(a)) >= 0)).map(a => a.actorId());
         party.allMembers = function() {
-            return all.call(this).filter(a => !battles.some(b => b.involved.indexOf(coop.battleOwnerOf(a)) >= 0));
+            return all.call(this).filter(a => fighting.indexOf(a.actorId()) < 0);
         };
         try {
             return _Game_Interpreter_update.call(this);
