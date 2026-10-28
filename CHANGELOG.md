@@ -1,9 +1,15 @@
 # Changelog
 
-## Unreleased
+## v1.8.8
 
-- **PvP in Termina** (setting *PvP (Termina)*: Off / On - not to the death / On - to the death; the host's in the network game, also a row in the network menu, can be changed while playing). OK facing another player -> *Attack X?* -> a battle of the two: each player sees the other player's character as the enemy, the way Termina shows that contestant in a fight (their picture and body parts, with the HP and stats of that character), and only their own character in the party; each one takes their own turns and chooses which body part of the other to hit (on one PC: the enemy of whoever is choosing). Cut arm / leg -> *Arm cut* / *Leg cut* on the character, the head is fatal; not to the death the loser is left with 1 HP. No consent needed. No experience or money. Works in local co-op and online (in a separate battle the attacked player joins the attacker's battle).
-- PvP: attack from any side, also diagonally (if you face someone to talk to, OK still talks); from behind the attacked player loses their first turn. The enemy has the HP of that contestant in the game and every hit takes the same share of the real character's HP, so a fight lasts several turns; setting *PvP damage* (x1 / x0.5 / x0.25 / x2). A leg cut off makes the head easy to hit (it normally dodges most attacks), an arm cut off halves that player's damage, both arms nearly stop it; limbs lost before the fight are missing from the start; a message tells everybody. A limb is lost the way Termina does it (the game's own battle event: battle picture without the limb, bleeding, weapon dropped with no arms); a crash when a character had already lost a limb is fixed; to the death, running away keeps the limbs lost (not to the death they come back, and so does a dropped weapon). Not to the death: limbs cut in the fight come back afterwards. *Run* ends the fight for both (HP and states kept). To the death: if the protagonist (P1) is killed, the game is over.
+- **PvP in Termina** (setting *PvP (Termina)*: Off / On - not to the death / On - to the death; the host's in the network game, also a row in the network menu, can be changed while playing). Works in local co-op and online.
+  - **Attack:** OK next to another player (any side, also diagonally; if you face someone to talk to or a chest, OK does that) -> *Attack X?* -> the other player is pulled into the battle, no consent needed. From behind, the attacked player loses their first turn.
+  - **The battle:** each player sees the other player's character as the enemy, the way Termina shows that contestant in a fight (their picture and body parts), and only their own character in the party; each one takes their own turns and chooses which body part to hit. On one PC the screen shows the enemy of whoever is choosing.
+  - **Balance:** the enemy has the HP of that contestant in the game and every hit takes the same share of the real character's HP, so a fight lasts several turns. Setting *PvP damage* (x1 / x0.5 / x0.25 / x2).
+  - **Body parts:** a limb is lost the way Termina does it (battle picture without it, bleeding, weapon dropped with no arms, the game's message). A leg cut off makes the head easy to hit (it normally dodges most attacks); an arm cut off halves that player's damage, both arms nearly stop it. Limbs lost before the fight are missing from the start. The head is fatal.
+  - **Not to the death:** whoever reaches 0 HP stays with 1 HP and the fight ends; limbs cut in the fight (and a dropped weapon) come back.
+  - **To the death:** the loser dies by the normal rules, cut limbs stay; if the protagonist (P1) is killed, the game is over.
+  - *Run* ends the fight for both (HP and states kept). No experience or money.
 
 ## v1.8.7
 
