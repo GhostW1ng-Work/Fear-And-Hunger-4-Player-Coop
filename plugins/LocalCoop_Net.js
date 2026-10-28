@@ -1984,11 +1984,17 @@
         if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
             const tick = new Worker(URL.createObjectURL(new Blob(['setInterval(function () { postMessage(0); }, 16);'], { type: 'application/javascript' })));
             tick.onmessage = () => {
-                if (!Net.active || performance.now() - lastAnimFrame < 100) return;
+                if (!Net.active || performance.now() - lastAnimFrame < 250) return;
+                // (sin pedir otra animacion: cada peticion era otro bucle de dibujo mas, que seguia al
+                // volver la ventana - con cada parada larga el juego se actualizaba varias veces por cuadro)
+                const request = SceneManager.requestUpdate;
+                SceneManager.requestUpdate = function() {};
                 try {
                     SceneManager.updateMain();
                 } catch (e) {
                     logError('update in the background', e);
+                } finally {
+                    SceneManager.requestUpdate = request;
                 }
             };
         }
