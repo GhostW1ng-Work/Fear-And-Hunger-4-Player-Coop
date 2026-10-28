@@ -895,6 +895,33 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             w.processOk();
         } catch (e) { err = e.message; }
         check('T34 Co-op menu cheat gives a soul stone', $gameParty.numItems(stone) === before + 1, before + ' -> ' + $gameParty.numItems(stone) + ' ' + err);
+
+        // trucos: inmortal, sin perder miembros, enemigos de un golpe
+        var hero = $gameParty.leader();
+        var limb = $dataStates.filter(function(st) { return st && /^(arm cut|leg cut)/i.test(st.name); })[0];
+        CoopLocal.setSetting('cheatGod', true);
+        CoopLocal.setSetting('cheatLimbs', true);
+        hero.setHp(0);
+        hero.addState(hero.deathStateId());
+        if (limb) hero.addState(limb.id);
+        check('T35 cheat immortal: HP stays at 1, no death', hero.hp === 1 && !hero.isDead(), hero.hp + ' dead=' + hero.isDead());
+        check('T35b cheat keep limbs: no limb cut', !limb || !hero.isStateAffected(limb.id), limb && limb.name);
+        CoopLocal.setSetting('cheats', false);
+        hero.setHp(0);
+        check('T35c with Cheats Off the cheats do nothing', hero.isDead(), hero.hp);
+        hero.removeState(hero.deathStateId());
+        hero.setHp(hero.mhp);
+        if (limb) hero.removeState(limb.id);
+        CoopLocal.setSetting('cheats', true);
+        CoopLocal.setSetting('cheatGod', false);
+        CoopLocal.setSetting('cheatLimbs', false);
+        CoopLocal.setSetting('cheatOneShot', true);
+        var foe = new Game_Enemy(1, 0, 0);
+        var act = new Game_Action(hero);
+        act.setAttack();
+        var dmg = act.makeDamageValue(foe, false);
+        check('T35d cheat one-hit kills: the damage is at least the enemy HP', dmg >= foe.hp || foe.hp === 0, dmg + ' vs ' + foe.hp);
+        CoopLocal.setSetting('cheatOneShot', false);
     }
 })();
 

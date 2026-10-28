@@ -2379,7 +2379,7 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'showPing', 'action', 'stop'];
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'cheats', 'showPing', 'action', 'stop'];
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -2477,6 +2477,13 @@
             return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
         }
         if (key === 'showPing') return '< ' + (this._cfg.showPing ? 'On' : 'Off') + ' >';
+        if (key === 'cheats') {
+            const on = coop.setting('cheats') !== false;
+            const list = [['cheatGod', 'immortal'], ['cheatLimbs', 'limbs'], ['cheatOneShot', 'one-hit']]
+                .filter(c => coop.setting(c[0])).map(c => c[1]);
+            return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (on ? 'On' : 'Off') + ' >' +
+                (on && list.length ? '  ' + list.join(', ') : (on ? '  (more in Co-op settings)' : ''));
+        }
         if (key === 'battles') {
             const label = this._cfg.battles === 'separate' ? 'Separate (experimental)' : 'Together';
             return Net.role === 'join' ? "(the host's)" : '< ' + label + ' >';
@@ -2497,6 +2504,8 @@
         if (key === 'host') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'showPing') return true;
+        // (jugando, este menu es el de P1 y va igual en todos los PC: el cambio llega a todos)
+        if (key === 'cheats') return Net.active || Net.role !== 'join';
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
@@ -2506,7 +2515,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', showPing: 'Ping on screen', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2562,6 +2571,7 @@
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(1);
         if (NET_ROWS[this.index()] === 'found') this.pickFound(1);
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
+        if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2572,6 +2582,7 @@
         if (NET_ROWS[this.index()] === 'bring') this.changeBring(-1);
         if (NET_ROWS[this.index()] === 'found') this.pickFound(-1);
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
+        if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2588,6 +2599,17 @@
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    Window_CoopNet.prototype.changeCheats = function() {
+        if (!this.isRowEnabled('cheats')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        coop.setSetting('cheats', coop.setting('cheats') === false);
+        SoundManager.playCursor();
+        if (Net.active && Net.role === 'host') banner('Cheats ' + (coop.setting('cheats') !== false ? 'on' : 'off'), 'For everybody', COLOR_NET, 120);
+        this.refresh();
+    };
+
     Window_CoopNet.prototype.changeShowPing = function() {
         this._cfg.showPing = !this._cfg.showPing;
         if (isMyMenu()) {
@@ -2630,6 +2652,8 @@
             this.changeBattles();
         } else if (key === 'showPing') {
             this.changeShowPing();
+        } else if (key === 'cheats') {
+            this.changeCheats();
         } else if (key === 'bring') {
             this.changeBring(1);
         } else if (key === 'found') {

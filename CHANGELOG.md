@@ -6,6 +6,8 @@
 - Fix: a separate battle lost without P1 no longer counts as "lost" for the map event that started it. Fear & Hunger 1 guards (and many other battles) have an *If lose* branch - capture, blood pit, cut legs - that is the protagonist's defeat and hit everybody; now the event sees the battle as ended (like an escape) and the fighters stay dead as bodies (before, a "can lose" battle stood them up with 1 HP and the enemy touched them again - an endless battle).
 - Fix: after bringing someone back, their body (the picture drawn by the mod, e.g. in Fear & Hunger 1) and its name are removed at once.
 - **Cheats** setting (Options > Co-op > Co-op settings, the host's in the network game): F6 / F7 save / load anywhere and the cheats of the Co-op menu (soul stone). On by default.
+- New cheats for testing (Co-op settings, need *Cheats* On, the host's in the network game): **immortal party** (never below 1 HP, nothing kills it outright), **keep limbs** (no arm / leg / head cut), **one-hit kills** (any damage the party deals kills the enemy or enemy part).
+- Network menu: a **Cheats** row - the host turns cheats on / off, also during the game (for everybody).
 
 ## v1.8.3
 

@@ -2098,6 +2098,12 @@
             });
         },
         setting(key) { return coopSettings[key]; },
+        // cambia un ajuste del co-op y lo guarda (p.ej. desde el menu de red)
+        setSetting(key, value) {
+            coopSettings[key] = value;
+            applyCoopSettings(key);
+            ConfigManager.save();
+        },
         // jugadores que esperan a su personaje (muerto, fuera del grupo...): { n: actorId }
         waiting() {
             const out = {};
@@ -3866,7 +3872,13 @@
         { key: 'keepCharacters', name: "Keep players' characters", values: [true, false], labels: ['On', 'Off (story decides)'],
             help: "On: if the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply)." },
         { key: 'cheats', name: 'Cheats', values: [true, false], labels: ['On', 'Off'],
-            help: 'On: F6 / F7 save and load anywhere (quick save plugin) and the cheats in the Co-op menu (e.g. a soul stone).' },
+            help: 'On: F6 / F7 save and load anywhere (quick save plugin), the cheats in the Co-op menu (e.g. a soul stone) and the three below.' },
+        { key: 'cheatGod', name: '  Cheat: immortal party', values: [false, true], labels: ['Off', 'On'],
+            help: 'Needs Cheats On. The party never goes below 1 HP and nothing kills it outright.' },
+        { key: 'cheatLimbs', name: '  Cheat: keep limbs', values: [false, true], labels: ['Off', 'On'],
+            help: 'Needs Cheats On. Arms, legs and head are never cut off.' },
+        { key: 'cheatOneShot', name: '  Cheat: one-hit kills', values: [false, true], labels: ['Off', 'On'],
+            help: 'Needs Cheats On. Any damage the party deals kills the enemy (or the enemy part) at once.' },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
             help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
@@ -3887,11 +3899,14 @@
         keepCharacters: true,
         deathRule: 'goOn',
         cheats: true,
+        cheatGod: false,
+        cheatLimbs: false,
+        cheatOneShot: false,
         updateCheck: true
     };
 
     // ajustes que cambian el juego: en la partida en red son los del anfitrion en todos los PC
-    const RULE_KEYS = ['keepCharacters', 'deathRule', 'cheats'];
+    const RULE_KEYS = ['keepCharacters', 'deathRule', 'cheats', 'cheatGod', 'cheatLimbs', 'cheatOneShot'];
 
     function applyCoopSettings(changedKey) {
         const st = coopSettings;
@@ -4200,6 +4215,46 @@
         }
 
         return _Game_Party_isAllDead.call(this);
+    };
+
+    // ---- TRUCOS (Opciones > Co-op > Co-op settings; en la partida en red, los del anfitrion) ----
+    function cheatOn(key) {
+        return coopSettings.cheats !== false && !!coopSettings[key];
+    }
+
+    // estados de miembros cortados (Fear & Hunger: "Arm cut", "Leg cut", "Headless"...)
+    const LIMB_STATE = /^(arm cut|leg cut|headless|arm_leg_cut)/i;
+
+    function isPartyActor(battler) {
+        return battler && battler.isActor && battler.isActor() && $gameParty && $gameParty._actors.indexOf(battler.actorId()) >= 0;
+    }
+
+    const _Game_Battler_addState = Game_Battler.prototype.addState;
+    Game_Battler.prototype.addState = function(stateId) {
+        if (isPartyActor(this)) {
+            const st = $dataStates[stateId];
+            if (cheatOn('cheatLimbs') && st && LIMB_STATE.test(st.name)) return;
+            if (cheatOn('cheatGod') && (stateId === this.deathStateId() || (st && /^headless/i.test(st.name)))) {
+                if (this._hp <= 0) this._hp = 1;
+                return;
+            }
+        }
+        _Game_Battler_addState.call(this, stateId);
+    };
+
+    const _Game_BattlerBase_setHp = Game_BattlerBase.prototype.setHp;
+    Game_BattlerBase.prototype.setHp = function(hp) {
+        if (hp < 1 && cheatOn('cheatGod') && isPartyActor(this)) hp = 1;
+        _Game_BattlerBase_setHp.call(this, hp);
+    };
+
+    const _Game_Action_makeDamageValue = Game_Action.prototype.makeDamageValue;
+    Game_Action.prototype.makeDamageValue = function(target, critical) {
+        const value = _Game_Action_makeDamageValue.call(this, target, critical);
+        if (cheatOn('cheatOneShot') && value > 0 && target && target.isEnemy() && this.subject() && this.subject().isActor() && this.isHpEffect()) {
+            return Math.max(value, target.hp);
+        }
+        return value;
     };
 
     // Un combate perdido sin que muera P1 (en red, un combate aparte de otros jugadores): no es el
