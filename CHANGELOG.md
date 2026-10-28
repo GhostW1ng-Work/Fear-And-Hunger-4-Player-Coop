@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.5
 
 - The character a player picks in the mod is no longer also standing around as an NPC (Fear & Hunger 1: e.g. Cahara in his cell, in Mahabre or in the prison; Termina: e.g. Marina, Daan, Abella, Karin, Olivia). The games hide a companion who is already in the party (or the protagonist) with an empty page of the event ("Cahara_InTheParty!", "INITIAL_MERCENARY", "OCCULTIST_SELECT"...); while a player plays the character (or their body lies on the map) those pages count as met - only those empty pages: the NPC is gone and nothing else changes (no game switch is touched, the story does not think they were hired; if the player gives the character up, the NPC is back).
 - The same for NPCs that wait for the character (the train in Termina: Levi, Marina, Daan, Abella, O'saa...; Le'garde and the "wait here" spots in Fear & Hunger 1): the game turns their "waiting" switch off when it hires them; for the events of a played character it counts as off - only if the event then shows nothing (if a scene would show instead, the game's page stays).

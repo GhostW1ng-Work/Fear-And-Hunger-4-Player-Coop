@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.8.4 [PRUEBAS] F6 = guardar (eligiendo ranura), F7 = cargar; Shift+F6 / Shift+F7 = guardado / carga rapida en una ranura aparte. Para probar el co-op sin buscar donde guardar.
+ * @plugindesc v1.8.5 [PRUEBAS] F6 = guardar (eligiendo ranura), F7 = cargar; Shift+F6 / Shift+F7 = guardado / carga rapida en una ranura aparte. Para probar el co-op sin buscar donde guardar.
  * @author TheTiranix
  *
  * @param Slot
