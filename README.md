@@ -43,7 +43,7 @@ Experimental. Every PC needs the game and the same version of the mod (the insta
 3. Guests press **I'm ready**; when all are, the game starts by itself (the host can also start right away: game menu > **Online** > **Start now**). Everybody plays from the host's world, each with the camera on their own character.
 
 - **Over the internet**: the easiest is a virtual LAN (Radmin VPN, ZeroTier, Hamachi) - type the host's VPN address. Or forward TCP port 47810 on the host's router. The input delay adapts to the ping by itself.
-- **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter.
+- **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter. Several separate battles can run at once (P1 with one enemy, P2 with another).
 - **Bring your own character**: a guest can pick one of their own saves; its main character joins the host's party (if it has fewer than 4 members).
 - Optional password. Keyboard and gamepad only (no mouse) in the network game.
 - While somebody fights a separate battle on the map, the others cannot leave it, sleep or save (doors, beds, save points, F6, *Save* in the menu) - otherwise the transfer took the fighters along too.

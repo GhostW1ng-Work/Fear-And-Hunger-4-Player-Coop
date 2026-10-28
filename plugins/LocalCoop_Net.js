@@ -445,8 +445,9 @@
 
     // combate aparte que este PC ya tiene cargado (sus imagenes): empieza cuando lo tienen todos
     function myBattleReady() {
-        if (!battle || battle.started) return Net.battleSeq;
-        return battle.scene.isReady() ? battle.seq : battle.seq - 1;
+        const pending = battles.filter(b => !b.started).sort((x, y) => x.seq - y.seq);
+        for (const b of pending) if (!b.scene.isReady()) return b.seq - 1;
+        return Net.battleSeq;
     }
 
     function sendInput(f, bits) {
@@ -494,7 +495,7 @@
             banner(save ? 'Only the host saves' : 'Only the host loads', 'F6 / F7 work on the host\'s PC', '#ffaa44', 120);
             return;
         }
-        if (battle) {
+        if (battles.length) {
             SoundManager.playBuzzer();
             banner(fightersText() + ' fighting', 'No saving until the battle ends', '#ffaa44', 120);
             return;
@@ -513,7 +514,7 @@
 
     function applyQuickSave(ev) {
         const map = SceneManager._scene;
-        if (!(map instanceof Scene_Map) || battle || $gameMap.isEventRunning() || subs[1]) return;
+        if (!(map instanceof Scene_Map) || battles.length || $gameMap.isEventRunning() || subs[1]) return;
         if (ev.save && ev.shift) {
             $gameSystem.onBeforeSave();
             const ok = DataManager.saveGame(QUICK_SLOT);
@@ -535,7 +536,8 @@
                 closeSub(ev.n);
                 // en un combate su personaje lo lleva hasta el final otro jugador de ese combate:
                 // el anfitrion, o en un combate aparte el siguiente que lucha en el (si no queda nadie, la IA)
-                const others = battle && battle.involved.indexOf(ev.n) >= 0 ? battle.involved.filter(m => m !== ev.n && !Net.left[m]) : [1];
+                const fb = battleOf(ev.n);
+                const others = fb ? fb.involved.filter(m => m !== ev.n && !Net.left[m]) : [1];
                 const takeover = others[0] || 0;
                 coop.setAway(ev.n, true, takeover);
                 Net.left[ev.n] = true;
@@ -596,7 +598,7 @@
     function isSafePoint() {
         return SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted && !SceneManager._nextScene &&
             !$gameMap.isEventRunning() && !$gameMessage.isBusy() && !$gamePlayer.isTransferring() && !Net.pendingExtras &&
-            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0 && !battle;
+            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0 && battles.length === 0 && pendingRoots.length === 0;
     }
 
     // Cuantos cuadros por delante manda este PC sus teclas. Tienen que llegar antes de que
@@ -1031,7 +1033,7 @@
     const _Scene_Map_update = Scene_Map.prototype.update;
     Scene_Map.prototype.update = function() {
         if (Net.active && !inSub) {
-            updateBattle();
+            updateBattles();
             updateSubs();
         } else if (!Net.active) {
             removeLeftovers();
@@ -1060,8 +1062,9 @@
     const _SceneManager_renderScene = SceneManager.renderScene;
     SceneManager.renderScene = function() {
         // quien lucha ve su combate (tambien mientras los demas cargan otro mapa: sin "Loading")
-        if (Net.active && battle && battle.started && inSeparateBattle(Net.player)) {
-            Graphics.render(battle.scene);
+        const mine = Net.active ? battleOf(Net.player) : null;
+        if (mine && mine.started) {
+            Graphics.render(mine.scene);
             return;
         }
         const sub = Net.active && subs[Net.player];
@@ -1086,8 +1089,30 @@
     //    (entra al empezar el siguiente turno);
     //  - un combate que empieza sin jugador (escena, evento comun) es para todos, como siempre.
 
-    let battle = null;      // { scene, stack, involved, inputs, started, seq, screen, message, temp, inBattle, interp, joins }
+    // Puede haber varios a la vez (cada uno con su enemigo): P2 lucha con uno y P1 con otro.
+    // Cada combate lleva su propio estado del juego para el combate: su tropa ($gameTroop) y el
+    // de BattleManager; se ponen mientras se actualiza ese combate. El evento del mapa que lo
+    // empezo se aparta (el mapa queda libre para los demas) y sigue cuando termina el combate.
+    let battles = [];       // [{ scene, stack, involved, inputs, started, seq, screen, message, temp, inBattle, interp, joins, troop, bm, root }]
+    let battle = null;      // el combate que se esta actualizando (o null)
     let inBattleCtx = false;
+    let pendingRoots = [];  // eventos del mapa que empezaron un combate ya terminado: siguen cuando el mapa esta libre
+
+    function battleOf(n) {
+        return battles.find(b => b.involved.indexOf(n) >= 0) || null;
+    }
+
+    // el estado de BattleManager (sus datos, no sus funciones)
+    function bmState() {
+        const o = {};
+        Object.keys(BattleManager).forEach(k => { if (typeof BattleManager[k] !== 'function') o[k] = BattleManager[k]; });
+        return o;
+    }
+
+    function setBmState(o) {
+        Object.keys(BattleManager).forEach(k => { if (typeof BattleManager[k] !== 'function' && !(k in o)) delete BattleManager[k]; });
+        Object.assign(BattleManager, o);
+    }
     const AUDIO_CALLS = ['playBgm', 'playBgs', 'playMe', 'playSe', 'playStaticSe', 'replayBgm', 'replayBgs', 'fadeOutBgm',
         'fadeOutBgs', 'fadeOutMe', 'fadeInBgm', 'fadeInBgs', 'stopBgm', 'stopBgs', 'stopMe', 'stopSe', 'stopAll'];
 
@@ -1116,7 +1141,7 @@
     }, 2000);
 
     function inSeparateBattle(n) {
-        return !!battle && battle.involved.indexOf(n) >= 0;
+        return !!battleOf(n);
     }
 
     // de quien son las teclas en el combate (si es de alguien que no lucha o que se fue, del primero
@@ -1143,13 +1168,16 @@
     };
 
     // ejecuta fn como si el combate fuera la escena actual (ver withSub)
-    function withBattle(fn) {
+    function withBattle(b, fn) {
         const sm = SceneManager;
-        const b = battle;
         const saved = {
             scene: sm._scene, stack: sm._stack, next: sm._nextScene, message: $gameMessage, screen: $gameScreen,
-            temp: $gameTemp, inBattle: $gameParty._inBattle, owner: coop.menuOwner(), timer: $gameTimer.update, input: {}, audio: {}
+            temp: $gameTemp, inBattle: $gameParty._inBattle, owner: coop.menuOwner(), timer: $gameTimer.update, input: {}, audio: {},
+            battle: battle, troop: $gameTroop, bm: bmState()
         };
+        battle = b;
+        $gameTroop = b.troop;
+        setBmState(b.bm);
         sm._scene = b.scene;
         sm._stack = b.stack;
         sm._nextScene = null;
@@ -1198,13 +1226,18 @@
             coop.setMenuOwner(saved.owner);
             $gameTimer.update = saved.timer;
             if (muted) AUDIO_CALLS.forEach(name => { AudioManager[name] = saved.audio[name]; });
+            b.troop = $gameTroop;
+            b.bm = bmState();
+            $gameTroop = saved.troop;
+            setBmState(saved.bm);
+            battle = saved.battle;
         }
         return next;
     }
 
     const _Game_CommonEvent_isActive = Game_CommonEvent.prototype.isActive;
     Game_CommonEvent.prototype.isActive = function() {
-        if (battle && Net.active) {
+        if (battles.length && Net.active) {
             const ev = this.event();
             if (ev && /^deathCheck$/i.test(ev.name)) return false;
         }
@@ -1251,7 +1284,9 @@
     }
 
     function fightersText() {
-        return battle ? 'P' + battle.involved.join(', P') + (battle.involved.length > 1 ? ' are' : ' is') : 'Someone is';
+        const all = [];
+        battles.forEach(b => b.involved.forEach(n => { if (all.indexOf(n) < 0) all.push(n); }));
+        return all.length ? 'P' + all.join(', P') + (all.length > 1 ? ' are' : ' is') : 'Someone is';
     }
 
     let refusedAt = -999;
@@ -1266,7 +1301,7 @@
     // y si un evento ya en marcha (o un objeto) quiere trasladar o guardar: tampoco
     const _Game_Interpreter_command201 = Game_Interpreter.prototype.command201;
     Game_Interpreter.prototype.command201 = function() {
-        if (Net.active && battle && !inBattleCtx && this._coopStarter && !inSeparateBattle(this._coopStarter) && !$gameParty.inBattle()) {
+        if (Net.active && battles.length && !inBattleCtx && this._coopStarter && !inSeparateBattle(this._coopStarter) && !$gameParty.inBattle()) {
             refuseLeaving();
             return true;
         }
@@ -1275,7 +1310,7 @@
 
     const _Game_Interpreter_command352 = Game_Interpreter.prototype.command352;
     Game_Interpreter.prototype.command352 = function() {
-        if (Net.active && battle && !inBattleCtx) {
+        if (Net.active && battles.length && !inBattleCtx) {
             refuseLeaving();
             return true;
         }
@@ -1284,7 +1319,7 @@
 
     const _Window_MenuCommand_isSaveEnabled = Window_MenuCommand.prototype.isSaveEnabled;
     Window_MenuCommand.prototype.isSaveEnabled = function() {
-        if (Net.active && battle) return false;
+        if (Net.active && battles.length) return false;
         return _Window_MenuCommand_isSaveEnabled.call(this);
     };
 
@@ -1309,25 +1344,26 @@
         });
     }
 
-    function battleStartAudio() {
-        // como Scene_Map.launchBattle, solo el sonido
-        BattleManager.saveBgmAndBgs();
+    function battleStartAudio(b) {
+        // como Scene_Map.launchBattle, solo el sonido (la musica del mapa la guarda ese combate)
+        const bm = inBattleCtx ? BattleManager : b.bm;
+        bm._mapBgm = AudioManager.saveBgm();
+        bm._mapBgs = AudioManager.saveBgs();
         AudioManager.stopBgs();
         AudioManager.stopMe();
         SoundManager.playBattleStart();
     }
 
-    function queueJoin(n, how) {
-        if (!battle || inSeparateBattle(n) || battle.joins.indexOf(n) >= 0) return;
+    function queueJoin(n, how, b) {
+        if (!b || inSeparateBattle(n) || b.joins.indexOf(n) >= 0 || battles.some(x => x.joins.indexOf(n) >= 0)) return;
         if (n !== 1 && !coop.player(n)) return;
-        battle.joins.push(n);
-        battleLog('P' + n + ' wants to join (' + how + '), phase ' + BattleManager._phase);
+        b.joins.push(n);
+        battleLog('P' + n + ' wants to join battle ' + b.seq + ' (' + how + '), phase ' + (b.bm && b.bm._phase));
         if (n === Net.player) banner('Joining the battle...', 'At the next turn', COLOR_NET, 150);
-        if (!battle.started) applyJoins();
+        if (!b.started) applyJoins(b);
     }
 
-    function applyJoins() {
-        const b = battle;
+    function applyJoins(b) {
         const joins = b.joins.splice(0);
         if (joins.length === 0) return;
         const before = $gameParty.battleMembers();
@@ -1338,7 +1374,7 @@
             b.inputs[n] = newVirtualInput(Net.raw[n] || 0);
             banner('P' + n + ' joins the battle', '', COLOR_NET, 160);
             if (n === Net.player) {
-                battleStartAudio();
+                battleStartAudio(b);
                 BattleManager.playBattleBgm();
             }
         });
@@ -1355,7 +1391,7 @@
     // los que se unen entran al empezar un turno (no a mitad de las acciones)
     const _BattleManager_startInput = BattleManager.startInput;
     BattleManager.startInput = function() {
-        if (inBattleCtx && battle && battle.joins.length > 0) applyJoins();
+        if (inBattleCtx && battle && battle.joins.length > 0) applyJoins(battle);
         _BattleManager_startInput.call(this);
     };
 
@@ -1369,13 +1405,12 @@
             if (!pressed || inSeparateBattle(n) || subs[n]) return;
             const p = coop.player(n);
             if (!p) return;
-            const next = battle.involved.some(m => {
-                const q = coop.player(m);
+            // (el combate del que lucha a su lado)
+            const near = battles.find(b => b.involved.some(m => {
+                const q = m === 1 ? $gamePlayer : coop.player(m);
                 return q && Math.abs($gameMap.deltaX(q.x, p.x)) <= 1 && Math.abs($gameMap.deltaY(q.y, p.y)) <= 1;
-            });
-            if (next) queueJoin(n, 'OK next to a fighter');
-            else battleLog('P' + n + ' pressed OK at ' + p.x + ',' + p.y + ', fighters at ' +
-                battle.involved.map(m => coop.player(m) ? coop.player(m).x + ',' + coop.player(m).y : '?').join(' '));
+            }));
+            if (near) queueJoin(n, 'OK next to a fighter', near);
         });
     }
 
@@ -1397,58 +1432,82 @@
         _BattleManager_endBattle.call(this, result);
     };
 
-    function closeBattle() {
-        const b = battle;
-        if (!b) return;
+    function closeBattle(b) {
+        if (!b || battles.indexOf(b) < 0) return;
         try {
-            withBattle(() => b.scene.terminate());
+            withBattle(b, () => b.scene.terminate());
         } catch (e) {
             logError('closing the separate battle', e);
         }
-        battle = null;
+        battles = battles.filter(x => x !== b);
+        // el evento que lo empezo sigue ("si gana...") cuando el mapa quede libre
+        if (b.root) pendingRoots.push(b.root);
         battleLog('battle ' + b.seq + ' ended (P' + b.involved.join(', P') + ')');
         // un evento comun que el combate dejo pendiente sigue en el mapa
         if (b.temp.isCommonEventReserved()) $gameTemp.reserveCommonEvent(b.temp._commonEventId);
         b.involved.forEach(n => { Net.mask[n] = Net.raw[n] || 0; });
     }
 
-    function changeBattle(next) {
+    function closeAllBattles() {
+        battles.slice().forEach(closeBattle);
+    }
+
+    function changeBattle(b, next) {
         if (next instanceof Scene_Map) {
-            closeBattle();
+            closeBattle(b);
             return;
         }
-        // fin de partida, titulo...: se cierra el combate y esa escena va para todos
-        closeBattle();
+        // fin de partida, titulo...: se cierran los combates y esa escena va para todos
+        closeAllBattles();
         Net.sceneSeq++;
         SceneManager._nextScene = next;
     }
 
-    function updateBattle() {
-        if (!battle) return;
+    function updateBattles() {
+        if (battles.length === 0) return;
         checkJoinPresses();
-        if (!battle.started) {
-            if (Net.battleReadyAll < battle.seq) return; // alguien aun lo esta cargando
-            battle.started = true;
-            const first = withBattle(() => battle.scene.start());
-            if (first) changeBattle(first);
+        battles.slice().sort((x, y) => x.seq - y.seq).forEach(b => {
+            if (battles.indexOf(b) < 0) return; // (se cerro con otro)
+            battle = b;
+            try {
+                updateOneBattle(b);
+            } finally {
+                battle = null;
+            }
+        });
+    }
+
+    function updateOneBattle(b) {
+        if (!b.started) {
+            if (Net.battleReadyAll < b.seq) return; // alguien aun lo esta cargando
+            b.started = true;
+            const first = withBattle(b, () => b.scene.start());
+            if (first) changeBattle(b, first);
             return;
         }
         stepBattleInputs();
         logBattleInput();
         let next = null;
         try {
-            next = withBattle(() => {
+            next = withBattle(b, () => {
                 // mientras se eligen acciones se puede entrar ya (elige la suya en este turno)
-                if (battle.joins.length > 0 && BattleManager._phase === 'input') applyJoins();
-                battle.scene.update();
+                if (b.joins.length > 0 && BattleManager._phase === 'input') applyJoins(b);
+                b.scene.update();
             });
         } catch (e) {
             logError('separate battle', e);
-            closeBattle();
+            closeBattle(b);
             return;
         }
-        if (next) changeBattle(next);
+        if (next) changeBattle(b, next);
     }
+
+    // el evento apartado sigue en el mapa en cuanto este libre
+    const _Game_Map_updateInterpreter = Game_Map.prototype.updateInterpreter;
+    Game_Map.prototype.updateInterpreter = function() {
+        if (pendingRoots.length && !this._interpreter.isRunning() && !$gameMessage.isBusy()) this._interpreter = pendingRoots.shift();
+        _Game_Map_updateInterpreter.call(this);
+    };
 
     // registro: cuando cambian las teclas de alguien que lucha, quien tiene el control y que
     // ventana y casilla estan activas (igual en todos los PC si todo va bien)
@@ -1459,7 +1518,7 @@
         let owner = '?';
         let win = '-';
         try {
-            withBattle(() => {
+            withBattle(battle, () => {
                 owner = 'P' + battleInputOwner();
                 const layer = battle.scene._windowLayer;
                 const active = layer ? layer.children.filter(w => w && w.active && w.visible && typeof w.index === 'function') : [];
@@ -1468,33 +1527,38 @@
         } catch (e) {
             win = 'error ' + e.message;
         }
-        battleLog('keys ' + raws + ' -> owner ' + owner + ', phase ' + BattleManager._phase + ', actor ' +
-            (BattleManager.actor() ? BattleManager.actor().name() : '-') + ', active ' + win);
+        const bm = battle.bm || {};
+        const actor = bm._actorIndex >= 0 && $gameParty.members()[bm._actorIndex];
+        battleLog('battle ' + battle.seq + ' keys ' + raws + ' -> owner ' + owner + ', phase ' + bm._phase + ', actor ' +
+            (actor ? actor.name() : '-') + ', active ' + win);
     }
 
     // "Procesar combate" de un evento que empezo un jugador: combate aparte
     const _Game_Interpreter_command301 = Game_Interpreter.prototype.command301;
     Game_Interpreter.prototype.command301 = function() {
         if (!Net.active || !Net.separate || inSub) return _Game_Interpreter_command301.call(this);
-        if (battle) return false; // ya hay un combate aparte: este espera (no caben dos a la vez)
         const starter = this._coopStarter;
+        if (starter && inSeparateBattle(starter)) return false; // (ya lucha: espera)
         const map = SceneManager._scene;
         if (!(map instanceof Scene_Map) || !starter || (starter !== 1 && !coop.player(starter)) || $gameParty.inBattle()) {
             return _Game_Interpreter_command301.call(this);
         }
         const b = {
             scene: null, stack: null, involved: [starter], inputs: {}, started: false, seq: Net.battleSeq + 1, joins: [],
-            screen: new Game_Screen(), message: new Game_Message(), temp: new Game_Temp(), inBattle: false, interp: this
+            screen: new Game_Screen(), message: new Game_Message(), temp: new Game_Temp(), inBattle: false, interp: this,
+            troop: new Game_Troop(), bm: null, root: null
         };
         b.screen._tone = $gameScreen._tone.slice(); // el tono del mapa (noche, interiores...)
         // el combate se prepara con sus propios mensajes y pantalla, sin salir del mapa
         const sm = SceneManager;
-        const saved = { stack: sm._stack, next: sm._nextScene, message: $gameMessage, screen: $gameScreen, temp: $gameTemp };
+        const saved = { stack: sm._stack, next: sm._nextScene, message: $gameMessage, screen: $gameScreen, temp: $gameTemp,
+            troop: $gameTroop, bm: bmState() };
         sm._stack = [];
         sm._nextScene = null;
         $gameMessage = b.message;
         $gameScreen = b.screen;
         $gameTemp = b.temp;
+        $gameTroop = b.troop; // (su propia tropa y su BattleManager: puede haber otro combate en marcha)
         map.stop = function() {};
         inSub = true;
         let result = true;
@@ -1511,6 +1575,10 @@
             $gameMessage = saved.message;
             $gameScreen = saved.screen;
             $gameTemp = saved.temp;
+            b.troop = $gameTroop;
+            b.bm = bmState();
+            $gameTroop = saved.troop;
+            setBmState(saved.bm);
         }
         if (!(next instanceof Scene_Battle)) return result;
         b.scene = next;
@@ -1522,21 +1590,33 @@
         if (foe) foe._locked = true;
         b.foe = foe;
         Net.battleSeq = b.seq;
-        battle = b;
-        battleLog('battle ' + b.seq + ' for P' + starter + ' (troop ' + $gameTroop._troopId + ')');
+        battles.push(b);
+        // el evento del mapa que lo empezo se aparta: el mapa queda libre (otro jugador puede
+        // empezar su combate con otro enemigo, hablar, abrir cofres...)
+        for (let it = $gameMap._interpreter; it; it = it._childInterpreter) {
+            if (it !== this) continue;
+            b.root = $gameMap._interpreter;
+            $gameMap._interpreter = new Game_Interpreter();
+            break;
+        }
+        battleLog('battle ' + b.seq + ' for P' + starter + ' (troop ' + b.troop._troopId + ')' + (battles.length > 1 ? ', ' + battles.length + ' battles now' : ''));
         closeSub(starter);
         this._waitMode = 'coopBattle';
-        if (starter === Net.player) battleStartAudio();
+        if (starter === Net.player) battleStartAudio(b);
         else banner('P' + starter + ' is in a battle', 'Stand next to them and press OK to join', '#ffaa44', 240);
         try {
-            withBattle(() => {
+            withBattle(b, () => {
                 b.scene.create();
                 // los filtros de pantalla del mapa (FilterController) los lleva el mapa
                 if (typeof b.scene.updateTKMfilters === 'function') b.scene.updateTKMfilters = function() {};
             });
         } catch (e) {
             logError('starting the separate battle', e);
-            battle = null;
+            battles = battles.filter(x => x !== b);
+            if (b.root) {
+                pendingRoots.push(b.root);
+                b.root = null;
+            }
             this._waitMode = '';
         }
         return result;
@@ -1546,7 +1626,7 @@
     const _Game_Interpreter_updateWaitMode = Game_Interpreter.prototype.updateWaitMode;
     Game_Interpreter.prototype.updateWaitMode = function() {
         if (this._waitMode === 'coopBattle') {
-            if (battle && battle.interp === this) return true;
+            if (battles.some(b => b.interp === this)) return true;
             this._waitMode = '';
             return false;
         }
@@ -1557,7 +1637,7 @@
     const _Game_Map_isEventRunning = Game_Map.prototype.isEventRunning;
     Game_Map.prototype.isEventRunning = function() {
         const running = _Game_Map_isEventRunning.call(this);
-        if (running && battle && !inBattleCtx && this._interpreter === battle.interp && this._interpreter._waitMode === 'coopBattle') return false;
+        if (running && !inBattleCtx && this._interpreter._waitMode === 'coopBattle' && battles.some(b => b.interp === this._interpreter)) return false;
         return running;
     };
 
@@ -1565,7 +1645,7 @@
     // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan
     const _Game_Event_update = Game_Event.prototype.update;
     Game_Event.prototype.update = function() {
-        if (battle && battle.foe === this) return;
+        if (battles.length && battles.some(b => b.foe === this)) return;
         _Game_Event_update.call(this);
     };
 
@@ -1575,16 +1655,20 @@
     Game_Event.prototype.start = function() {
         const wasLocked = this._locked; // (el enemigo del combate esta parado: que siga parado)
         _Game_Event_start.call(this);
-        if (!battle || !this._starting) return;
+        if (!battles.length || !this._starting) return;
         const n = this._coopStarter || 1;
+        // el enemigo con el que ya lucha alguien: entra en ese combate (otro enemigo: su propio combate)
+        const theirs = battles.find(b => b.foe === this ||
+            (b.interp && b.interp._eventId === this.eventId() && b.interp._mapId === $gameMap.mapId()));
         if (inSeparateBattle(n)) {
             this._starting = false;
             if (!wasLocked) this.unlock();
-        } else if (pageStartsBattle(this) || (battle.interp && battle.interp._eventId === this.eventId() && battle.interp._mapId === $gameMap.mapId())) {
-            // un enemigo (o el mismo con el que ya luchan): entra en ese combate
+        } else if (theirs) {
             this._starting = false;
             if (!wasLocked) this.unlock();
-            queueJoin(n, 'touched an enemy');
+            queueJoin(n, 'touched the enemy of that battle', theirs);
+        } else if (pageStartsBattle(this)) {
+            // (otro enemigo: empieza su propio combate)
         } else if (listLeavesPlace(this.list(), 0)) {
             // mientras alguien lucha aqui nadie se va (puertas, dormir, guardar...): el traslado
             // se llevaria tambien a los que luchan (y asi se huia de cualquier combate)
@@ -1608,7 +1692,7 @@
     function worldParts() {
         const scene = (SceneManager._scene ? SceneManager._scene.constructor.name : '-') +
             Object.keys(subs).map(n => ' P' + n + ' ' + subs[n].scene.constructor.name).join('') +
-            (battle ? ' battle[' + battle.involved.join(',') + (battle.started ? '' : ' loading') + ']' : '');
+            battles.map(b => ' battle[' + b.involved.join(',') + (b.started ? '' : ' loading') + ']').join('');
         const players = coop.allPlayers().map(p => [p._x, p._y, p._direction].join('.')).join('|');
         const events = $gameMap ? $gameMap.events().map(e => e ? [e._eventId, e._x, e._y, e._direction, e._pageIndex].join('.') : '').join('|') : '';
         const party = $gameParty ? $gameParty._actors.join('.') + ':' + $gameParty.members().map(a => a.hp + '/' + a.mp).join('.') : '';
@@ -1762,7 +1846,7 @@
         Net.battleReadyAll = Net.battleSeq;
         Net.separate = !!meta.separate;
         closeAllSubs();
-        if (battle) closeBattle();
+        if (battles.length) closeAllBattles();
         Net.applied = {};
         Net.raw = {};
         Net.mask = {};
@@ -1794,7 +1878,7 @@
     function endSession(reason) {
         if (!Net.active) return;
         closeAllSubs();
-        if (battle) closeBattle();
+        if (battles.length) closeAllBattles();
         Net.active = false;
         if (Net.localConfig) ConfigManager.applyData(Net.localConfig);
         Math.random = nativeRandom;
@@ -3108,7 +3192,8 @@
     // para pruebas y otros plugins: CoopNet.open('host' / 'join'), CoopNet.close()
     Net.open = startNetworking;
     Net.menus = subs;
-    Net.battle = () => battle;
+    Net.battle = () => battles[0] || null;
+    Net.battles = () => battles;
     Net.close = stopNetworking;
     window.CoopNet = Net;
 })();

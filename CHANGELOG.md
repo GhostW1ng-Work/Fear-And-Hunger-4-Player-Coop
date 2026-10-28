@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Network game, separate battles: **several battles at once, each with its own enemy.** Before there was only one separate battle: when P2 was fighting one enemy and P1 touched another, P1 was pulled into P2's battle (and the second enemy waited to fight them too). Now P1 gets their own battle with that enemy, both run at the same time, each PC shows the battle of its player. Touching the *same* enemy, or pressing OK next to a fighter, still joins that battle. Each battle keeps its own troop and battle state; the map event that started it waits aside (the map stays free for the others: talking, chests, another battle) and goes on ("if you win...") when its battle ends.
+
 ## v1.8.5
 
 - The character a player picks in the mod is no longer also standing around as an NPC (Fear & Hunger 1: e.g. Cahara in his cell, in Mahabre or in the prison; Termina: e.g. Marina, Daan, Abella, Karin, Olivia). The games hide a companion who is already in the party (or the protagonist) with an empty page of the event ("Cahara_InTheParty!", "INITIAL_MERCENARY", "OCCULTIST_SELECT"...); while a player plays the character (or their body lies on the map) those pages count as met - only those empty pages: the NPC is gone and nothing else changes (no game switch is touched, the story does not think they were hired; if the player gives the character up, the NPC is back).

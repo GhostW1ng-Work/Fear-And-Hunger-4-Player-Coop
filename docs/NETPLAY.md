@@ -45,8 +45,8 @@ Menus opened by events (shops...) still pause everybody.
 With *Separate*, a battle that a player starts (an enemy touches them, or they touch it) is only theirs: their character and the companions they control in battle fight; everybody else stays on the map and keeps walking. Only the fighters see the battle (and hear its music).
 - Enemies on the map don't chase or touch players who are in a battle.
 - **Joining**: stand next to the fighting player's character (any of the 8 tiles around it) and press OK (Z / Space / Enter / A) - or touch an enemy / let one touch you. You enter at the start of the next turn.
-- While a battle is on, events the others start (talking, doors, items) wait until it ends: there is only one message window.
-- One battle at a time: a second enemy battle waits for the first (or the player joins it).
+- While a battle is on, the others can still talk, open chests and use items on the map (doors, beds and saving wait - see below).
+- **Several battles at once**: a player who touches (or is touched by) another enemy gets their own battle with it, at the same time as the others. Touching the enemy somebody is already fighting joins that battle. Each PC shows the battle of its own player.
 - **Nobody leaves while somebody fights**: doors and other transfers, beds (sleeping), save points, F6 and *Save* in the menu are refused until the battle ends (a message says who is fighting). The transfer would take the fighters along too - and that was a way to run from any battle.
 - A separate battle lost without P1 ends for the map event like an escape (the protagonist's defeat scenes - guards, blood pit... - don't play for everybody); the fighters stay dead as bodies.
 - Battles without a player (cutscenes, common events) are for everybody, as before.
