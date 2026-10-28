@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Termina, the tower door (ending B) with other players in the party: instead of the moonscorched scene, *Only one may leave Termina* and a fight of everybody against everybody, to the death, in normal form (even with PvP off).
+- Online, fixed: a crash when the PC that plays P1 after a protagonist change disconnects; the host plays the protagonist then.
 - PvP: fights of several sides (each with its main player, helpers and companions): everybody fights the doubles of the other sides, the fallen leave, it ends when one side is left; killing P1 makes the main player of the side that finished them the protagonist. *Attack everyone* (with 3+ players): every player in one fight, each on their own. Several enemies stand side by side, smaller (only the picture). Online, OK next to players fighting each other: *Help P1 / Help P2 / Attack everyone / Leave* - you join at the next turn on that side (or your own), with your double.
 - When the game crashes (*Game has encountered a bug*) the mod writes what happened and where to `www/coop_crash.log` (scene, map, the event and its line, who this PC plays, the error).
 - PvP: whoever kills the protagonist (P1) to the death becomes the protagonist (first in the party, the game's protagonist switch). Online the killer's PC plays P1 from then on and the dead one's PC the killer's old number, on every PC in the same frame; the host stays the host; kept in the save. On one PC the players swap places (the screen says so). The old protagonist is a dead companion of the killer's old number (body, waiting, back with a soul stone as a companion).

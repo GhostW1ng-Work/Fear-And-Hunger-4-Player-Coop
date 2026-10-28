@@ -1640,19 +1640,20 @@
         coop.banner('P' + attacker + ' attacks P' + defender + '!', me.name() + ' vs ' + them.name() + (backstab ? ' - from behind: ' + them.name() + ' loses the first turn' : ''), '#ff6655', 200);
     }
 
-    // "Attack everyone": todos los que pueden, cada uno por su cuenta (el que ataca, el primero)
-    function prepareAll(it, attacker) {
+    // "Attack everyone": todos los que pueden, cada uno por su cuenta (el que ataca, el primero).
+    // story: la pelea de la puerta de la torre (a muerte, aunque el PvP este apagado)
+    function prepareAll(it, attacker, story) {
         const battleCmd = it._list[it._index + 1];
         const players = pvpCandidates();
         const me = playerActor(attacker);
-        if (!pvpMode() || !me || players.indexOf(attacker) < 0 || players.length < 2) {
+        if ((!pvpMode() && !story) || !me || players.indexOf(attacker) < 0 || players.length < 2) {
             if (battleCmd && battleCmd.code === 301) battleCmd.code = 108; // (ya no: sin combate)
             return;
         }
         const order = [attacker].concat(players.filter(n => n !== attacker));
         const actors = order.map(n => playerActor(n).actorId());
         const troopId = pvpTroopFor(actors);
-        const info = { lethal: pvpMode() === 'death', sides: order.map((n, i) => ({ players: [n], actors: [actors[i]] })), backstabbed: [], before: {} };
+        const info = { lethal: !!story || pvpMode() === 'death', sides: order.map((n, i) => ({ players: [n], actors: [actors[i]] })), backstabbed: [], before: {} };
         actors.forEach(id => { info.before[id] = limbSnapshot($gameActors.actor(id)); });
         pvpPending[troopId] = info;
         if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
@@ -1662,6 +1663,42 @@
     function pvpInfo() {
         return $gameParty && $gameParty.inBattle() && $gameTroop && $gameTroop._coopPvp || null;
     }
+
+    // ---- la puerta de la torre (final B) con mas jugadores en el grupo ------------------------
+    // En el juego, tocarla con companeros los vuelve locos (su forma "moonscorched") y hay que
+    // matarlos. Con jugadores: solo puede salir uno - pelea de todos contra todos, a muerte, cada
+    // uno con su personaje. El que queda vuelve a tocar la puerta (y si lleva companeros del juego,
+    // a esos les pasa lo del juego).
+    function towerDoorFight(it) {
+        if (!isTermina()) return false;
+        const others = pvpCandidates().filter(n => n !== 1);
+        if (others.length === 0) return false;
+        const starter = it._coopStarter || 1;
+        const lines = [
+            'The stone slab does not move. Something ancient is watching you all...',
+            'Only one may leave Termina. Only the last one standing.'
+        ];
+        it.setupChild([
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: [lines[0]] },
+            { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+            { code: 401, indent: 0, parameters: [lines[1]] },
+            { code: 355, indent: 0, parameters: ['CoopPvp.prepareAll(this, ' + starter + ', true)'] },
+            { code: 301, indent: 0, parameters: [0, 0, false, false] },
+            { code: 0, indent: 0, parameters: [] }
+        ], it._eventId);
+        return true;
+    }
+    // (el juego pone TEMPLE_SQ_CRAZED_SCENE = 1 para empezar la escena de los companeros)
+    const _Game_Interpreter_command122_tower = Game_Interpreter.prototype.command122;
+    Game_Interpreter.prototype.command122 = function() {
+        const p = this._params;
+        if (p[0] === p[1] && p[2] === 0 && p[3] === 0 && p[4] === 1 && $dataSystem.variables[p[0]] === 'TEMPLE_SQ_CRAZED_SCENE' &&
+            towerDoorFight(this)) {
+            return true;
+        }
+        return _Game_Interpreter_command122_tower.call(this);
+    };
 
     const _Game_Troop_setup = Game_Troop.prototype.setup;
     Game_Troop.prototype.setup = function(troopId) {

@@ -764,10 +764,15 @@ check("the host's keys go to P2 now, not P1", a[0] == b[0] and (a[2] != b[2] or 
 same, frames = aligned_worlds(lnet, [lh, lg])
 check('same world after swapping who plays whom', same, frames)
 check('the swap is in the saved game (a snapshot keeps it)', lh.ev('JSON.stringify($gameSystem._coopSeats)') == lg.ev('JSON.stringify($gameSystem._coopSeats)') and lh.ev('CoopNet.slotOf(2)') == 1)
-lh.ev('CoopNet.swapSeats(1, 2)')
-lg.ev('CoopNet.swapSeats(1, 2)')
-check('swapped back', lh.ev('CoopNet.player') == 1 and lg.ev('CoopNet.player') == 2)
-tick(lnet, [lh, lg], 30)
+# the guest PC (now playing P1, the protagonist) disconnects: the host plays P1, nothing breaks
+lnet.cut(lg)
+tick(lnet, [lh], 120)
+fa = frame(lh)
+tick(lnet, [lh], 120)
+fb = frame(lh)
+check('the PC playing the protagonist leaves: the host plays P1 now, the game goes on (no crash)',
+      lh.ev('CoopNet.player') == 1 and lh.ev('CoopNet.slotOf(1)') == 1 and fb - fa >= 100 and lh.ev('SceneManager._scene instanceof Scene_Map'),
+      [lh.ev('CoopNet.player'), lh.ev('CoopNet.slotOf(1)'), fb - fa])
 print('\n'.join(results))
 failed = [r for r in results if r.startswith('FAIL')]
 print('\n%d passed, %d failed' % (len(results) - len(failed), len(failed)))

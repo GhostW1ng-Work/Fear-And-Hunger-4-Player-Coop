@@ -584,6 +584,12 @@
         (list || []).forEach(ev => {
             if (ev.k === 'qs') applyQuickSave(ev);
             if (ev.k === 'away') {
+                // se va el PC que lleva al protagonista (P1): lo lleva el anfitrion desde ahora
+                if (slotOf(ev.n) === 1 && ev.n !== 1) {
+                    const hostSlot = slotOf(1);
+                    swapSeats(1, hostSlot);
+                    banner('P1 left', 'The host plays the protagonist now', '#ffaa44', 240);
+                }
                 ev = Object.assign({}, ev, { n: slotOf(ev.n) });
                 closeSub(ev.n);
                 // en un combate su personaje lo lleva hasta el final otro jugador de ese combate:

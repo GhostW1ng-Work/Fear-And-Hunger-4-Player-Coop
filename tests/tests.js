@@ -1518,6 +1518,24 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         stopSides();
         [pA, pB, pC].forEach(function(a) { a.clearStates(); a.setHp(a.mhp); });
         CoopLocal.setSetting('pvp', 'off');
+        // la puerta de la torre con jugadores en el grupo: en vez de volverlos "moonscorched", todos contra todos
+        var crazedVar = $dataSystem.variables.indexOf('TEMPLE_SQ_CRAZED_SCENE');
+        if (crazedVar > 0) {
+            $gameVariables.setValue(crazedVar, 0);
+            var doorIt = new Game_Interpreter();
+            doorIt.setup([{ code: 122, indent: 0, parameters: [crazedVar, crazedVar, 0, 0, 1] }, { code: 0, indent: 0, parameters: [] }], 0);
+            doorIt.executeCommand();
+            var child = doorIt._childInterpreter;
+            var texts = child ? child._list.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ') : '';
+            var fakeDoor = { _list: [{ code: 355, indent: 0, parameters: [''] }, { code: 301, indent: 0, parameters: [0, 0, false, false] }], _index: 0 };
+            CoopPvp.prepareAll(fakeDoor, 1, true);
+            var doorFight = CoopPvp.pending[fakeDoor._list[1].parameters[1]];
+            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", then everybody against everybody, to the death (even with PvP off)',
+                $gameVariables.value(crazedVar) === 0 && /Only one may leave/.test(texts) && !!child && child._list.some(function(c) { return c.code === 301; }) &&
+                !!doorFight && doorFight.lethal === true && doorFight.sides.length === 3,
+                'var ' + $gameVariables.value(crazedVar) + ' text ' + texts.slice(0, 60) + ' fight ' + (doorFight ? doorFight.sides.length + ' sides, lethal ' + doorFight.lethal : '-'));
+            if (doorFight) delete CoopPvp.pending[fakeDoor._list[1].parameters[1]];
+        }
         for (k = 0; k < 5; k++) frame();
     }
     if (addedP3) {

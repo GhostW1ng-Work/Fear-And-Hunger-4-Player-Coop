@@ -3300,6 +3300,7 @@
 
     // keepPads = el jugador queda en espera (ver coopFollowPartySlots) y conserva su mando
     Scene_Map.prototype.coopRemovePlayer = function(n, keepPads) {
+        if (n < 2) return; // (P1 es el protagonista: no se quita)
         const p = coopPlayer(n);
         if (!p) return;
         CoopState.lastActor[n] = p._coopActorId;
