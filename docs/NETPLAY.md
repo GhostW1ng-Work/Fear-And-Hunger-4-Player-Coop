@@ -1,119 +1,183 @@
-# Network game (experimental, v1.8)
+# Online game (experimental)
 
-Every player runs **their own copy of the game** on their own PC. Only the inputs travel over the network: every frame all PCs get the actions of all players and compute exactly the same frame, each with the camera on its own player. The host (P1) collects the inputs and hands out the frames.
+Every player plays on **their own PC with their own copy of the game**. Only the key presses travel over the network: every PC gets the keys of all players and computes exactly the same world. The host (P1) collects the keys and sends them out. Each PC shows the world with the camera on its own player.
 
-Plugin: `plugins/LocalCoop_Net.js`. Nothing connects when the game opens: everything is done from the menu.
+[Русская версия](NETPLAY.ru.md)
 
-## Install
+---
 
-The normal installer (`install.bat` / `install.ps1`) already installs it, on every PC; without using it, it does nothing.
+## Before you start
 
-`-Net host` / `-Net join -NetHost 192.168.1.20` (`-NetPort`) only preselect the mode, IP and port in the menu (saved in `www/coop_net.json`). `-NoNet` leaves it out.
+- Every player needs **the game** and **the same version of the mod**. The normal installer (`install.bat`) puts the online part in too.
+- Same game version too. When someone connects, the host checks the mod version, the game version and the active plugins. If something differs, the guest sees what (e.g. *Different game version*) and is not let in.
+- The host's party needs a companion for every guest: P2 plays party member 2, P3 member 3, and so on. A guest can also bring their own character (see below).
+- Windows asks to allow the game in the firewall the first time - press **Allow** (also for "public networks": VPN networks often count as public).
 
-## Play
+Nothing connects by itself when the game starts: everything is done from the menu.
 
-Everything is in **Options > Co-op > Network game...** Shortcuts: **Host online** / **Join online** on the title screen (Host online: pick a save, and once loaded the game is open; Join online: the network menu on the list of games found) and **Online** in P1's game menu.
+---
 
-1. **Host**: load a save, open the menu, Mode = *Host*, **Open the game for other players**. The screen shows your IP. The party needs a companion for every guest (P2 controls party member 2, etc.).
-2. **Guests** (the title screen is enough): Mode = *Join*, then either pick the game in **Games found** (left / right: the menu looks for open games on your networks every few seconds, OK searches again) or type it in *Host's IP* (OK, type the IP or a name, Enter); then **Connect to the host**. The host's screen lists them.
-   - *Games found* asks on UDP port 47811 on every network of the PC (LAN, Radmin VPN, ZeroTier...) and on the PC itself. If the host isn't listed (some VPNs or routers block it, e.g. Hamachi), type the IP.
-   - *Password* (optional): if the host sets one, guests must type the same.
-   - *Bring character* (optional): one of the guest's own saves. Its main character (level, stats, skills, equipment worn - not the bag) joins the host's party and the guest plays it. Make a save with a new character first (Termina: the train / backstory; Fear & Hunger 1: the class choice). Not possible if the host's party already has 4 members or someone else plays that character - then the guest plays a companion. If the character is already in the host's party (the guest played it before), the guest simply gets it back as it is in the host's world.
-   - When someone connects, the host checks the mod version, the game version and the active plugins: if they differ the guest is told what (e.g. *Different game version*) and not let in.
-   - The ping of every player is shown at the top right of the screen (green / yellow / red) and in the lobby list; *Ping on screen* turns it off.
-3. **Lobby**: each guest presses **I'm ready** (same line, again to cancel). Everybody sees the list (*P1 Levi (host)  P2 Marina - ready  P3 - waiting*); when every connected guest is ready, a 3-second countdown starts and the game begins by itself. The host can also press **Start now** without waiting. Everybody loads the host's game.
-4. On every PC: WASD or arrows (a gamepad only counts in the focused window, so two copies on one PC don't share it; *Options > Co-op > Co-op settings > Local co-op: Off* is handy for testing), Z / Space / Enter, X / Esc / Backspace, Shift, or a gamepad (A, B, X / RT). `G`, `-` / `=` and `F10` stay local.
+## Playing: step by step
 
-*Close the game (stop hosting)* / *Disconnect* on the same screen end it. Port: default 47810 (Windows asks to allow it in the firewall the first time).
+### 1. The host opens the game
 
-During the network game F6 / F7 (quick save plugin) work on the host only: F6 = save screen (everybody sees it as the host's menu; guests keep a copy of the save), Shift+F6 = slot 99; F7 / Shift+F7 = everybody goes to the title for a moment, the host loads and the network game starts again by itself. F9 (player windows) and F5 (reload) are disabled.
+On the title screen press **Host online** and pick a save. Once it is loaded, the game is open for the others, and the screen shows your IP.
 
-**F10** shows the network status next to the FPS: host — ping of every guest; guest — ping to the host; *delay* = input delay in frames; *buffer* = frames received and waiting (0 for a long time = the network is the bottleneck).
+(Or later: game menu > **Online**, or *Options > Co-op > Network game...*, Mode = **Host**, **Open the game for other players**.)
 
-## Menus
+### 2. The others connect
 
-A player's menu **does not pause the game**: the world and the other players go on. The menu player sees their menu as usual; their character stands still. Several players can be in their menus at once. Skill / Equip / Status: the host picks any party member; P2-P4 their own character and the companions they control in battle. Menus close when a battle starts. *Load* and *Game End* are not in the menu during a network game.
+On the title screen press **Join online**. The network menu opens:
+- **Games found** - the mod looks for open games on all your networks every few seconds (left / right to choose, OK to search again). Pick the host's game.
+- If it is not in the list (some VPNs like Hamachi and some routers block the search), type the IP in **Host's IP**: OK, type the IP or a name, Enter.
+- **Connect to the host**. The host's screen shows who connected.
 
-(How: each menu is a scene of its own that runs inside the map on every PC, with that player's keys; only that player's PC draws it.)
+### 3. Lobby
 
-Menus opened by events (shops...) still pause everybody.
+Every guest presses **I'm ready** (press again to cancel). Everybody sees the list, like *P1 Levi (host) - P2 Marina, ready - P3 waiting*. When all connected guests are ready, a 3-second countdown starts and the game begins by itself. The host can also press **Start now** without waiting.
 
-## Separate battles (experimental)
+Everybody now plays in the host's world.
 
-*Options > Co-op > Network game > Battles*: **Together** (default, as in local co-op) or **Separate**. The host's choice counts; set it before starting.
+### 4. Playing
 
-With *Separate*, a battle that a player starts (an enemy touches them, or they touch it) is only theirs: their character and the companions they control in battle fight; everybody else stays on the map and keeps walking. Only the fighters see the battle (and hear its music).
-- Enemies on the map don't chase or touch players who are in a battle.
-- **Joining**: stand next to the fighting player's character (any of the 8 tiles around it) and press OK (Z / Space / Enter / A) - or touch an enemy / let one touch you. You enter at the start of the next turn.
-- While a battle is on, the others can still talk, open chests and use items on the map (doors, beds and saving wait - see below).
-- **Several battles at once**: a player who touches (or is touched by) another enemy gets their own battle with it, at the same time as the others. Touching the enemy somebody is already fighting joins that battle. Each PC shows the battle of its own player.
-- **Nobody leaves while somebody fights**: doors and other transfers, beds (sleeping), save points, F6 and *Save* in the menu are refused until the battle ends (a message says who is fighting). The transfer would take the fighters along too - and that was a way to run from any battle.
-- A separate battle lost without P1 ends for the map event like an escape (the protagonist's defeat scenes - guards, blood pit... - don't play for everybody); the fighters stay dead as bodies.
-- Battles without a player (cutscenes, common events) are for everybody, as before.
+On every PC you can use WASD or the arrows, Z / Space / Enter (OK), X / Esc / Backspace (cancel, menu), Shift (run), or a gamepad (A, B, X / RT). There is one player per PC, so all these keys are yours.
 
+**Close the game (stop hosting)** / **Disconnect** in the same menu end the online game.
 
-The co-op rules (*Co-op settings*: death rule, revive, cheats, *Played characters' NPCs*) are the host's too. The network menu has rows for **Revive (soul stones)**, **Cheats** and **Played chars' NPCs**: the host changes them before or during the game, for everybody.
+---
 
-Options that change the game (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC; volume, keys and camera stay each player's own. A guest's own settings come back when the network game ends (they are not overwritten on disk).
+## The network menu
 
-## Joining, leaving, coming back
+*Options > Co-op > Network game...* (or **Online** in the game menu, or the title screen buttons):
 
-- **Disconnect** (or the game closed / crashed): the game goes on for the others; that player's character goes back into the party as a normal follower (in a battle, the host commands it until the battle ends - in a separate battle, the next player fighting in it). A guest whose game stops answering (minimized, frozen, loading) is not dropped and nobody waits for it: after 0.5 s the game goes on without its keys, and when it comes back it catches up.
-- A guest that loses the host goes back to the title (its copy of the world does not go on alone) and keeps reconnecting by itself.
-- **Reconnect / join mid-game**: the guest connects from the menu as at the start. The host waits for the next quiet moment (on the map, no event, dialogue or menu) and sends its world to everybody, like a save; the player gets their character back (a new guest gets the next free number, up to P4).
-- **Out of sync**: if the fingerprints differ, the host shows *PCs out of sync* and at the next quiet moment sends its world to everybody (*Back in sync*). Details go to `www/coop_net_desync.log` on both PCs.
-- Errors of the network game are written to `www/coop_net_error.log`.
+| Row | What it does |
+|---|---|
+| **Mode** | *Host* (you are P1) or *Join a host*. |
+| **Games found** | Open games on your networks (guest). |
+| **Host's IP** | The host's address, typed by hand (guest). Letters work too, e.g. a DDNS name. |
+| **Port** | 47810 by default. Change only if you know why. |
+| **Password** | Optional. If the host sets one, guests must type the same. |
+| **Bring character** | A guest can play the main character of one of their own saves (see below). |
+| **Input delay** | *Auto* (recommended) or a fixed number of frames (see below). |
+| **Battles** | *Together* or *Separate* (see below). The host's choice counts; set it before starting. |
+| **Revive (soul stones)** | On / Off - can dead players be brought back. The host's choice; can be changed during the game. |
+| **Played chars' NPCs** | Hidden / Shown - is a character a player plays also standing around as an NPC. The host's choice; can be changed during the game. |
+| **Cheats** | On / Off. The host's choice; can be changed during the game. |
+| **Ping on screen** | Show every player's ping at the top right (green / yellow / red). |
+
+When the host changes *Revive*, *Played chars' NPCs* or *Cheats* during the game, everybody sees a message.
+
+---
+
+## Bring your own character
+
+A guest can choose one of their **own saves** in **Bring character**. Its main character (level, stats, skills, equipment worn - not the bag) joins the host's party and the guest plays it.
+
+- Make a save with a new character first (Termina: after the train / backstory; Fear & Hunger 1: after choosing the class).
+- It does not work if the host's party already has 4 members or someone else plays that character - then the guest plays a companion.
+- If the character is already in the host's party (the guest played it before), the guest just gets it back as it is in the host's world.
+
+---
+
+## What is different from playing on one PC
+
+**Menus don't pause the game.** When you open your menu, the world and the others go on; your character stands still. Several players can be in their menus at once. *Load* and *Game End* are not in the menu during an online game. Menus opened by events (shops...) still pause everybody.
+
+**Options.** Game options (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC. Volume, keys and camera are each player's own. A guest's own options come back when the online game ends.
+
+**Co-op rules** (*Co-op settings*: death, revive, cheats, NPCs) are the host's too.
+
+**Keys:** keyboard and gamepads only - no mouse. `G`, `-` / `=` and `F10` work only on your own PC. **F6 / F7** (quick save plugin) work only on the host: F6 = save screen (everybody sees it as the host's menu; guests keep a copy of the save), Shift+F6 = slot 99; F7 / Shift+F7 = everybody goes to the title for a moment, the host loads, and the game starts again by itself. F9 (player windows) and F5 (reload) are off.
+
+---
+
+## Battles
+
+*Battles* row in the network menu:
+
+- **Together** (default) - everybody fights, like on one PC.
+- **Separate** (experimental) - a battle is only for the player an enemy touched (or who touched it): their character and the companions they control fight; everybody else stays on the map and keeps walking. Only the fighters see the battle and hear its music.
+
+With **Separate**:
+- **Joining a battle:** stand next to a fighting player (any of the 8 tiles around them) and press OK - or touch **that same** enemy. You enter at the start of the next turn.
+- **Several battles at once:** a player who touches **another** enemy gets their own battle with it, at the same time. Each PC shows the battle of its own player.
+- Enemies on the map don't chase or touch players who are already fighting.
+- During a battle the others can still talk, open chests and use items.
+- **Nobody leaves while somebody fights:** doors and other transfers, beds (sleeping), save points, F6 and *Save* in the menu are refused until the battle ends - a message says who is fighting. (A transfer would take the fighters along too.)
+- A separate battle lost without P1 counts as an escape for the event that started it - the protagonist's defeat scenes (capture, blood pit...) don't play for everybody. The fighters stay dead as bodies.
+- If every player of a battle disconnects, that battle ends at once as an escape.
+- Battles without a player (cutscenes, story battles) are for everybody, as before.
+
+---
+
+## Disconnects, lag, coming back
+
+- **Nobody gets kicked for lagging.** If a player's game stops for a moment (minimized, loading, busy), the others don't wait more than half a second: the game goes on without that player's keys. When their game comes back, it quickly catches up and plays on in the same world.
+- **A player leaves** (closes the game, loses the connection): the game goes on for the others; their character becomes a normal companion following P1. In a battle, the host plays it until the battle ends (in a separate battle, the next player in it).
+- **A guest loses the host:** it goes back to the title (its copy of the world does not go on alone) and keeps trying to reconnect by itself.
+- **Coming back / joining later:** connect from the menu as at the start. The host waits for a quiet moment (on the map, no event, dialogue, menu or battle) and sends its world to everybody, like a save. The player gets their character back; a new player gets the next free number (up to P4).
+- **"PCs out of sync":** the PCs compare their worlds every second. If they differ, the host sends its world to everybody at the next quiet moment (*Back in sync*). Details go to `www/coop_net_desync.log` on every PC.
+- Errors of the online game go to `www/coop_net_error.log`, the separate battles to `www/coop_net_battle.log`. Send these files if something goes wrong.
+
+---
 
 ## Over the internet
 
-The game itself works the same; the only question is how the guests reach the host's PC.
+The game works the same; the only question is how the others reach the host's PC.
 
-### Easiest: a virtual LAN (Radmin VPN, ZeroTier, Hamachi)
+### The easiest: a virtual network (Radmin VPN, ZeroTier, Hamachi)
 
-Nothing to configure on the router.
+Nothing to set up on the router.
 
-1. Everybody installs the same program, e.g. **Radmin VPN** (free): the host creates a network (name + password), the others join it.
-2. The program shows each PC's address in that network (Radmin: `26.x.x.x`; ZeroTier: what you set up).
-3. In the game the host opens it as usual; guests type **the host's VPN address** as *Host's IP*.
-4. Windows firewall: allow the game when it asks (also for "public" networks: VPN networks often count as public).
+1. Everybody installs the same program, e.g. **Radmin VPN** (free). The host creates a network (name + password), the others join it.
+2. The program shows each PC's address in that network (Radmin: `26.x.x.x`).
+3. In the game the host opens it as usual; the others type **the host's VPN address** in *Host's IP* (or find it in *Games found*).
+4. Windows firewall: allow the game when it asks.
 
 ### Without a VPN: forward the port
 
-1. On the host's router: forward **TCP port 47810** to the host PC's LAN IP (shown in the game's network screen).
+1. On the host's router: forward **TCP port 47810** to the host PC (its local IP is shown in the game's network menu).
 2. Windows firewall on the host: allow the game (or TCP 47810).
-3. Guests type the host's **public IP** (e.g. from whatismyip.com) or a DDNS name - the IP field takes letters too.
-4. If the provider uses CGNAT (the router's "WAN IP" differs from the public IP), port forwarding cannot work: use a VPN instead.
+3. The others type the host's **public IP** (e.g. from whatismyip.com) or a DDNS name.
+4. If the internet provider uses CGNAT (the router's "WAN IP" is not the same as the public IP), port forwarding can't work - use a VPN.
 
 ### Input delay
 
-Every keypress travels to the host and the frame comes back, so the game needs to send keys a few frames ahead. **Options > Co-op > Network game > Input delay**:
-- **Auto** (default): each PC measures its ping and picks the delay by itself (guest: round trip to the host; host: one way to the farthest guest), at least 3 frames, up to 20. It changes during play without any hiccup.
-- **2-15 frames**: fixed. Lower = more responsive, but if it is too low for the ping the game runs in slow motion.
+Every key press travels to the host and back, so the game sends keys a few frames ahead. *Input delay* in the network menu:
+- **Auto** (default, recommended): each PC measures its ping and chooses the delay by itself (at least 3 frames, at most 20). It changes during play without any hiccup.
+- **2-15 frames**: fixed. Lower = more responsive, but if it is too low for the ping, the game runs in slow motion.
 
-F10 shows `ping` and the current `delay` (1 frame = 17 ms). Roughly: ping 30 ms -> delay 4, ping 100 ms -> 8 on the guest, ping 200 ms -> 14. With a ping over ~250 ms the game becomes hard to play.
+Roughly: ping 30 ms -> 4 frames, ping 100 ms -> 8, ping 200 ms -> 14 (1 frame = 17 ms). With a ping over ~250 ms the game becomes hard to play. **F10** shows the ping and the current delay next to the FPS.
 
-## Two copies on one PC
+---
+
+## Two copies on one PC (for testing)
 
 1. Copy the whole game folder (e.g. `C:\Games\Fear2-net2`).
-2. In the copy's `package.json` change `"name": ""` to `"name": "termina-net2"` and add `"single-instance": false` (otherwise Windows opens the first copy again instead of a second one).
-3. Install both; in the copy join `127.0.0.1`.
+2. In the copy's `package.json` change `"name": ""` to `"name": "termina-net2"` and add `"single-instance": false` (otherwise Windows opens the first copy again).
+3. Install the mod in both. In each copy set *Co-op settings > Local co-op: Off* (so the keyboard doesn't control two players). In the copy, join `127.0.0.1`.
 
-## How it stays in sync
+Two copies on one PC share the graphics card, so they run slower than one. On separate PCs it is smooth.
 
-- The game's randomness (`Math.random`) comes from a seed shared at start; drawing-only code (sprites, light, weather) uses its own random numbers because each PC draws a different part of the map.
-- 60 game steps per second by the clock (FluidTimestep is bypassed); the clock (`Date`) and the frame counter are shared during each step.
-- A new scene (map, battle) only starts when every PC has loaded it. A new map is also *set up* (player placed, events created) on the same frame everywhere, once every PC has read its file.
-- Animations and message faces don't wait for their images (load speed differs per PC).
-- Events move "near any player" instead of "near this PC's camera".
-- Every 60 frames the PCs compare a fingerprint of the world (scene, players, events, party, switches, variables, random state); a difference triggers a resync (above).
-
-Tests:
-- `tests/netsync.py` runs two independent copies of the engine with the same start and inputs and checks they end identical (1200 frames on Shopping street: in sync).
-- `tests/netharness.py` runs host + guests (up to 3 engines) with fake sockets: nothing connects by itself, start from the menu, walking, a forced desync and its fix, host options shared, menus that don't pause (P1 walks while P2 is in the menu, two menus at once, Skills and back, close and walk), unplugging a guest with its menu open (their character becomes a follower), a guest restarting its game and coming back, a frozen guest dropped, a third PC joining mid-game, the host's and P2's choice of character in menus, P1 alone after the guest left, and a 200 ms ping (adaptive delay keeps 60 FPS, a fixed 3-frame delay would not) (70 checks).
+---
 
 ## Known limits
 
-- If the **host** disconnects, the game stops for the guests (they keep reconnecting and wait for the host to start again).
-- A resync or a join waits for a quiet moment: during a long cutscene or a battle it happens after it.
-- No NAT punching or relay server: over the internet use a VPN or port forwarding (above).
+- If the host leaves, the game stops for everybody (the guests go to the title and wait for the host to open the game again).
+- A resync or a player joining waits for a quiet moment: during a long cutscene or a battle, it happens after it.
+- No relay server: over the internet use a VPN or port forwarding.
 - One player per PC.
+
+---
+
+## For developers: how it stays in sync
+
+- The game's random numbers come from a shared seed; drawing-only code (sprites, light, weather) uses its own random numbers, because every PC draws a different part of the map.
+- 60 game steps per second by the clock; the clock (`Date`) and the frame counter are shared during each step.
+- A new scene (map, battle) starts only when every PC has loaded it.
+- Animations and message faces don't wait for their images (loading speed differs per PC).
+- Events move "near any player" instead of "near this PC's camera".
+- Every second the PCs compare a fingerprint of the world (scene, players, events, party, switches, variables, random state); a difference starts a resync.
+- Separate battles each keep their own troop, battle state and view of the switches / variables, so two battles at once don't disturb each other.
+
+Tests: `tests/netharness.py` runs a host and 1-2 guests (separate engines) with fake sockets: starting from the menu, walking, a forced desync and its fix, menus that don't pause, unplugging a guest, a guest coming back, a frozen guest that catches up, a third PC joining mid-game, a 200 ms ping, and more (~95 checks). `tests/netsync.py` checks that two engines with the same start and keys end up identical.

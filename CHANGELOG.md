@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## v1.8.7
 
 - Setting **Revive with soul stones: On / Off** (Co-op settings, and a row in the network menu; the host's in the network game, can be changed while playing). Off: death is for good - the mod leaves no body to revive; the dead player waits until the host gives them a free character (Co-op menu) or a new companion joins. Turned on again, bodies already lying there can be revived.
 - The network menu no longer runs off the bottom of the screen (it scrolls when the rows don't fit).
+- README (English and Russian) and the online guide rewritten in simpler words, with every feature and setting; the online guide is now also in Russian (`docs/NETPLAY.ru.md`). The release ZIP has a `docs` folder: both online guides and the test checklist.
 
 ## v1.8.6
 

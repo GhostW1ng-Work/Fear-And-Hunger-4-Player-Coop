@@ -1,7 +1,7 @@
 <#
   Builds the release ZIP: dist\Termina-Local-Coop-v<version>.zip
   Usage: powershell -ExecutionPolicy Bypass -File tools\make_release.ps1
-  The ZIP has what players need (plugins, extras, installer, README, LICENSE, CHANGELOG, NETPLAY);
+  The ZIP has what players need (plugins, extras, installer, README, LICENSE, CHANGELOG, docs: NETPLAY + TEST_CHECKLIST);
   tests, tools and docs stay in the repository.
 #>
 $ErrorActionPreference = 'Stop'
@@ -20,7 +20,10 @@ Copy-Item (Join-Path $root 'extras\*') (Join-Path $stage 'extras')
 foreach ($f in @('install.bat', 'install.ps1', 'README.md', 'README.ru.md', 'LICENSE', 'CHANGELOG.md')) {
     Copy-Item (Join-Path $root $f) $stage
 }
-Copy-Item (Join-Path $root 'docs\NETPLAY.md') $stage
+New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
+foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'TEST_CHECKLIST.md')) {
+    Copy-Item (Join-Path $root ('docs\' + $f)) (Join-Path $stage 'docs')
+}
 
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue

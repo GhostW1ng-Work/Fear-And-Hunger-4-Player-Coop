@@ -1,57 +1,69 @@
-# Fear & Hunger Co-op: Termina and Fear & Hunger 1 (up to 4 players, local and online)
+# Fear & Hunger Co-op: Termina and Fear & Hunger 1 (up to 4 players)
 
-Co-op for **Fear & Hunger 2: Termina** and **Fear & Hunger 1** (RPG Maker MV), up to 4 players:
-- **Local** - on one PC, keyboard and gamepads, with split screen, per-player menus and combat turns.
-- **Online (experimental)** - every player on their own PC with their own copy of the game, over the LAN or the internet. Menus don't pause the game, players can join and leave mid-game, and battles can be shared or separate (only the players an enemy touches fight, the others keep playing). See [Network game](#network-game).
+A mod that lets **2 to 4 people play Fear & Hunger 2: Termina or Fear & Hunger 1 together**:
 
-Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players, MIT). This version extends it to 3-4 players and adds gamepads, auto camera, per-player menus and more. The base plugin still works on other RPG Maker MV/MZ games (e.g. Look Outside), but development and testing target Termina.
+- **On one PC** - with a keyboard and gamepads. The screen splits when you walk apart.
+- **Online** (experimental) - every player on their own PC with their own copy of the game, over the local network or the internet.
+
+Every player controls their own character: walks around, talks to people, opens their own menu and takes their own turns in battle.
+
+Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) (2 players, MIT). The base part still works in other RPG Maker MV/MZ games (e.g. Look Outside), but everything is made and tested for Termina and Fear & Hunger 1.
 
 [Русская версия](README.ru.md)
 
-## Features
+---
 
-| | |
+## Contents
+
+- [Install](#install)
+- [Quick start](#quick-start)
+- [Controls](#controls)
+- [How co-op works](#how-co-op-works)
+- [Death and soul stones](#death-and-soul-stones)
+- [Torches, light and NPCs](#torches-light-and-npcs)
+- [The Co-op menu](#the-co-op-menu)
+- [Settings](#settings)
+- [Cheats](#cheats)
+- [Online game](#online-game)
+- [Problems](#problems)
+- [For developers](#for-developers)
+
+---
+
+## Install
+
+1. Download the latest **Termina-Local-Coop-vX.Y.Z.zip** from [Releases](../../releases) and unzip it anywhere.
+2. **Double-click `install.bat`.**
+   - If you unzipped it **inside the game folder** (next to `Game.exe`), it installs right there.
+   - Otherwise it **looks for the games itself**: Steam (all its libraries), GOG and `Games` folders on every drive. It shows a list (with the mod version already installed, if any) and asks where to install: type a number, several numbers (`1,3`) or `A` for all.
+   - Not found? **Drag the game folder** (the one with `Game.exe`) onto `install.bat`.
+3. Start the game as usual. On the title screen you will see **Host online** and **Join online** - that means the mod is installed.
+
+To **update**, do the same with the new version - your saves stay as they are.
+
+Extra options for `install.ps1` (run it with `powershell -ExecutionPolicy Bypass -File install.ps1 ...`):
+
+| Option | What it does |
 |---|---|
-| **Up to 4 players** | P1 and P2 on the keyboard, P3 on the keyboard or a gamepad, P4 on a gamepad. Party slot N = player N. |
-| **Gamepads** | Press `Start` on a free gamepad: the next free player joins and the pad becomes theirs. A free pad still controls P1. |
-| **Auto camera** | Shared camera while everyone fits on screen, split screen when someone walks away, shared again when you regroup. |
-| **Split screen** | 2 = halves, 3 = three equal views (two on top, one centered below), 4 = 2x2. `-` / `=` zoom each view out / in (by default every view sees as much map as the full screen). |
-| **Combat** | Each character is controlled by its owner; a banner shows whose turn it is. Extra characters alternate between players unless the host assigns them. |
-| **Events see who started them** | If P2-P4 started an event (talk, examine, puzzle, trap, an item from their menu), the event treats them as the protagonist: their position and facing, move routes and animations, and only they pick the dialogue answers. |
-| **Who plays who** | In P1's menu, **Co-op** lets the host choose who controls each extra character in combat (P1..P4 or AI). On a player's main character: mark them away, or **take it** - the player leaves and the character becomes a normal companion that follows P1 and that P1 controls. Characters nobody plays follow P1 like normal companions. |
-| **Away players** | If a player's gamepad is unplugged (or the host marks them away in **Co-op**), AI fights for their character and it follows P1 on the map; any button of that player brings them back. |
-| **Network game** (experimental) | Every player on their own PC, over the LAN or the internet (Radmin VPN / ZeroTier or port forwarding): Options > Co-op > *Network game...*. Menus don't pause the game, players can join and leave mid-game. See [docs/NETPLAY.md](docs/NETPLAY.md). |
-| **Own menus** | P2-P4 open the game menu for themselves (Skill / Equip / Status go straight to their character; if the host gave them companions in *Co-op*, they choose among their own). Options, Game End, Save and Formation stay with P1. |
-| **Save / load** | Saves remember who was playing and with which gamepad; after loading everyone is back automatically. |
-| **Fear & Hunger 1** | Same features; P2-P4 shoot with a bow (Short bow / Cursed short bow + arrows) like P1, and the character picker offers the four classes and the recruitable companions (Le'garde, Moonless, Nas'hrah). Event audit: [docs/AUDIT_FH1.md](docs/AUDIT_FH1.md). |
-| **Termina specifics** | Vision circle and lantern light for every player, map shooting for P2-P4 (gun equipped + sprint key), enemies chase the nearest player. Each player keeps their character when the game rearranges the party; in solo story parts players wait and come back by themselves; in cutscenes P2-P4 follow / hide with P1. See [docs/AUDIT_SUMMARY.md](docs/AUDIT_SUMMARY.md). |
-| **Own torch, own light** | A torch lit from a player's menu is theirs: it lights up around their character, they hold it in their hand (Fear & Hunger 1) and it burns down on its own timer. The light the game keeps around the protagonist (and Termina's circle of sight) is around every player, not only P1. |
-| **No duplicate NPCs** | The character a player picks in the mod is not also standing around as an NPC (waiting on the Termina train, in Cahara's cell, in Mahabre...). The mod uses the game's own "already in the party" pages; no game switch is touched and the NPC comes back if the player gives the character up. Setting *Played characters' NPCs: Hidden / Shown*. |
-| **Player windows (experimental)** | `F9` opens one window per player with only their view, to put each one on a different monitor. |
-| **Quick save (testing)** | Optional plugin: `F6` save screen (choose the slot) / `F7` load screen; `Shift+F6` / `Shift+F7` instant save / load in slot 99. |
+| `-GamePath "C:\...\game"` | Install into this folder. |
+| `-QuickSave` | Also install the F6 / F7 save / load plugin (handy for testing). |
+| `-NoNet` | Do not install the online part. |
+| `-Uninstall` | Remove the mod. |
 
-**Death and soul stones (Fear & Hunger 1 and Termina).** Only the death of P1 ends the game. When another character dies (a player's or a companion), the body stays where they died and that player waits: the host can give them a free character in **Co-op** (*"Pn plays it"*), otherwise they watch. Any player with a filled soul stone (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK: *bring them back?* - the stone is used up, the character returns with 30% HP and mind, and whoever did it loses 30% of their mind (both in *Co-op settings*). **Co-op** also has a cheat that gives one soul stone. *When P2-P4 die: Game over* brings back the original rule (any player's death is game over). The body stays on the map where they died, also after leaving the map and coming back (in Fear & Hunger 1 it is the game's own corpse: without a filled stone its options stay, e.g. catching the soul with an empty one).
+The installer only copies the mod's files and adds them to `www/js/plugins.js` (it keeps a backup, `plugins.js.coop.bak`). It never touches your saves.
 
-**Co-op menu** (in P1's game menu): who plays each extra character in battle (P1..P4 or AI), mark a player away, take a player's character, give a free character to a player who is waiting (*"< Pn >"*), and - with *Cheats* on - get a soul stone, restore HP / mind / hunger of the party, get torches and fire.
+---
 
-## Network game
+## Quick start
 
-Experimental. Every PC needs the game and the same version of the mod (the installer adds the network part; the game checks versions when someone connects).
+**On one PC:**
+1. Load a save. The party needs a companion for every extra player: P2 plays party member 2, P3 member 3, and so on.
+2. Player 2 presses `X` on the map (or `Start` on a gamepad), chooses a character and appears next to P1.
+3. P3 and P4 join the same way (`U` / `Numpad 0` on the keyboard, or `Start` on a gamepad).
 
-1. **Host**: **Host online** on the title screen and pick a save (or later: *Options > Co-op > Network game...*, Mode *Host*, **Open the game for other players**) - the screen shows your IP.
-2. **Guests**: **Join online** on the title screen, pick the game in **Games found** (or type the host's IP), **Connect to the host**.
-3. Guests press **I'm ready**; when all are, the game starts by itself (the host can also start right away: game menu > **Online** > **Start now**). Everybody plays from the host's world, each with the camera on their own character.
+**Online:** see [Online game](#online-game). In short: the host presses **Host online** on the title screen, the others press **Join online**, pick the game from the list and press **I'm ready**.
 
-- **Over the internet**: the easiest is a virtual LAN (Radmin VPN, ZeroTier, Hamachi) - type the host's VPN address. Or forward TCP port 47810 on the host's router. The input delay adapts to the ping by itself.
-- **Battles**: *Together* (everybody, as in local co-op) or *Separate* (experimental): only who an enemy touches fights; the others keep playing and join by pressing OK next to a fighter. Several separate battles can run at once (P1 with one enemy, P2 with another).
-- **Bring your own character**: a guest can pick one of their own saves; its main character joins the host's party (if it has fewer than 4 members).
-- Optional password. Keyboard and gamepad only (no mouse) in the network game.
-- While somebody fights a separate battle on the map, the others cannot leave it, sleep or save (doors, beds, save points, F6, *Save* in the menu) - otherwise the transfer took the fighters along too.
-- The network menu has **Revive (soul stones)**, **Cheats** and **Played chars' NPCs** rows: the host changes them also during the game, for everybody.
-- Nobody is dropped for being slow: if a player's game stalls (minimized, loading), the others go on without waiting and that game catches up when it comes back. A guest that loses the host goes back to the title and reconnects from there.
-- Every player's ping is shown at the top right (*Ping on screen* turns it off). F6 / F7 work on the host only in the network game.
-
-Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release ZIP).
+---
 
 ## Controls
 
@@ -59,83 +71,193 @@ Full guide: [docs/NETPLAY.md](docs/NETPLAY.md) (also `NETPLAY.md` in the release
 |---|---|---|---|---|
 | Join | - | `X` on the map (`Enter` once co-op is on) | `U` / `Numpad 0` | `Start` |
 | Move | `W A S D` | Arrows | `Numpad 8 4 5 6` or `I J K L` | D-pad / left stick |
-| Sprint / shoot | Left Shift | Right Shift | `Numpad +` or `H` | `X` or `RT` |
+| Run / shoot | Left Shift | Right Shift | `Numpad +` or `H` | `X` or `RT` |
 | OK / interact | `Z` / `Space` | `Enter` | `Numpad 0` / `Numpad Enter` or `U` | `A` |
 | Cancel / own menu | `X` / `Esc` | `Backspace` | `Numpad .` or `O` | `B` |
 | Camera | `G` (anyone): auto / shared / split / P1..P4 | | | `Back` / `Select` |
-| Split zoom | `-` / `=` | | | |
+| Split screen zoom | `-` / `=` | | | |
 | Player windows | `F9` | | | |
 
-Numpad keys work with NumLock on or off.
+Numpad keys work with NumLock on or off. In the online game each PC has only one player, who can use **any** of these keys (WASD or arrows, Z / Space / Enter, X / Esc / Backspace, Shift) or a gamepad.
 
-## Install
+---
 
-1. Download the latest **Termina-Local-Coop-vX.Y.Z.zip** from [Releases](../../releases) (or Code > Download ZIP) and unzip it.
-2. **Double-click `install.bat`.** Unzipped inside the game folder (next to `Game.exe` or in a subfolder)? It installs right there. Otherwise it finds Fear & Hunger 1 / Termina on your PC (Steam and all its libraries, GOG, `Games` folders on every drive), lists them (with the co-op version already installed) and asks which one: a number, several (`1,3`) or `A` for all.
-   Not found? Drag your **game folder** (the one with `Game.exe`) onto `install.bat`,
-   or run `powershell -ExecutionPolicy Bypass -File install.ps1 -GamePath "C:\path\to\game"`.
-   Add `-QuickSave` to also install the F6/F7 save / load plugin.
+## How co-op works
 
-The installer checks the game (title, RPG Maker version, Termina data version it was tested with) and only warns if something differs. It copies the plugins to `www/js/plugins`, registers them at the end of `www/js/plugins.js` (backup: `plugins.js.coop.bak`) and copies `extras/coop_view.html` next to `index.html` (needed by F9). Re-running it updates the files; `-Uninstall` removes everything.
+- **Your own character.** Player N plays party member N. Characters that nobody plays follow P1 like normal companions; in battle a player of the host's choice or the AI plays them.
+- **Camera.** While everybody fits on the screen, the camera is shared. When someone walks away, the screen splits (2 halves, 3 views or 2x2) and joins again when you regroup. `G` switches the camera by hand.
+- **Events know who started them.** If P2 talks to someone, opens a chest, solves a puzzle, steps on a trap or uses an item from their menu, the game treats **P2** as the hero: it happens where P2 stands and P2 picks the answers.
+- **Own menu.** P2-P4 open the game menu for themselves: Skill / Equip / Status go straight to their character. Options, Save, Game End and Formation stay with P1.
+- **Battles.** Everybody takes the turns of their own character; at the top you see whose turn it is.
+- **Scenes.** If a scene moves P1 far away, P2-P4 follow. Short steps (a door, a push) don't drag them along. If somebody ends up inside a wall, they are put back next to P1.
+- **A player who left.** If a gamepad gets unplugged (or the host marks the player as away), the AI fights for that character and it follows P1 on the map. Any button of that player brings them back.
+- **Saving.** A save remembers who played and with which gamepad; after loading everybody is back by themselves.
+- **Fear & Hunger 1.** P2-P4 can shoot with a bow (Short bow / Cursed short bow + arrows) like P1. The character list has the four classes and the companions you can hire (Le'garde, Moonless, Nas'hrah).
+- **Termina.** P2-P4 can shoot on the map (gun equipped + run key), enemies go after the nearest player. Every player keeps their character when the game rearranges the party; in the solo parts of the story the others wait and come back by themselves.
+- **Player windows (F9, experimental).** One window per player with only their view - to put each one on a different monitor.
+
+---
+
+## Death and soul stones
+
+Only **the death of P1 ends the game**. When another character dies:
+
+- **Their body stays where they died** (in Fear & Hunger 1 it is the game's own corpse). It stays there even if you leave the map and come back.
+- **That player waits.** The host can give them a free character in the Co-op menu (`< Pn >`), or they wait for a new companion.
+- **Bringing them back:** any player with a **filled soul stone** (*Lesser soul* in Fear & Hunger 1, *Soul stone* in Termina) stands at the body and presses OK - *bring them back?* The stone is used up, the character comes back with 30% of HP and mind, and the one who did it loses 30% of their mind. Both numbers can be changed in the settings.
+- In Fear & Hunger 1, without a filled stone the game's own options for the body stay (for example catching the soul with an empty stone).
+
+Settings for this (Co-op settings):
+- **Revive with soul stones: Off** - death is for good: there is no body to revive; the player waits for a free character or a new companion.
+- **When P2-P4 die: Game over** - the original rule: the death of any player ends the game.
+
+---
+
+## Torches, light and NPCs
+
+- **Everybody has their own torch.** A torch lit from a player's menu is theirs: it lights up around their character, they hold it in their hand (Fear & Hunger 1) and it burns down on its own timer. P1's torch is the game's, as before. When one goes out, the others keep burning.
+- **Light around everybody.** The light the game keeps around the hero (and Termina's circle of sight) is around every player, not only P1. Online, each PC shows it around its own character.
+- **No double NPCs.** If a player picks a character in the mod who also lives somewhere in the world as an NPC (Cahara in his cell, Marina waiting on the train...), that NPC disappears while the player plays the character. The mod uses the game's own "already in the party" pages, so the story does not think you hired them. If the player gives the character up, the NPC comes back. Setting: *Played characters' NPCs: Hidden / Shown*.
+
+---
+
+## The Co-op menu
+
+In P1's game menu, **Co-op**:
+- **Who plays each extra character in battle** - P1..P4 or the AI.
+- On a player's main character: **mark them away** or **take the character** (the player leaves, the character becomes a normal companion).
+- **`< Pn >`** - give a free character to a player who is waiting (for example after their death).
+- With *Cheats* on: **get a soul stone**, **restore HP, mind and hunger** of the whole party, **get torches and fire**.
+
+**Online** in the same menu (and **Host online / Join online** on the title screen) opens the online game menu.
+
+---
 
 ## Settings
 
-In the game: **Options > Co-op > Co-op settings...** - local co-op on / off (off: arrows, Enter, numpad and gamepads are normal P1 keys), camera, split screen layouts and zoom, gamepads, P3 keys, rejoin after loading, check for updates (a notice on the title screen when a newer version is out). They are saved with the game config (like the volume) and apply to every save.
+In the game: **Options > Co-op > Co-op settings...** They are saved like the volume and work in every save.
 
-Rules of the co-op (in the network game the **host's** count for everybody):
+**Controls and screen:**
 
-| Setting | Default | |
+| Setting | What it does |
+|---|---|
+| *Local co-op* | Off: arrows, Enter, numpad and gamepads are normal P1 keys again. |
+| *Camera* | Auto (shared while together, split when apart), always shared, or always split. `G` also switches it during play. |
+| *Split screen view* | How far each split view sees (far / medium / near). |
+| *Split with 2 players* | Side by side or one above the other. |
+| *Split with 3 players* | 2 views on top + 1 below, 2x2 with a party panel, or P1 on half the screen. |
+| *Gamepads for P2-P4* | Off: every gamepad controls P1. |
+| *P3 keyboard* | Numpad, IJKL or both. |
+| *Rejoin after loading* | Players come back by themselves after loading a save. |
+| *Check for updates* | A note on the title screen when a new version is out. |
+
+**Rules** (online, the **host's** rules count for everybody):
+
+| Setting | Default | What it does |
 |---|---|---|
-| *When P2-P4 die* | The party goes on | Only the death of P1 ends the game; *Game over* = the original rule. |
-| *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply). |
-| *Revive with soul stones* | On | Off: death is for good - no body to revive; the player waits for a free character from the host or a new companion. (Fear & Hunger) |
-| *Revived with* / *Mind cost of reviving* | 30% / 30% | HP and mind after a soul stone; mind the one who used it loses. (Fear & Hunger) |
-| *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. (Fear & Hunger) |
-| *Cheats* | On | F6 / F7 anywhere and the cheats of the Co-op menu; also needed by the cheats below. |
-| *Cheat: immortal party* | Off | Never below 1 HP, nothing kills the party outright. |
-| *Cheat: keep limbs* | Off | No arm / leg / head is cut off. |
-| *Cheat: one-hit kills* | Off | Any damage the party deals kills the enemy (or the enemy part). |
-| *Cheat: open locks* | Off | Doors, chests and cells that ask for a key or a lockpick open as if you had it. (Fear & Hunger) |
+| *When P2-P4 die* | The party goes on | Only the death of P1 ends the game. *Game over* = the original rule. |
+| *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (the solo parts of the story still work). |
+| *Revive with soul stones* | On | Off: death is for good, there is no body to revive. |
+| *Revived with* | 30% | HP and mind of a character brought back. |
+| *Mind cost of reviving* | 30% | How much mind the one who revives loses. |
+| *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. |
+| *Cheats* | On | Allows F6 / F7 anywhere and the cheats below. |
 
-## Parameters (`LookOutsideOnline`)
+---
 
-Defaults for the settings above, plus a few advanced ones. Set them in `www/js/plugins.js`, e.g. `"parameters": {"MaxPlayers": "3"}`.
+## Cheats
+
+For testing. They need *Cheats: On*; online, the host's choice counts.
+
+| Cheat | Where | What it does |
+|---|---|---|
+| F6 / F7 | keys | Save / load anywhere (with the quick save plugin, `-QuickSave`). Shift+F6 / Shift+F7 = instantly, slot 99. |
+| Get a soul stone | Co-op menu | One soul stone. |
+| Restore HP, mind and hunger | Co-op menu | For the whole party. |
+| Get torches and fire | Co-op menu | 3 torches + Tinderbox / Matches / Lighter. |
+| Immortal party | Co-op settings | Never below 1 HP, nothing kills the party outright. |
+| Keep limbs | Co-op settings | Arms, legs and head are never cut off. |
+| One-hit kills | Co-op settings | Any damage the party deals kills the enemy (or the enemy part). |
+| Open locks | Co-op settings | Doors, chests and cells that need a key or a lockpick open as if you had it. |
+
+---
+
+## Online game
+
+Experimental. Every player needs the game and **the same version of the mod** (the game checks this when someone connects).
+
+**Short version:**
+1. **Host:** on the title screen press **Host online** and pick a save. The game is now open for others (the screen shows your IP).
+2. **Others:** press **Join online**. The mod searches your network for games: pick the host's game in **Games found** (or type the host's IP) and press **Connect to the host**.
+3. Everybody presses **I'm ready**. When all are ready, the game starts by itself after 3 seconds (the host can also press **Start now**). Everybody plays in the host's world, each with the camera on their own character.
+
+**Good to know:**
+- **Over the internet**, the easiest way is a virtual network like **Radmin VPN** or **ZeroTier** (free): everybody joins the same network and types the host's VPN address. Or forward TCP port 47810 on the host's router.
+- **Menus don't pause the game** - the others keep playing while you are in your menu.
+- **Battles**: *Together* (everybody fights, like on one PC) or *Separate* (only who an enemy touches; the others keep walking and can join by pressing OK next to a fighter). Several separate battles can run at once - P1 with one enemy, P2 with another.
+- While somebody fights a separate battle on the map, nobody can leave the map, sleep or save (otherwise the transfer would take the fighters along).
+- **Nobody gets kicked for lagging.** If someone's game stops for a moment (minimized, loading), the others go on and that game catches up. A player who loses the host goes back to the title and reconnects by themselves.
+- The host can change **Revive**, **Cheats** and **Played chars' NPCs** right in the online menu, also during the game.
+- You can **bring your own character** from one of your saves, and set a **password**.
+- In the online game only the keyboard and gamepads work (no mouse). F6 / F7 work on the host only.
+
+Full guide: **[docs/NETPLAY.md](docs/NETPLAY.md)** ([по-русски](docs/NETPLAY.ru.md)) - also in the release ZIP.
+
+---
+
+## Problems
+
+| Problem | What to do |
+|---|---|
+| The installer doesn't find the game | Drag the game folder (with `Game.exe`) onto `install.bat`. |
+| No "Host online" on the title screen | The mod is not installed in this copy of the game - run the installer again. |
+| Online: "Different mod version" / "Different game version" | Update everybody to the same version of the mod and of the game. |
+| Online: the game is not in "Games found" | Type the host's IP by hand. Some VPNs (Hamachi) and routers block the search. |
+| Online: can't connect over the internet | Use Radmin VPN / ZeroTier, or check the port forwarding (TCP 47810) and the Windows firewall. |
+| Online: "PCs out of sync" | The game fixes it by itself at the next quiet moment. If it keeps happening, send the `www/coop_net_desync.log` file from every PC. |
+| Something broke online | Send `www/coop_net_error.log` and `www/coop_net_battle.log` from every PC. |
+| Two copies on one PC are slow | Normal: they share the graphics card. With separate PCs it is smooth. |
+
+Report bugs on the [Issues](../../issues) page. A checklist of things to test: [docs/TEST_CHECKLIST.md](docs/TEST_CHECKLIST.md).
+
+---
+
+## For developers
+
+**Plugins** (`plugins/`):
+- `LookOutsideOnline.js` - the base: up to 4 players, controls, camera, split screen, menus, battle turns, character picker, settings.
+- `LocalCoop_FearHunger.js` - Fear & Hunger 1 / Termina: light, shooting, death and soul stones, torches, NPC hiding, cheats.
+- `LocalCoop_Net.js` - the online game (lockstep: only the keys travel over the network, every PC computes the same world).
+- `LocalCoop_QuickSave.js` - F6 / F7 (testing).
+
+**Parameters** of `LookOutsideOnline` (in `www/js/plugins.js`, e.g. `"parameters": {"MaxPlayers": "3"}`) - the defaults for the settings above:
 
 | Parameter | Default | |
 |---|---|---|
 | `MaxPlayers` | 4 | 2, 3 or 4. |
 | `P3Keys` | all | `all` = numpad and IJKL, `numpad`, `ijkl`. |
 | `Gamepads` | true | `false` = gamepads always control P1. |
-| `AutoRejoin` | true | Players rejoin automatically after loading. |
+| `AutoRejoin` | true | Players rejoin after loading. |
 | `DefaultCameraMode` | auto | `auto`, `shared`, `split`, `p1`..`p4`. |
 | `SplitDirection` | vertical | 2 players: `vertical` = side by side, `horizontal` = stacked. |
-| `Split3Layout` | triangle | 3 players: `triangle`, `grid` (2x2 with a party HP/MP panel), `big` (P1 half screen). |
-| `SplitZoom` | far | Starting split zoom: `far`, `medium`, `near`. |
+| `Split3Layout` | triangle | 3 players: `triangle`, `grid` (2x2 with a party panel), `big` (P1 half screen). |
+| `SplitZoom` | far | `far`, `medium`, `near`. |
 | `P2ActorMode` / `P2ActorChoices` | auto / all | Character picker (see the plugin help). |
-| `P2MoveSpeed` / `P2DashBonus` | 0 / 1 | Speed of P2-P4 (0 = copy P1). |
+| `P2MoveSpeed` / `P2DashBonus` | 0 / 1 | Speed of P2-P4 (0 = same as P1). |
 
-## Tests
-
-`tests/` runs the real RPG Maker MV engine of your installed game in V8 (graphics stubbed) with the plugins from this repository, and checks ~180 co-op scenarios (and `tests/netharness.py` ~90 network ones: 2-3 copies of the engine with fake sockets): joining, gamepads, combat turns, dialogue choices, menus, save/load, auto camera...
+**Tests** (`tests/`) run the real RPG Maker engine of your installed game in V8 (graphics stubbed):
 
 ```
 pip install mini-racer
 set TERMINA_GAME=C:\Games\Fear2\www
-python tests/run.py
+python tests/run.py            # ~180 co-op scenarios (set WITH_NET=1 to load the online plugin too)
+python tests/netharness.py     # ~95 online scenarios: 2-3 engines with fake sockets
 ```
 
-Fear & Hunger 1: `set TERMINA_GAME=C:\Games\Fear1\www` and `set TEST_MAP=1`.
+Fear & Hunger 1: `set TERMINA_GAME=C:\Games\Fear1\www` and `set TEST_MAP=1`. Drawing (split screen, light, windows) is not covered - check that in the game.
 
-Graphics (split screen drawing, lights, windows) are not covered: check those in the game.
-
-## Releases
-
-`tools/make_release.ps1` builds `dist/Termina-Local-Coop-v<version>.zip` (the version is `COOP_VERSION` in `plugins/LookOutsideOnline.js`). Changes: [CHANGELOG.md](CHANGELOG.md).
-
-## Roadmap
-
-See [docs/ROADMAP.md](docs/ROADMAP.md), in particular **remote play with one view per player** (each friend sees only their own character in a browser).
+**Release:** `tools/make_release.ps1` builds `dist/Termina-Local-Coop-v<version>.zip` (the version is `COOP_VERSION` in `LookOutsideOnline.js`). Changes: [CHANGELOG.md](CHANGELOG.md). Plans: [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## License
 
-MIT (see [LICENSE](LICENSE)). Contains no game assets: you need your own copy of Fear & Hunger 2: Termina and/or Fear & Hunger 1.
+MIT (see [LICENSE](LICENSE)). The mod contains no game files: you need your own copy of Fear & Hunger 2: Termina and/or Fear & Hunger 1.
