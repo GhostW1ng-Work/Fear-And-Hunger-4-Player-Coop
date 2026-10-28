@@ -1109,6 +1109,51 @@
         return o;
     }
 
+    // Los combates del juego guardan su estado en interruptores y variables comunes ("SKILLS_BATTLE",
+    // "battle_phase1", "Beartrap_set"...: las paginas de la tropa saltan con ellos, "AFTER BATTLE" los
+    // apaga). Con dos combates a la vez se pisaban: lo que activaba un combate lo veia el otro (y
+    // acababa: "Abortar combate", partes del enemigo muertas...). Cada combate ve lo que el mismo
+    // cambio; lo que cambio OTRO combate en marcha lo ve como estaba antes. El mapa ve lo ultimo
+    // (y al terminar, lo que dejo cada combate se queda).
+    const scopeOwner = { sw: {}, vars: {} };  // id -> combate que lo cambio (mientras dura)
+    const scopeBase = { sw: {}, vars: {} };   // id -> valor antes de que lo cambiara un combate
+    function scoped(kind, proto) {
+        const _value = proto.value;
+        const _setValue = proto.setValue;
+        proto.value = function(id) {
+            const b = inBattleCtx ? battle : null;
+            if (!b || !b.scope || (this !== $gameSwitches && this !== $gameVariables)) return _value.call(this, id);
+            const own = b.scope[kind];
+            if (Object.prototype.hasOwnProperty.call(own, id)) return own[id];
+            const o = scopeOwner[kind][id];
+            if (o && o !== b && battles.indexOf(o) >= 0) return scopeBase[kind][id];
+            return _value.call(this, id);
+        };
+        proto.setValue = function(id, value) {
+            const b = inBattleCtx ? battle : null;
+            if (b && b.scope && (this === $gameSwitches || this === $gameVariables)) {
+                if (!scopeOwner[kind][id] || battles.indexOf(scopeOwner[kind][id]) < 0) scopeBase[kind][id] = _value.call(this, id);
+                scopeOwner[kind][id] = b;
+                _setValue.call(this, id, value);
+                b.scope[kind][id] = _value.call(this, id); // (como lo guarda el juego: true/false, numero...)
+                return;
+            }
+            _setValue.call(this, id, value);
+        };
+    }
+    scoped('sw', Game_Switches.prototype);
+    scoped('vars', Game_Variables.prototype);
+
+    // al terminar un combate, lo que cambio ya es lo de todos
+    function releaseScope(b) {
+        ['sw', 'vars'].forEach(kind => Object.keys(scopeOwner[kind]).forEach(id => {
+            if (scopeOwner[kind][id] === b) {
+                delete scopeOwner[kind][id];
+                delete scopeBase[kind][id];
+            }
+        }));
+    }
+
     function setBmState(o) {
         Object.keys(BattleManager).forEach(k => { if (typeof BattleManager[k] !== 'function' && !(k in o)) delete BattleManager[k]; });
         Object.assign(BattleManager, o);
@@ -1252,6 +1297,25 @@
         const mine = list.filter(a => battle.involved.indexOf(coop.battleOwnerOf(a)) >= 0);
         return mine.length > 0 || battle.started ? mine : list;
     };
+
+    // Al empezar y al acabar un combate el juego prepara / limpia a todo el grupo (acciones, estados
+    // de combate...): lo hace cuando aun no / ya no cuenta como "en combate", asi que tocaba a todos
+    // los personajes del grupo, tambien a los que luchan en OTRO combate aparte (se quedaban sin
+    // accion y su combate fallaba al atacar). En un combate aparte: solo a los suyos.
+    function onlyFighters(fn) {
+        return function() {
+            if (!(inBattleCtx && battle)) return fn.apply(this, arguments);
+            const mine = this.battleMembers();
+            this.allMembers = function() { return mine.slice(); };
+            try {
+                return fn.apply(this, arguments);
+            } finally {
+                delete this.allMembers;
+            }
+        };
+    }
+    Game_Party.prototype.onBattleStart = onlyFighters(Game_Party.prototype.onBattleStart);
+    Game_Party.prototype.onBattleEnd = onlyFighters(Game_Party.prototype.onBattleEnd);
 
     // la pagina lleva "Procesar combate" (o llama a un evento comun que lo lleva: asi lo hacen
     // los enemigos de Termina)
@@ -1440,6 +1504,7 @@
             logError('closing the separate battle', e);
         }
         battles = battles.filter(x => x !== b);
+        releaseScope(b);
         // el evento que lo empezo sigue ("si gana...") cuando el mapa quede libre
         if (b.root) pendingRoots.push(b.root);
         battleLog('battle ' + b.seq + ' ended (P' + b.involved.join(', P') + ')');
@@ -1505,7 +1570,9 @@
     // el evento apartado sigue en el mapa en cuanto este libre
     const _Game_Map_updateInterpreter = Game_Map.prototype.updateInterpreter;
     Game_Map.prototype.updateInterpreter = function() {
-        if (pendingRoots.length && !this._interpreter.isRunning() && !$gameMessage.isBusy()) this._interpreter = pendingRoots.shift();
+        // (cuando no queda otro combate aparte: lo que hacen despues - "AFTER BATTLE", recuperar a todo el
+        // grupo... - tocaria a los que siguen luchando)
+        if (pendingRoots.length && battles.length === 0 && !this._interpreter.isRunning() && !$gameMessage.isBusy()) this._interpreter = pendingRoots.shift();
         _Game_Map_updateInterpreter.call(this);
     };
 
@@ -1546,7 +1613,7 @@
         const b = {
             scene: null, stack: null, involved: [starter], inputs: {}, started: false, seq: Net.battleSeq + 1, joins: [],
             screen: new Game_Screen(), message: new Game_Message(), temp: new Game_Temp(), inBattle: false, interp: this,
-            troop: new Game_Troop(), bm: null, root: null
+            troop: new Game_Troop(), bm: null, root: null, scope: { sw: {}, vars: {} }
         };
         b.screen._tone = $gameScreen._tone.slice(); // el tono del mapa (noche, interiores...)
         // el combate se prepara con sus propios mensajes y pantalla, sin salir del mapa
@@ -3194,6 +3261,7 @@
     Net.menus = subs;
     Net.battle = () => battles[0] || null;
     Net.battles = () => battles;
+    Net.withBattle = withBattle; // (para pruebas: mirar un combate como si fuera la escena actual)
     Net.close = stopNetworking;
     window.CoopNet = Net;
 })();

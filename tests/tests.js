@@ -1112,6 +1112,31 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         for (k = 0; k < 3; k++) frame();
     }
 
+    // ---- (con el plugin de red) dos combates aparte a la vez: cada uno ve sus interruptores y variables ----
+    if (window.CoopNet && CoopNet.withBattle && CoopNet.battles) {
+        var fakeBattle = function(n) { return { scene: new Scene_Base(), stack: [], involved: [n], inputs: {}, message: new Game_Message(), screen: new Game_Screen(),
+            temp: new Game_Temp(), inBattle: true, troop: new Game_Troop(), bm: {}, scope: { sw: {}, vars: {} } }; };
+        var bA = fakeBattle(2), bB = fakeBattle(3);
+        var list = CoopNet.battles();
+        list.push(bA, bB);
+        var tsw = $dataSystem.switches.length - 1, tvar = $dataSystem.variables.length - 1;
+        $gameSwitches.setValue(tsw, false);
+        $gameVariables.setValue(tvar, 5);
+        var seen = {};
+        CoopNet.withBattle(bA, function() { $gameSwitches.setValue(tsw, true); $gameVariables.setValue(tvar, 7); seen.a = [$gameSwitches.value(tsw), $gameVariables.value(tvar)]; });
+        CoopNet.withBattle(bB, function() { seen.b = [$gameSwitches.value(tsw), $gameVariables.value(tvar)]; $gameVariables.setValue(tvar, 9); seen.b2 = $gameVariables.value(tvar); });
+        CoopNet.withBattle(bA, function() { seen.a2 = [$gameSwitches.value(tsw), $gameVariables.value(tvar)]; });
+        seen.map = [$gameSwitches.value(tsw), $gameVariables.value(tvar)];
+        check('T43 two battles at once: each sees its own switches / variables, not those of the other battle',
+            JSON.stringify(seen.a) === '[true,7]' && JSON.stringify(seen.b) === '[false,5]' && seen.b2 === 9 && JSON.stringify(seen.a2) === '[true,7]',
+            JSON.stringify(seen));
+        check('T43b the map sees the latest values (they stay after the battles)', JSON.stringify(seen.map) === '[true,9]', JSON.stringify(seen.map));
+        list.splice(list.indexOf(bA), 1);
+        list.splice(list.indexOf(bB), 1);
+        $gameSwitches.setValue(tsw, false);
+        $gameVariables.setValue(tvar, 0);
+    }
+
     // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
     var walker = carrierN && CoopLocal.player(carrierN);
     var wall = null;
