@@ -943,23 +943,59 @@
         _Game_Map_update_torches.call(this, sceneActive);
     };
 
-    // la luz de las antorchas de P2-P4: se suma a la mascara de luz del mapa, como la del protagonista
-    function drawPlayerTorches(mask) {
-        const list = $gameSystem && $gameSystem._coopTorches;
-        if (!list || !mask._maskBitmap || !mask._maskBitmap.radialgradientFillRect || !mask._maskBitmap._coopFilled) return;
-        const bmp = mask._maskBitmap;
-        const ctx = bmp._context;
+    // La luz que el juego pone alrededor del protagonista (en Termina siempre hay un poco) era solo
+    // de P1: en los demas PC, lejos de P1, todo negro. Cada jugador lleva la misma luz que P1 (en
+    // Fear & Hunger 1 sin la antorcha de P1: esa es solo suya; con la suya, la de su antorcha).
+    let p1Light = null;      // la luz de P1 dibujada en este cuadro (como la pide TerraxLighting)
+    let baseLight = null;    // la ultima sin la antorcha del juego encendida
+    let torchTimerSwitch = -1;
+    function gameTorchOn() {
+        if (torchTimerSwitch < 0) {
+            const names = ($dataSystem && $dataSystem.switches) || [];
+            torchTimerSwitch = names.findIndex(nm => /^TORCH_TIMER$/i.test(nm || ''));
+        }
+        return torchTimerSwitch > 0 && $gameSwitches.value(torchTimerSwitch);
+    }
+
+    function screenPos(ch) {
         const pw = $gameMap.tileWidth();
         const ph = $gameMap.tileHeight();
+        return { x: pw / 2 + $gameMap.adjustX(ch._realX) * pw, y: ph / 2 + $gameMap.adjustY(ch._realY) * ph };
+    }
+
+    function watchPlayerLight(target) {
+        const _radial = target.radialgradientFillRect;
+        target.radialgradientFillRect = function(x1, y1, r1, r2, color1, color2, flicker, brightness) {
+            // (la primera luz de la mascara en el sitio de P1 es la suya)
+            if (this._coopMaskWatch && !p1Light && $gamePlayer) {
+                const pos = screenPos($gamePlayer);
+                if (Math.abs(x1 - pos.x) < 2 && Math.abs(y1 - pos.y) < 48) {
+                    p1Light = { dy: y1 - pos.y, r1: r1, r2: r2, color: color1, color2: color2, flicker: flicker, brightness: brightness };
+                }
+            }
+            return _radial.apply(this, arguments);
+        };
+    }
+    if (Bitmap.prototype.radialgradientFillRect) watchPlayerLight(Bitmap.prototype);
+
+    // la luz de cada jugador (y de las antorchas de P2-P4): se suma a la mascara de luz del mapa
+    function drawPlayerTorches(mask) {
+        const list = ($gameSystem && $gameSystem._coopTorches) || {};
+        if (!mask._maskBitmap || !mask._maskBitmap.radialgradientFillRect || !mask._maskBitmap._coopFilled) return;
+        const torchOn = gameTorchOn();
+        if (!torchOn) baseLight = p1Light;
+        const light = torchOn ? baseLight : p1Light;
+        const bmp = mask._maskBitmap;
+        const ctx = bmp._context;
         const before = ctx.globalCompositeOperation;
         ctx.globalCompositeOperation = 'lighter';
         try {
-            Object.keys(list).forEach(k => {
-                const p = coop.player(Number(k));
-                if (!p || p.isTransparent()) return;
-                const x = pw / 2 + $gameMap.adjustX(p._realX) * pw;
-                const y = ph / 2 + $gameMap.adjustY(p._realY) * ph;
-                bmp.radialgradientFillRect(x, y, 20, torchRadius(list[k]), list[k].color, 'black', list[k].flicker, 0);
+            coop.players().forEach(p => {
+                if (!p || p.isTransparent() || p === $gamePlayer) return;
+                const pos = screenPos(p);
+                const tc = list[p.coopIndex()];
+                if (tc) bmp.radialgradientFillRect(pos.x, pos.y, 20, torchRadius(tc), tc.color, 'black', tc.flicker, 0);
+                else if (light) bmp.radialgradientFillRect(pos.x, pos.y + light.dy, light.r1, light.r2, light.color, light.color2, light.flicker, light.brightness);
             });
         } finally {
             ctx.globalCompositeOperation = before;
@@ -973,6 +1009,24 @@
         return _Bitmap_fillRect.apply(this, arguments);
     };
 
+    function beginMask(mask) {
+        const bmp = mask._maskBitmap;
+        if (bmp) {
+            bmp._coopMaskWatch = true;
+            bmp._coopFilled = false;
+        }
+        p1Light = null;
+    }
+
+    function endMask(mask) {
+        if (mask._maskBitmap) mask._maskBitmap._coopMaskWatch = false;
+        try {
+            drawPlayerTorches(mask);
+        } catch (e) {
+            console.error('LocalCoop_FearHunger: player lights', e);
+        }
+    }
+
     // (la clase de la luz no es global: se toma de la primera que se crea)
     if (Spriteset_Map.prototype.createLightmask) {
         const _Spriteset_Map_createLightmask = Spriteset_Map.prototype.createLightmask;
@@ -983,24 +1037,16 @@
             proto._coopTorches = true;
             const _updateMask = proto._updateMask;
             proto._updateMask = function() {
-                const bmp = this._maskBitmap;
-                if (bmp) {
-                    bmp._coopMaskWatch = true;
-                    bmp._coopFilled = false;
-                }
+                beginMask(this);
                 const out = _updateMask.apply(this, arguments);
-                if (bmp) bmp._coopMaskWatch = false;
-                try {
-                    drawPlayerTorches(this);
-                } catch (e) {
-                    console.error('LocalCoop_FearHunger: torches', e);
-                }
+                endMask(this);
                 return out;
             };
         };
     }
 
-    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches };
+    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
+        lightTest: { watchPlayerLight: watchPlayerLight, beginMask: beginMask, endMask: endMask } };
 
     // ---- el cuerpo en el mapa (Fear & Hunger 1 y quien no tiene cadaver propio en Termina) ----
     function Game_CoopCorpse(c) {

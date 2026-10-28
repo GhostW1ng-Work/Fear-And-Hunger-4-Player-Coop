@@ -1000,6 +1000,31 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             torchSwP.every(function(id) { return !$gameSwitches.value(Number(id)); }), JSON.stringify(CoopRevive.torches()));
     }
 
+    // ---- la luz que el juego pone alrededor de P1 la tiene tambien cada jugador ----
+    if (carrierN) {
+        var lt = CoopRevive.lightTest;
+        var lcalls = [];
+        var fakeBmp = { _context: { globalCompositeOperation: 'source-over' },
+            radialgradientFillRect: function(x, y, r1, r2, c) { lcalls.push([x, y, r2, c, this._context.globalCompositeOperation]); } };
+        lt.watchPlayerLight(fakeBmp);
+        var lmask = { _maskBitmap: fakeBmp };
+        var lp = CoopLocal.player(carrierN);
+        lp.locate($gamePlayer.x + 4, $gamePlayer.y);
+        var tw = $gameMap.tileWidth(), th = $gameMap.tileHeight();
+        var sx = function(ch) { return tw / 2 + $gameMap.adjustX(ch._realX) * tw; };
+        var sy = function(ch) { return th / 2 + $gameMap.adjustY(ch._realY) * th; };
+        lt.beginMask(lmask);
+        fakeBmp._coopFilled = true; // (la mascara se dibuja este cuadro)
+        fakeBmp._context.globalCompositeOperation = 'lighter';
+        fakeBmp.radialgradientFillRect(sx($gamePlayer), sy($gamePlayer) - 10, 20, 325, '#FFEEDD', '#000000', false, 0); // la de P1
+        fakeBmp._context.globalCompositeOperation = 'source-over';
+        lt.endMask(lmask);
+        var mine = lcalls[1];
+        check('T41 P' + carrierN + ' has the same light as P1 around them (not darkness)', lcalls.length === 2 && !!mine &&
+            mine[0] === sx(lp) && mine[1] === sy(lp) - 10 && mine[2] === 325 && mine[3] === '#FFEEDD' && mine[4] === 'lighter', JSON.stringify(lcalls));
+        lp.locate($gamePlayer.x, $gamePlayer.y);
+    }
+
     // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
     var walker = carrierN && CoopLocal.player(carrierN);
     var wall = null;

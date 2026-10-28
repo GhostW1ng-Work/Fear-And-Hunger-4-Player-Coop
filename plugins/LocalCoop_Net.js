@@ -466,7 +466,12 @@
             banner(save ? 'Only the host saves' : 'Only the host loads', 'F6 / F7 work on the host\'s PC', '#ffaa44', 120);
             return;
         }
-        if (!(SceneManager._scene instanceof Scene_Map) || battle || $gameMap.isEventRunning() || subs[1]) {
+        if (battle) {
+            SoundManager.playBuzzer();
+            banner(fightersText() + ' fighting', 'No saving until the battle ends', '#ffaa44', 120);
+            return;
+        }
+        if (!(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || subs[1]) {
             SoundManager.playBuzzer();
             return;
         }
@@ -1202,6 +1207,59 @@
         });
     }
 
+    // la pagina lleva a otro sitio o guarda (o llama a un evento comun que lo hace): puertas,
+    // camas (dormir), guardar
+    function listLeavesPlace(list, depth) {
+        if (!list || depth > 3) return false;
+        return list.some(c => {
+            if (!c) return false;
+            if (c.code === 201 || c.code === 352) return true;
+            if (c.code === 117) {
+                const ce = $dataCommonEvents[c.parameters[0]];
+                return !!ce && listLeavesPlace(ce.list, depth + 1);
+            }
+            return false;
+        });
+    }
+
+    function fightersText() {
+        return battle ? 'P' + battle.involved.join(', P') + (battle.involved.length > 1 ? ' are' : ' is') : 'Someone is';
+    }
+
+    let refusedAt = -999;
+    function refuseLeaving() {
+        if (Net.frame - refusedAt > 90) {
+            banner(fightersText() + ' fighting here', 'Nobody leaves, sleeps or saves until the battle ends', '#ffaa44', 150);
+            SoundManager.playBuzzer();
+        }
+        refusedAt = Net.frame;
+    }
+
+    // y si un evento ya en marcha (o un objeto) quiere trasladar o guardar: tampoco
+    const _Game_Interpreter_command201 = Game_Interpreter.prototype.command201;
+    Game_Interpreter.prototype.command201 = function() {
+        if (Net.active && battle && !inBattleCtx && this._coopStarter && !inSeparateBattle(this._coopStarter) && !$gameParty.inBattle()) {
+            refuseLeaving();
+            return true;
+        }
+        return _Game_Interpreter_command201.call(this);
+    };
+
+    const _Game_Interpreter_command352 = Game_Interpreter.prototype.command352;
+    Game_Interpreter.prototype.command352 = function() {
+        if (Net.active && battle && !inBattleCtx) {
+            refuseLeaving();
+            return true;
+        }
+        return _Game_Interpreter_command352.call(this);
+    };
+
+    const _Window_MenuCommand_isSaveEnabled = Window_MenuCommand.prototype.isSaveEnabled;
+    Window_MenuCommand.prototype.isSaveEnabled = function() {
+        if (Net.active && battle) return false;
+        return _Window_MenuCommand_isSaveEnabled.call(this);
+    };
+
     function pageStartsBattle(ev) {
         return listStartsBattle(ev.list ? ev.list() : null, 0);
     }
@@ -1499,6 +1557,12 @@
             this._starting = false;
             if (!wasLocked) this.unlock();
             queueJoin(n, 'touched an enemy');
+        } else if (listLeavesPlace(this.list(), 0)) {
+            // mientras alguien lucha aqui nadie se va (puertas, dormir, guardar...): el traslado
+            // se llevaria tambien a los que luchan (y asi se huia de cualquier combate)
+            this._starting = false;
+            if (!wasLocked) this.unlock();
+            refuseLeaving();
         }
     };
 
