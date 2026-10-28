@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.8.4
 
 - Fix (network game, separate battles): when the fighters of a separate battle died and the game took them out of the party during the battle (Fear & Hunger 1 does it from the enemy troop's page), the battle pulled in P1's character - P1 then "lost" in their place and the protagonist's defeat scenes (guards, blood pit...) played for everybody. Now a separate battle never takes other players' characters: if its fighters are all gone, the battle ends there and the dead stay as bodies.
 - Fix: a separate battle lost without P1 no longer counts as "lost" for the map event that started it. Fear & Hunger 1 guards (and many other battles) have an *If lose* branch - capture, blood pit, cut legs - that is the protagonist's defeat and hit everybody; now the event sees the battle as ended (like an escape) and the fighters stay dead as bodies (before, a "can lose" battle stood them up with 1 HP and the enemy touched them again - an endless battle).
