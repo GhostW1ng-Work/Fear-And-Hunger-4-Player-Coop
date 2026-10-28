@@ -53,6 +53,10 @@ Scene_Base.prototype.isReady = function() { return true; };
 AudioManager.playBgm = AudioManager.playBgs = AudioManager.playMe = AudioManager.playSe = AudioManager.stopAll = function() {};
 AudioManager.fadeOutBgm = AudioManager.fadeOutBgs = AudioManager.fadeOutMe = AudioManager.stopBgm = AudioManager.stopBgs = function() {};
 SceneManager.renderScene = function() {};
+Scene_Title.prototype.create = function() { Scene_Base.prototype.create.call(this); };
+Scene_Title.prototype.start = function() { Scene_Base.prototype.start.call(this); };
+Scene_Title.prototype.update = function() { Scene_Base.prototype.update.call(this); };
+Scene_Title.prototype.terminate = function() {};
 """
 
 FAKES = r"""
@@ -644,7 +648,11 @@ check('bring: coming back, same hero again and only once in the party',
 
 # the host closes and opens the game again: the guest comes back as P2 (not P3)
 bh.ev("CoopNet.close(); CoopNet.open('host')")
-tick(bnet, [bh, bg2], 300)  # the guest retries every 3 s
+tick(bnet, [bh, bg2], 20)
+check('guest lost the host: back at the title (its copy of the world does not go on alone)',
+      bg2.ev('SceneManager._scene instanceof Scene_Title || SceneManager._nextScene instanceof Scene_Title'),
+      bg2.ev('SceneManager._scene && SceneManager._scene.constructor.name'))
+tick(bnet, [bh, bg2], 280)  # the guest retries every 3 s
 check('host reopened the game: the guest is P2 again', bg2.ev('CoopNet.player') == 2 and bh.ev('CoopNet.peers.length') == 1,
       [bg2.ev('CoopNet.player'), bh.ev('CoopNet.peers.length')])
 

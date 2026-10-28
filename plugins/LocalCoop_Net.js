@@ -1552,6 +1552,12 @@
         }
         stepBattleInputs();
         logBattleInput();
+        // se fueron todos los que luchaban: se acaba como una huida (la IA no siempre lo acababa)
+        if (!b.aborting && battleAbandoned()) {
+            b.aborting = true;
+            battleLog('battle ' + b.seq + ': everybody in it left - ends as escaped');
+            withBattle(b, () => BattleManager.abort());
+        }
         let next = null;
         try {
             next = withBattle(b, () => {
@@ -1570,10 +1576,32 @@
     // el evento apartado sigue en el mapa en cuanto este libre
     const _Game_Map_updateInterpreter = Game_Map.prototype.updateInterpreter;
     Game_Map.prototype.updateInterpreter = function() {
-        // (cuando no queda otro combate aparte: lo que hacen despues - "AFTER BATTLE", recuperar a todo el
-        // grupo... - tocaria a los que siguen luchando)
-        if (pendingRoots.length && battles.length === 0 && !this._interpreter.isRunning() && !$gameMessage.isBusy()) this._interpreter = pendingRoots.shift();
+        if (pendingRoots.length && !this._interpreter.isRunning() && !$gameMessage.isBusy()) {
+            this._interpreter = pendingRoots.shift();
+            this._interpreter._coopAfterBattle = true;
+        }
         _Game_Map_updateInterpreter.call(this);
+    };
+
+    // Lo que hace despues ("AFTER BATTLE": recuperar, estados... a todo el grupo) no toca a los que
+    // siguen luchando en otro combate aparte
+    const _Game_Interpreter_update = Game_Interpreter.prototype.update;
+    Game_Interpreter.prototype.update = function() {
+        if (!this._coopAfterBattle || !Net.active || battles.length === 0) {
+            if (this._coopAfterBattle && !this.isRunning()) this._coopAfterBattle = false;
+            return _Game_Interpreter_update.call(this);
+        }
+        const party = $gameParty;
+        const all = Game_Party.prototype.allMembers;
+        party.allMembers = function() {
+            return all.call(this).filter(a => !battles.some(b => b.involved.indexOf(coop.battleOwnerOf(a)) >= 0));
+        };
+        try {
+            return _Game_Interpreter_update.call(this);
+        } finally {
+            delete party.allMembers;
+            if (!this.isRunning()) this._coopAfterBattle = false;
+        }
     };
 
     // registro: cuando cambian las teclas de alguien que lucha, quien tiene el control y que
@@ -1584,9 +1612,11 @@
         battle.lastRaws = raws;
         let owner = '?';
         let win = '-';
+        let actorName = '-';
         try {
             withBattle(battle, () => {
                 owner = 'P' + battleInputOwner();
+                if (BattleManager.actor()) actorName = BattleManager.actor().name();
                 const layer = battle.scene._windowLayer;
                 const active = layer ? layer.children.filter(w => w && w.active && w.visible && typeof w.index === 'function') : [];
                 win = active.map(w => w.constructor.name + '#' + w.index() + '/' + w.maxItems()).join(',') || 'none';
@@ -1594,10 +1624,8 @@
         } catch (e) {
             win = 'error ' + e.message;
         }
-        const bm = battle.bm || {};
-        const actor = bm._actorIndex >= 0 && $gameParty.members()[bm._actorIndex];
-        battleLog('battle ' + battle.seq + ' keys ' + raws + ' -> owner ' + owner + ', phase ' + bm._phase + ', actor ' +
-            (actor ? actor.name() : '-') + ', active ' + win);
+        battleLog('battle ' + battle.seq + ' keys ' + raws + ' -> owner ' + owner + ', phase ' + (battle.bm || {})._phase + ', actor ' +
+            actorName + ', active ' + win);
     }
 
     // "Procesar combate" de un evento que empezo un jugador: combate aparte
@@ -1942,6 +1970,32 @@
         }
     }
 
+    // Minimizado o tapado por otra ventana, el navegador deja de llamar a la animacion (y frena
+    // los temporizadores a uno por segundo): el juego se paraba, los demas esperaban y a los 5 s el
+    // anfitrion soltaba a ese jugador. Un "worker" no se frena: mientras falte la animacion, la
+    // partida en red sigue con el.
+    let lastAnimFrame = performance.now();
+    const _SceneManager_update = SceneManager.update;
+    SceneManager.update = function() {
+        lastAnimFrame = performance.now();
+        return _SceneManager_update.apply(this, arguments);
+    };
+    try {
+        if (typeof Worker !== 'undefined' && typeof Blob !== 'undefined' && typeof URL !== 'undefined') {
+            const tick = new Worker(URL.createObjectURL(new Blob(['setInterval(function () { postMessage(0); }, 16);'], { type: 'application/javascript' })));
+            tick.onmessage = () => {
+                if (!Net.active || performance.now() - lastAnimFrame < 100) return;
+                try {
+                    SceneManager.updateMain();
+                } catch (e) {
+                    logError('update in the background', e);
+                }
+            };
+        }
+    } catch (e) {
+        logError('background worker', e);
+    }
+
     function endSession(reason) {
         if (!Net.active) return;
         closeAllSubs();
@@ -1962,6 +2016,14 @@
         removeLeftovers();
         Net.players = [1];
         Net.peers.forEach(pp => { pp.inSession = false; });
+        // el invitado jugaba el mundo del anfitrion: sin el, esa copia seguia sola (y se separaba:
+        // combates, eventos...). Vuelve al titulo; desde ahi se reconecta solo.
+        if (Net.role === 'join' && !(SceneManager._scene instanceof Scene_Title)) {
+            closeSceneNow();
+            SceneManager.goto(Scene_Title);
+            setTimeout(() => banner('Network game stopped', reason || '', '#ffaa44', 300), 500);
+            return;
+        }
         banner('Network game stopped', reason || '', '#ffaa44', 300);
     }
 
