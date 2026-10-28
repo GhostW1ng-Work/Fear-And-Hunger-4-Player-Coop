@@ -255,14 +255,14 @@
     // (solo se guarda el Error: convertir la pila en texto cuesta, y solo hace falta si hay desync)
     function noteRandom() {
         const limit = Error.stackTraceLimit;
-        Error.stackTraceLimit = 6;
+        Error.stackTraceLimit = 10;
         randTrail.push({ f: Net.frame, e: new Error() });
         Error.stackTraceLimit = limit;
         if (randTrail.length > RAND_KEEP + 500) randTrail.splice(0, randTrail.length - RAND_KEEP);
     }
 
     function trailLine(t) {
-        const st = (t.e.stack || '').split('\n').slice(3, 6)
+        const st = (t.e.stack || '').split('\n').slice(3, 10)
             .map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/\\]/, '(')).join(' < ');
         return t.f + ' ' + st;
     }
@@ -721,6 +721,17 @@
     Sprite_Animation.prototype.isReady = function() {
         return Net.active || _Sprite_Animation_isReady.call(this);
     };
+
+    // YEP_BattleEngineCore ordena los enemigos a elegir por donde esta su dibujo; el dibujo puede
+    // no estar igual en cada PC (en un combate aparte solo se dibuja en el PC de quien lucha) y
+    // con otro orden la misma tecla elegia otro enemigo. En red: por su sitio en el combate.
+    if (Window_BattleEnemy.prototype.sortTargets) {
+        const _Window_BattleEnemy_sortTargets = Window_BattleEnemy.prototype.sortTargets;
+        Window_BattleEnemy.prototype.sortTargets = function() {
+            if (!Net.active) return _Window_BattleEnemy_sortTargets.call(this);
+            this._enemies.sort((a, b) => (a.screenX() - b.screenX()) || (a.screenY() - b.screenY()) || (a.index() - b.index()));
+        };
+    }
 
     const _Window_Message_updateLoading = Window_Message.prototype.updateLoading;
     Window_Message.prototype.updateLoading = function() {
@@ -1364,7 +1375,7 @@
                 owner = 'P' + battleInputOwner();
                 const layer = battle.scene._windowLayer;
                 const active = layer ? layer.children.filter(w => w && w.active && w.visible && typeof w.index === 'function') : [];
-                win = active.map(w => w.constructor.name + '#' + w.index()).join(',') || 'none';
+                win = active.map(w => w.constructor.name + '#' + w.index() + '/' + w.maxItems()).join(',') || 'none';
             });
         } catch (e) {
             win = 'error ' + e.message;

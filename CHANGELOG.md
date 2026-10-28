@@ -10,6 +10,10 @@
 - More cheats: **open locks** (Co-op settings: a door / chest / cell that asks for a key or a lockpick opens as if you had it), and in the Co-op menu **restore HP, mind and hunger** and **get torches and fire** (Torch x3 + Tinderbox / Matches / Lighter).
 - Fix: Fear & Hunger 1 puts its own corpse of a dead companion on the map (event "DeadDarkpriest"... with the "...BODY" switch); after bringing them back with a soul stone that corpse stayed (and came back). Now its switch is turned off too; while dead, the game's corpse is the body (OK with a filled soul stone brings them back; without it the game's own options stay, e.g. catching the soul with an empty one) and the mod does not draw a second one.
 - Network menu: a **Cheats** row - the host turns cheats on / off, also during the game (for everybody).
+- Fix (critical): leaving the map where a body lies and coming back made the body disappear (Fear & Hunger 1 puts its own corpse event back to its starting place when the map is loaded again) - it could not be revived any more. Now the game's corpse always lies where the player died, and on other maps it is not shown.
+- Fix: a torch (or flashlight) lit from the menu of P2-P4 lit up P1. Now the light goes with the character of whoever lit it (until P1 lights one).
+- Fix: a character that followed P1 through walls (while its player was disconnected, or in a scene) could stay stuck inside a wall when it got control back. Now it is put next to P1.
+- Fix (network game, Fear & Hunger 1): choosing an enemy (or enemy part) could pick a different one on each PC (the list was ordered by where each PC had drawn the enemies) - the battle went different ways (desync, a resync and a lag spike). Now the order is the same everywhere. The desync log also shows longer call stacks, and the battle log the size of the list.
 
 ## v1.8.3
 

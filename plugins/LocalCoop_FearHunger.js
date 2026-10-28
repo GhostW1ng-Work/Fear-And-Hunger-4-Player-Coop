@@ -503,21 +503,36 @@
         }) || null;
     }
 
-    // donde esta el cuerpo: el del juego si lo hay; si no, donde se murio
+    // el cuerpo esta donde se murio (game: lo dibuja el propio juego)
     function bodyPos(c) {
         const ev = c.mapId === $gameMap.mapId() ? gameBodyEvent(c.actorId) : null;
-        return ev ? { x: ev.x, y: ev.y, game: true } : { x: c.x, y: c.y, game: false };
+        return { x: c.x, y: c.y, game: !!ev };
     }
 
     function corpseAt(x, y) {
         const mapId = $gameMap.mapId();
-        return corpses().find(c => {
-            if (c.mapId !== mapId && !gameBodyEvent(c.actorId)) return false;
-            if ($gameParty._actors.includes(c.actorId)) return false;
-            const pos = bodyPos(c);
-            return (pos.x === x && pos.y === y) || (c.mapId === mapId && c.x === x && c.y === y);
-        }) || null;
+        return corpses().find(c => c.mapId === mapId && c.x === x && c.y === y && !$gameParty._actors.includes(c.actorId)) || null;
     }
+
+    // El evento del cadaver del juego vuelve a su sitio inicial al salir del mapa y entrar otra
+    // vez (y con el interruptor de "cuerpo" se ve en cualquier mapa): se queda donde se murio, y
+    // en los demas mapas no se ve.
+    function keepGameBodies() {
+        const mapId = $gameMap.mapId();
+        corpses().forEach(c => {
+            if ($gameParty._actors.includes(c.actorId)) return;
+            const ev = gameBodyEvent(c.actorId);
+            if (!ev) return;
+            if (c.mapId !== mapId) ev.erase();
+            else if (ev.x !== c.x || ev.y !== c.y) ev.locate(c.x, c.y);
+        });
+    }
+
+    const _Game_Map_update_bodies = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        if ($gameSystem._coopCorpses && $gameSystem._coopCorpses.length > 0 && this.mapId() > 0) keepGameBodies();
+        _Game_Map_update_bodies.call(this, sceneActive);
+    };
 
     // casilla para el cuerpo: la suya, o una de al lado sin otro evento (el cadaver de un enemigo
     // lo taparia)
@@ -751,7 +766,68 @@
         }
     });
 
-    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf };
+    // ---- la luz del protagonista (TerraxLighting: "Fire radius 300", "Flashlight on"...) ----------
+    // La antorcha / linterna que enciende P2-P4 desde su menu la lleva su personaje, no P1.
+    const _Game_Interpreter_setupReservedCommonEvent = Game_Interpreter.prototype.setupReservedCommonEvent;
+    Game_Interpreter.prototype.setupReservedCommonEvent = function() {
+        const started = _Game_Interpreter_setupReservedCommonEvent.call(this);
+        if (started) this._coopUsedItem = true; // (un objeto usado desde el menu)
+        return started;
+    };
+
+    const _Game_Interpreter_clear = Game_Interpreter.prototype.clear;
+    Game_Interpreter.prototype.clear = function() {
+        _Game_Interpreter_clear.call(this);
+        this._coopUsedItem = false;
+    };
+
+    const _Game_Interpreter_setupChild = Game_Interpreter.prototype.setupChild;
+    Game_Interpreter.prototype.setupChild = function(list, eventId) {
+        _Game_Interpreter_setupChild.call(this, list, eventId);
+        if (this._childInterpreter) this._childInterpreter._coopUsedItem = this._coopUsedItem;
+    };
+
+    const _Game_Interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
+    Game_Interpreter.prototype.pluginCommand = function(command, args) {
+        _Game_Interpreter_pluginCommand.call(this, command, args);
+        if (!this._coopUsedItem) return;
+        const cmd = String(command).toLowerCase();
+        const a0 = String((args && args[0]) || '').toLowerCase();
+        const on = (cmd === 'flashlight' && a0 === 'on') || ((cmd === 'light' || cmd === 'fire') && a0 === 'radius' && Number(args[1]) > 0);
+        if (on) $gameSystem._coopLightBy = this._coopStarter >= 2 ? this._coopStarter : 0;
+    };
+
+    function lightCarrier() {
+        const n = $gameSystem && $gameSystem._coopLightBy;
+        const p = n ? coop.player(n) : null;
+        return p && p.actor() ? p : null;
+    }
+
+    // (la clase de la luz no es global: se toma de la primera que se crea)
+    if (Spriteset_Map.prototype.createLightmask) {
+        const _Spriteset_Map_createLightmask = Spriteset_Map.prototype.createLightmask;
+        Spriteset_Map.prototype.createLightmask = function() {
+            _Spriteset_Map_createLightmask.apply(this, arguments);
+            const proto = this._lightmask && Object.getPrototypeOf(this._lightmask);
+            if (!proto || !proto._updateMask || proto._coopLightCarrier) return;
+            proto._coopLightCarrier = true;
+            const _updateMask = proto._updateMask;
+            // la luz del "protagonista" se dibuja donde esta quien la lleva
+            proto._updateMask = function() {
+                const p = lightCarrier();
+                if (!p) return _updateMask.apply(this, arguments);
+                const real = $gamePlayer;
+                $gamePlayer = p;
+                try {
+                    return _updateMask.apply(this, arguments);
+                } finally {
+                    $gamePlayer = real;
+                }
+            };
+        };
+    }
+
+    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent };
 
     // ---- el cuerpo en el mapa (Fear & Hunger 1 y quien no tiene cadaver propio en Termina) ----
     function Game_CoopCorpse(c) {
@@ -769,7 +845,7 @@
 
     function bodiesHere(all) {
         const mapId = $gameMap.mapId();
-        return corpses().filter(c => (c.mapId === mapId || gameBodyEvent(c.actorId)) &&
+        return corpses().filter(c => c.mapId === mapId &&
             (all || (!deathEffectsOf(c.actorId).spawn && !bodyPos(c).game)) && !$gameParty._actors.includes(c.actorId));
     }
 
@@ -832,7 +908,7 @@
             const i = this._characterSprites.indexOf(sp);
             if (i >= 0) this._characterSprites.splice(i, 1);
         });
-        this._coopCorpseSprites = list.filter(c => !deathEffectsOf(c.actorId).spawn && !bodyPos(c).game && c.mapId === $gameMap.mapId()).map(c => {
+        this._coopCorpseSprites = list.filter(c => !deathEffectsOf(c.actorId).spawn && !bodyPos(c).game).map(c => {
             const sp = new Sprite_Character(new Game_CoopCorpse(c));
             this._characterSprites.push(sp);
             this._tilemap.addChild(sp);

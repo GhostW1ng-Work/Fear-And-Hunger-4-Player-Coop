@@ -873,6 +873,13 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var ss = SceneManager._scene._spriteset;
         var bodySprites = function() { return ss ? (ss._coopCorpseSprites || []).filter(function(sp) { return !!sp.parent; }).length + '/' + (ss._coopCorpseNames || []).filter(function(sp) { return !!sp.parent; }).length : 'no spriteset'; };
         var spritesBefore = bodySprites();
+        var gev = CoopRevive.gameBodyEvent(mine);
+        if (gev) {
+            check('T33c2 the body of the game lies where P3 died', gev.x === body.x && gev.y === body.y, gev.x + ',' + gev.y + ' vs ' + body.x + ',' + body.y);
+            gev.locate(0, 0); // como al salir del mapa y volver: el evento vuelve a su sitio inicial
+            for (k = 0; k < 5; k++) frame();
+            check('T33c3 back on the map: the body is still where P3 died', gev.x === body.x && gev.y === body.y, gev.x + ',' + gev.y);
+        }
         $gamePlayer.checkEventTriggerHere([0]);
         check('T33d OK on the body: the "bring them back?" question', $gameMap._interpreter.isRunning() && $gameMap._interpreter._coopRevive === $gameMap._interpreter._list);
         $gameMap._interpreter.clear();
@@ -958,6 +965,44 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         wNow.select($gameParty.members().length + rows.findIndex(function(t) { return /torches/i.test(t); }));
         wNow.processOk();
         check('T36c cheat fire: torches given', !!torch && $gameParty.numItems(torch) === torches + 3, torches + ' -> ' + (torch && $gameParty.numItems(torch)));
+    }
+
+    // ---- la antorcha que enciende P2 desde su menu la lleva P2 ----
+    var carrierN = [2, 3, 4].filter(function(n) { return !!CoopLocal.player(n); })[0];
+    if (carrierN) {
+        var li = new Game_Interpreter();
+        li.setup([{ code: 356, indent: 0, parameters: ['Fire radius 300 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
+        li._coopUsedItem = true; // (como un evento comun de un objeto)
+        li._coopStarter = carrierN;
+        li.update();
+        check('T37 a torch lit from the menu of P' + carrierN + ': P' + carrierN + ' carries the light', $gameSystem._coopLightBy === carrierN, $gameSystem._coopLightBy);
+        var li2 = new Game_Interpreter();
+        li2.setup([{ code: 356, indent: 0, parameters: ['Light radius 100 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
+        li2._coopStarter = 1;
+        li2.update();
+        check('T37b a map event changing the light does not take it from P' + carrierN, $gameSystem._coopLightBy === carrierN, $gameSystem._coopLightBy);
+        li._coopUsedItem = true;
+        li._coopStarter = 0;
+        li.setup([{ code: 356, indent: 0, parameters: ['Fire radius 300 #FFFFFF'] }, { code: 0, indent: 0, parameters: [] }], 0);
+        li._coopUsedItem = true;
+        li.update();
+        check('T37c P1 lights one: P1 carries it again', !$gameSystem._coopLightBy, $gameSystem._coopLightBy);
+    }
+
+    // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
+    var walker = carrierN && CoopLocal.player(carrierN);
+    var wall = null;
+    for (var wy = 0; walker && !wall && wy < $gameMap.height(); wy++) {
+        for (var wx = 0; wx < $gameMap.width(); wx++) {
+            if ([2, 4, 6, 8].every(function(d) { return !$gameMap.isPassable(wx, wy, d); })) { wall = [wx, wy]; break; }
+        }
+    }
+    if (walker && wall) {
+        walker.locate(wall[0], wall[1]);
+        walker._through = true; // como al seguir a P1
+        for (k = 0; k < 5; k++) frame();
+        check('T38 left inside a wall after following P1: back next to P1', walker.x === $gamePlayer.x && walker.y === $gamePlayer.y && !walker._through,
+            walker.x + ',' + walker.y + ' through=' + walker._through + ' wall ' + wall);
     }
 })();
 

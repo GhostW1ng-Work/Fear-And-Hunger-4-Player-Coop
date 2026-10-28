@@ -1713,7 +1713,8 @@
             if (CoopState.away[this._coopIndex]) {
                 this.followLeader();
             } else if (this.canMoveCoop()) {
-                this._through = false;
+                // (venia siguiendo a P1 a traves de todo: si se quedo dentro de una pared, sale)
+                if (this._through) this.endCutsceneFollow();
                 this.updateMoveCoop();
             } else {
                 this.updateCutsceneFollow();
@@ -1739,8 +1740,7 @@
     Game_CoopPlayer.prototype.updateCutsceneFollow = function() {
         if (!$gameMap.isEventRunning() || !$gamePlayer.isMoveRouteForcing()) {
             this._coopRouteFrom = null;
-            if (this._coopFollowing) this.endCutsceneFollow();
-            this._through = false;
+            if (this._coopFollowing || this._through) this.endCutsceneFollow();
             return;
         }
         // (por mapa: al pasar a otro mapa P1 aparece en otra casilla sin haber "andado")
@@ -1755,8 +1755,8 @@
         this.followLeader();
     };
 
-    // al terminar de seguirle (o si la escena se corta, p.ej. un combate aparte) puede haberse
-    // quedado dentro de una pared: entonces se pone junto a P1
+    // al terminar de seguirle (o si la escena se corta, p.ej. un combate aparte, o vuelve un
+    // jugador que se habia ido) puede haberse quedado dentro de una pared: entonces se pone junto a P1
     Game_CoopPlayer.prototype.endCutsceneFollow = function() {
         this._coopFollowing = false;
         this._through = false;
