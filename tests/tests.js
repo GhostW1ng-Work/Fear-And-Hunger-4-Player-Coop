@@ -897,6 +897,19 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T33i the body is gone', CoopRevive.corpses().length === 0);
         for (k = 0; k < 25; k++) frame();
         if (ss) check('T33j the body picture is gone too', bodySprites() === '0/0', 'before ' + spritesBefore + ' after ' + bodySprites());
+        // "Revive with soul stones: Off": la muerte es para siempre (no queda cuerpo que revivir)
+        CoopLocal.setSetting('reviveAllowed', false);
+        var dead2 = $gameActors.actor(mine);
+        dead2.addState(dead2.deathStateId());
+        $gameParty.removeActor(mine);
+        for (k = 0; k < 10; k++) frame();
+        check('T33k revive Off: no body to revive, the player waits', CoopRevive.corpses().length === 0 && !whoP(),
+            JSON.stringify(CoopRevive.corpses()));
+        CoopLocal.setSetting('reviveAllowed', true);
+        dead2.removeState(dead2.deathStateId());
+        dead2.setHp(dead2.mhp);
+        $gameParty.addActor(mine);
+        for (k = 0; k < 10; k++) frame();
         // truco del menu "Co-op": la ultima fila da una piedra
         var before = $gameParty.numItems(stone);
         var err = '';

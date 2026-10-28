@@ -52,7 +52,7 @@ With *Separate*, a battle that a player starts (an enemy touches them, or they t
 - Battles without a player (cutscenes, common events) are for everybody, as before.
 
 
-The co-op rules (*Co-op settings*: death rule, revive, cheats, *Played characters' NPCs*) are the host's too. The network menu has rows for **Cheats** and **Played chars' NPCs**: the host changes them before or during the game, for everybody.
+The co-op rules (*Co-op settings*: death rule, revive, cheats, *Played characters' NPCs*) are the host's too. The network menu has rows for **Revive (soul stones)**, **Cheats** and **Played chars' NPCs**: the host changes them before or during the game, for everybody.
 
 Options that change the game (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC; volume, keys and camera stay each player's own. A guest's own settings come back when the network game ends (they are not overwritten on disk).
 

@@ -2703,8 +2703,8 @@
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
     // (la fila de los NPC solo si el plugin de Fear & Hunger la pone)
-    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'npcs', 'cheats', 'showPing', 'action', 'stop']
-        .filter(k => k !== 'npcs' || coop.setting('hideNpcs') !== undefined);
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'revive', 'npcs', 'cheats', 'showPing', 'action', 'stop']
+        .filter(k => (k !== 'npcs' || coop.setting('hideNpcs') !== undefined) && (k !== 'revive' || coop.setting('reviveAllowed') !== undefined));
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -2802,6 +2802,9 @@
             return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
         }
         if (key === 'showPing') return '< ' + (this._cfg.showPing ? 'On' : 'Off') + ' >';
+        if (key === 'revive') {
+            return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (coop.setting('reviveAllowed') === false ? 'Off (death is for good)' : 'On') + ' >';
+        }
         if (key === 'npcs') {
             return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (coop.setting('hideNpcs') === false ? 'Shown' : 'Hidden') + ' >';
         }
@@ -2833,7 +2836,7 @@
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'showPing') return true;
         // (jugando, este menu es el de P1 y va igual en todos los PC: el cambio llega a todos)
-        if (key === 'cheats' || key === 'npcs') return Net.active || Net.role !== 'join';
+        if (key === 'cheats' || key === 'npcs' || key === 'revive') return Net.active || Net.role !== 'join';
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
@@ -2843,7 +2846,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', npcs: "Played chars' NPCs", cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', revive: 'Revive (soul stones)', npcs: "Played chars' NPCs", cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2901,6 +2904,7 @@
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
         if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
+        if (NET_ROWS[this.index()] === 'revive') this.changeRevive();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2913,6 +2917,7 @@
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
         if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
+        if (NET_ROWS[this.index()] === 'revive') this.changeRevive();
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2929,6 +2934,19 @@
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    Window_CoopNet.prototype.changeRevive = function() {
+        if (!this.isRowEnabled('revive')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        coop.setSetting('reviveAllowed', coop.setting('reviveAllowed') === false);
+        SoundManager.playCursor();
+        if (Net.active && Net.role === 'host') {
+            banner('Revive with soul stones: ' + (coop.setting('reviveAllowed') === false ? 'off - death is for good' : 'on'), 'For everybody', COLOR_NET, 150);
+        }
+        this.refresh();
+    };
+
     // (como los trucos: es un ajuste del co-op; jugando, este menu va igual en todos los PC)
     Window_CoopNet.prototype.changeNpcs = function() {
         if (!this.isRowEnabled('npcs')) {
@@ -3000,6 +3018,8 @@
             this.changeCheats();
         } else if (key === 'npcs') {
             this.changeNpcs();
+        } else if (key === 'revive') {
+            this.changeRevive();
         } else if (key === 'bring') {
             this.changeBring(1);
         } else if (key === 'found') {
@@ -3125,7 +3145,7 @@
         const helpH = 130;
         this._netHelp = new Window_CoopNetHelp(0, 0, w, helpH);
         this.addWindow(this._netHelp);
-        this._netList = new Window_CoopNet(0, helpH, w, NET_ROWS.length * 36 + 36);
+        this._netList = new Window_CoopNet(0, helpH, w, Math.min(NET_ROWS.length * 36 + 36, Graphics.boxHeight - helpH));
         this._netList.setHandler('cancel', this.popScene.bind(this));
         this.addWindow(this._netList);
     };

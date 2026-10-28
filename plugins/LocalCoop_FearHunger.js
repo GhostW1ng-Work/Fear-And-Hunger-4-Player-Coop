@@ -408,6 +408,8 @@
     // "deathCheck"); al volver se apagan y, en Termina, desaparece el cadaver que el juego deja.
 
     coop.addSettings([
+        { key: 'reviveAllowed', name: 'Revive with soul stones', values: [true, false], labels: ['On', 'Off (death is for good)'],
+            help: 'Off: a dead character stays dead (no body to revive); their player waits until the host gives them a free character (Co-op menu) or a new companion joins.' },
         { key: 'reviveHp', name: 'Revived with', values: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100], default: 2,
             labels: ['10%', '20%', '30%', '40%', '50%', '60%', '70%', '80%', '90%', '100%'],
             help: 'HP and mind of a character brought back from the dead with a soul stone.' },
@@ -428,7 +430,7 @@
     // (si el unico otro jugador murio ya no hay co-op en marcha, pero su cuerpo sigue ahi)
     function reviveOn() {
         return (coop.isOn() || Object.keys(coop.waiting()).length > 0 || ($gameSystem && ($gameSystem._coopCorpses || []).length > 0)) &&
-            coop.setting('deathRule') !== 'gameover' && !!gameProfile() && !!soulStone();
+            coop.setting('deathRule') !== 'gameover' && coop.setting('reviveAllowed') !== false && !!gameProfile() && !!soulStone();
     }
 
     // lo que el juego hace al morir cada personaje (para deshacerlo al volver)

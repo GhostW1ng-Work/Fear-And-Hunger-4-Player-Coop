@@ -47,7 +47,7 @@ Experimental. Every PC needs the game and the same version of the mod (the insta
 - **Bring your own character**: a guest can pick one of their own saves; its main character joins the host's party (if it has fewer than 4 members).
 - Optional password. Keyboard and gamepad only (no mouse) in the network game.
 - While somebody fights a separate battle on the map, the others cannot leave it, sleep or save (doors, beds, save points, F6, *Save* in the menu) - otherwise the transfer took the fighters along too.
-- The network menu has **Cheats** and **Played chars' NPCs** rows: the host changes them also during the game, for everybody.
+- The network menu has **Revive (soul stones)**, **Cheats** and **Played chars' NPCs** rows: the host changes them also during the game, for everybody.
 - Nobody is dropped for being slow: if a player's game stalls (minimized, loading), the others go on without waiting and that game catches up when it comes back. A guest that loses the host goes back to the title and reconnects from there.
 - Every player's ping is shown at the top right (*Ping on screen* turns it off). F6 / F7 work on the host only in the network game.
 
@@ -88,6 +88,7 @@ Rules of the co-op (in the network game the **host's** count for everybody):
 |---|---|---|
 | *When P2-P4 die* | The party goes on | Only the death of P1 ends the game; *Game over* = the original rule. |
 | *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply). |
+| *Revive with soul stones* | On | Off: death is for good - no body to revive; the player waits for a free character from the host or a new companion. (Fear & Hunger) |
 | *Revived with* / *Mind cost of reviving* | 30% / 30% | HP and mind after a soul stone; mind the one who used it loses. (Fear & Hunger) |
 | *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. (Fear & Hunger) |
 | *Cheats* | On | F6 / F7 anywhere and the cheats of the Co-op menu; also needed by the cheats below. |

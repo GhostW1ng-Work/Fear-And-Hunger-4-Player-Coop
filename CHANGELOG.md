@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Setting **Revive with soul stones: On / Off** (Co-op settings, and a row in the network menu; the host's in the network game, can be changed while playing). Off: death is for good - the mod leaves no body to revive; the dead player waits until the host gives them a free character (Co-op menu) or a new companion joins. Turned on again, bodies already lying there can be revived.
+- The network menu no longer runs off the bottom of the screen (it scrolls when the rows don't fit).
+
 ## v1.8.6
 
 - Network game, separate battles: **several battles at once, each with its own enemy.** Before there was only one separate battle: when P2 was fighting one enemy and P1 touched another, P1 was pulled into P2's battle (and the second enemy waited to fight them too). Now P1 gets their own battle with that enemy, both run at the same time, each PC shows the battle of its player. Touching the *same* enemy, or pressing OK next to a fighter, still joins that battle. Each battle keeps its own troop and battle state; the map event that started it waits aside (the map stays free for the others: talking, chests, another battle) and goes on ("if you win...") as soon as the map is free; what it then does to the whole party ("AFTER BATTLE": recover, states...) does not touch those still fighting in another battle.
