@@ -295,6 +295,8 @@ check('guest connected as P2 (after "Connect")', g2.ev('CoopNet.player') == 2, g
 # different options on each PC: the host's are used in the network game (always dash moves faster)
 host.ev('ConfigManager.alwaysDash = true; ConfigManager.bgmVolume = 30')
 g2.ev('ConfigManager.alwaysDash = false; ConfigManager.bgmVolume = 70')
+host.ev("CoopLocal.setSetting('hideNpcs', false)")  # the host wants the NPCs as in the game
+g2.ev("CoopLocal.setSetting('hideNpcs', true)")
 host.ev('SceneManager.push(Scene_Options)')
 tick(net, [host, g2], 5)
 host.ev('CoopNet.startRequested = true')
@@ -305,6 +307,8 @@ check('the menu the host started from is gone', host.ev('SceneManager._stack.len
 check('P2 exists on both PCs', host.ev('!!$gamePlayer2') and g2.ev('!!$gamePlayer2'))
 check("guest uses the host's game options, keeps its own volume",
       g2.ev('ConfigManager.alwaysDash') is True and g2.ev('ConfigManager.bgmVolume') == 70)
+check("the guest uses the host's co-op rules (Played characters' NPCs: Shown)", g2.ev("CoopLocal.setting('hideNpcs')") is False,
+      g2.ev("CoopLocal.setting('hideNpcs')"))
 f0 = frame(host)
 p2start = host.ev('$gamePlayer2.x')
 

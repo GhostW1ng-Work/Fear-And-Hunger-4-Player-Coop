@@ -2496,7 +2496,9 @@
 
     // ---- ventana de opciones: Opciones > Co-op > Network game... -------------------------
 
-    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'cheats', 'showPing', 'action', 'stop'];
+    // (la fila de los NPC solo si el plugin de Fear & Hunger la pone)
+    const NET_ROWS = ['role', 'found', 'host', 'port', 'password', 'bring', 'delay', 'battles', 'npcs', 'cheats', 'showPing', 'action', 'stop']
+        .filter(k => k !== 'npcs' || coop.setting('hideNpcs') !== undefined);
     const ACTION_ROW = NET_ROWS.indexOf('action');
     const DELAY_VALUES = ['auto'];
     for (let d = MIN_DELAY; d <= 15; d++) DELAY_VALUES.push(d);
@@ -2594,6 +2596,9 @@
             return '< ' + (hero ? 'Slot ' + this._cfg.bring + ': ' + hero.name + ' (Lv ' + hero.level + ')' : 'None (a companion)') + ' >';
         }
         if (key === 'showPing') return '< ' + (this._cfg.showPing ? 'On' : 'Off') + ' >';
+        if (key === 'npcs') {
+            return (Net.role === 'join' && !Net.active) ? "(the host's)" : '< ' + (coop.setting('hideNpcs') === false ? 'Shown' : 'Hidden') + ' >';
+        }
         if (key === 'cheats') {
             const on = coop.setting('cheats') !== false;
             const list = [['cheatGod', 'immortal'], ['cheatLimbs', 'limbs'], ['cheatOneShot', 'one-hit']]
@@ -2622,7 +2627,7 @@
         if (key === 'delay') return true; // se puede cambiar jugando (solo afecta a este PC)
         if (key === 'showPing') return true;
         // (jugando, este menu es el de P1 y va igual en todos los PC: el cambio llega a todos)
-        if (key === 'cheats') return Net.active || Net.role !== 'join';
+        if (key === 'cheats' || key === 'npcs') return Net.active || Net.role !== 'join';
         if (key === 'battles') return !Net.active && Net.role !== 'join'; // lo decide el anfitrion al empezar
         if (key === 'bring') return Net.role === 'off' && this._cfg.role === 'join';
         if (key === 'found') return Net.role === 'off' && this._cfg.role === 'join' && !!dgram;
@@ -2632,7 +2637,7 @@
     Window_CoopNet.prototype.drawItem = function(index) {
         const key = NET_ROWS[index];
         const rect = this.itemRect(index);
-        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
+        const names = { role: 'Mode', found: 'Games found', host: "Host's IP", port: 'Port', password: 'Password', bring: 'Bring character', delay: 'Input delay', battles: 'Battles', npcs: "Played chars' NPCs", cheats: 'Cheats', showPing: 'Ping on screen', action: '', stop: '' };
         const wide = key === 'action' || key === 'stop';
         this.resetTextColor();
         this.changePaintOpacity(this.isRowEnabled(key));
@@ -2689,6 +2694,7 @@
         if (NET_ROWS[this.index()] === 'found') this.pickFound(1);
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
+        if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
     };
 
     Window_CoopNet.prototype.cursorLeft = function() {
@@ -2700,6 +2706,7 @@
         if (NET_ROWS[this.index()] === 'found') this.pickFound(-1);
         if (NET_ROWS[this.index()] === 'showPing') this.changeShowPing();
         if (NET_ROWS[this.index()] === 'cheats') this.changeCheats();
+        if (NET_ROWS[this.index()] === 'npcs') this.changeNpcs();
     };
 
     // traer el protagonista de una de mis partidas guardadas (o nada: un companero del anfitrion)
@@ -2716,6 +2723,20 @@
     };
 
     // combates juntos (como siempre) o aparte (solo los que toca el enemigo)
+    // (como los trucos: es un ajuste del co-op; jugando, este menu va igual en todos los PC)
+    Window_CoopNet.prototype.changeNpcs = function() {
+        if (!this.isRowEnabled('npcs')) {
+            SoundManager.playBuzzer();
+            return;
+        }
+        coop.setSetting('hideNpcs', coop.setting('hideNpcs') === false);
+        SoundManager.playCursor();
+        if (Net.active && Net.role === 'host') {
+            banner("Played characters' NPCs: " + (coop.setting('hideNpcs') === false ? 'shown' : 'hidden'), 'For everybody', COLOR_NET, 120);
+        }
+        this.refresh();
+    };
+
     Window_CoopNet.prototype.changeCheats = function() {
         if (!this.isRowEnabled('cheats')) {
             SoundManager.playBuzzer();
@@ -2771,6 +2792,8 @@
             this.changeShowPing();
         } else if (key === 'cheats') {
             this.changeCheats();
+        } else if (key === 'npcs') {
+            this.changeNpcs();
         } else if (key === 'bring') {
             this.changeBring(1);
         } else if (key === 'found') {

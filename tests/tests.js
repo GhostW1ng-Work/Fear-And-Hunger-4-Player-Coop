@@ -1070,6 +1070,13 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T42 the NPC of the character P' + carrierN + ' plays is hidden (its "in the party" page)', evA._pageIndex === 1 && evB._pageIndex === 0,
             'A page ' + evA._pageIndex + ' B page ' + evB._pageIndex + ' by ' + JSON.stringify(CoopRevive.npcSwitchesByActor()[hx]));
         check('T42b the game switch itself is not touched', !$gameSwitches.value(joinSw));
+        CoopLocal.setSetting('hideNpcs', false); // el anfitrion lo quiere como en el juego
+        for (k = 0; k < 3; k++) frame();
+        evA.refresh();
+        check("T42f setting \"Played characters' NPCs: Shown\": the NPC stays", evA._pageIndex === 0, 'A page ' + evA._pageIndex);
+        CoopLocal.setSetting('hideNpcs', true);
+        for (k = 0; k < 3; k++) frame();
+        evA.refresh();
         // P2 deja el personaje: el NPC vuelve
         // "esperando": el juego apaga ese interruptor al contratarle; y si asi saldria otra pagina con algo, nada
         var waitSw = freeSw(otherSw + 1), sceneSw = freeSw(waitSw + 1);

@@ -1107,6 +1107,11 @@
     const ROLE_SWITCH = /INITIAL_|SELECT$/i;
     const NOT_JOIN_SWITCH = /suicide|^start$|cannotuse|trigger|starvation|hard_mode|INITIAL_|SELECT$/i;
 
+    coop.addSettings([
+        { key: 'hideNpcs', name: "Played characters' NPCs", values: [true, false], labels: ['Hidden', 'Shown'],
+            help: 'Hidden: a character a player plays is not also standing around as an NPC (waiting, in a cell...). Shown: they are, as in the game.' }
+    ], true);
+
     function isHidePage(page) {
         return !!page && !page.image.characterName && !page.image.tileId && page.list.length <= 1;
     }
@@ -1195,7 +1200,7 @@
         const by = npcSwitchesByActor();
         const roles = {};
         const near = {};
-        playedActors().forEach(a => {
+        (coop.setting('hideNpcs') === false ? [] : playedActors()).forEach(a => {
             const e = by[a];
             if (!e) return;
             e.roles.forEach(s => { roles[s] = true; });
