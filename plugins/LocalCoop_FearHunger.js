@@ -1091,7 +1091,162 @@
         };
     }
 
+    // ---- el personaje de P2-P4 no esta ademas como NPC en el mapa --------------------------
+    // Las dos partes esconden al companero que ya esta en el grupo (o al protagonista) con una
+    // pagina vacia del evento: sin dibujo ni comandos, con la condicion "Cahara_InTheParty!",
+    // "INITIAL_MERCENARY" (el protagonista es el), "OCCULTIST_SELECT" (Termina)... El personaje que
+    // un jugador elige en el mod no lo contrato la historia: esas paginas no salian y el NPC seguia
+    // ahi. Mientras un jugador lo lleva (o yace su cuerpo), esas condiciones cuentan como
+    // cumplidas, pero SOLO en las paginas vacias: el NPC desaparece y nada mas cambia (los
+    // interruptores no se tocan; si lo deja, vuelve). Que interruptores son se mira en el mapa:
+    //  - los que la historia enciende al contratarle (junto a "Anadir miembro" en su evento);
+    //  - los de "protagonista" (INITIAL_... / ..._SELECT) de sus eventos.
+    const ROLE_SWITCH = /INITIAL_|SELECT$/i;
+    const NOT_JOIN_SWITCH = /suicide|^start$|cannotuse|trigger|starvation|hard_mode|INITIAL_|SELECT$/i;
+
+    function isHidePage(page) {
+        return !!page && !page.image.characterName && !page.image.tileId && page.list.length <= 1;
+    }
+
+    function pageSwitches(page) {
+        const c = page.conditions;
+        const out = [];
+        if (c.switch1Valid) out.push(c.switch1Id);
+        if (c.switch2Valid) out.push(c.switch2Id);
+        return out;
+    }
+
+    let npcMap = { mapId: -1, byActor: {} };
+    function npcSwitchesByActor() {
+        if (npcMap.mapId === $gameMap.mapId() && npcMap.data === $dataMap) return npcMap.byActor;
+        const names = ($dataSystem && $dataSystem.switches) || [];
+        const near = {};     // actor -> interruptores que se encienden al contratarle
+        const roles = {};    // interruptor de protagonista -> { actor: cuantas veces }
+        const joinedBy = {}; // interruptor -> actores en cuyo contrato se enciende
+        (($dataMap && $dataMap.events) || []).forEach(ev => {
+            if (!ev) return;
+            const added = [];
+            ev.pages.forEach(pg => pg.list.forEach((c, i) => {
+                if (c.code !== 129 || c.parameters[1] !== 0) return;
+                const a = c.parameters[0];
+                if (added.indexOf(a) < 0) added.push(a);
+                pg.list.slice(Math.max(0, i - 8), i + 9).forEach(d => {
+                    if (d.code !== 121 || d.parameters[2] !== 0) return;
+                    for (let s = d.parameters[0]; s <= d.parameters[1]; s++) {
+                        if (NOT_JOIN_SWITCH.test(names[s] || '')) continue;
+                        (near[a] = near[a] || {})[s] = true;
+                        (joinedBy[s] = joinedBy[s] || {})[a] = true;
+                    }
+                });
+            }));
+            if (added.length !== 1) return; // (el de elegir personaje anade a todos)
+            ev.pages.forEach(pg => {
+                if (!isHidePage(pg)) return;
+                pageSwitches(pg).forEach(s => {
+                    if (!ROLE_SWITCH.test(names[s] || '')) return;
+                    const r = roles[s] = roles[s] || {};
+                    r[added[0]] = (r[added[0]] || 0) + 1;
+                });
+            });
+        });
+        // near: solo en sus eventos (los que le contratan o le dibujan); roles: en cualquiera
+        const byActor = {};
+        const entry = a => (byActor[a] = byActor[a] || { near: [], roles: [] });
+        Object.keys(near).forEach(a => {
+            // (un interruptor que se enciende al contratar a varios no es "este esta en el grupo")
+            entry(a).near = Object.keys(near[a]).map(Number).filter(s => Object.keys(joinedBy[s]).length === 1);
+        });
+        Object.keys(roles).forEach(s => {
+            const best = Object.keys(roles[s]).sort((x, y) => roles[s][y] - roles[s][x])[0];
+            entry(best).roles.push(Number(s));
+        });
+        npcMap = { mapId: $gameMap.mapId(), data: $dataMap, byActor: byActor };
+        return byActor;
+    }
+
+    // los personajes que llevan P2-P4 (o cuyo cuerpo yace) y que el juego no esconde por si solo
+    function playedActors() {
+        const lead = $gameParty.leader();
+        const out = coop.players().map(p => p.actor() && p.actor().actorId()).filter(id => id && (!lead || id !== lead.actorId()));
+        corpses().forEach(c => { if (out.indexOf(c.actorId) < 0) out.push(c.actorId); });
+        return out;
+    }
+
+    // de quien es un evento: a quien contrata, o a quien dibuja ("mercenary2" es Cahara)
+    function spriteBase(name) {
+        return String(name || '').replace(/^[!$%]+/, '').replace(/\d+$/, '').toLowerCase();
+    }
+    const npcOwners = new WeakMap();
+    function npcActorsOf(data) {
+        if (npcOwners.has(data)) return npcOwners.get(data);
+        const out = {};
+        data.pages.forEach(pg => {
+            pg.list.forEach(c => { if (c.code === 129 && c.parameters[1] === 0) out[c.parameters[0]] = true; });
+            const base = spriteBase(pg.image.characterName);
+            if (base) ($dataActors || []).forEach(a => {
+                if (a && spriteBase(a.characterName) === base) out[a.id] = true;
+            });
+        });
+        npcOwners.set(data, out);
+        return out;
+    }
+
+    let npcHidden = null; // { roles: {interruptor}, near: {actor: {interruptor}} }: cuentan como encendidos
+    let npcHiddenKey = '';
+    function updateNpcHiding() {
+        const by = npcSwitchesByActor();
+        const roles = {};
+        const near = {};
+        playedActors().forEach(a => {
+            const e = by[a];
+            if (!e) return;
+            e.roles.forEach(s => { roles[s] = true; });
+            if (e.near.length) near[a] = {};
+            e.near.forEach(s => { near[a][s] = true; });
+        });
+        const key = Object.keys(roles).join(',') + '|' + Object.keys(near).map(a => a + ':' + Object.keys(near[a]).join(',')).join(';');
+        npcHidden = key !== '|' ? { roles: roles, near: near } : null;
+        if (key !== npcHiddenKey) {
+            npcHiddenKey = key;
+            $gameMap.requestRefresh();
+        }
+    }
+
+    const _Game_Map_update_npcs = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        if (this.mapId() > 0 && $dataMap) updateNpcHiding();
+        _Game_Map_update_npcs.call(this, sceneActive);
+    };
+
+    const _Game_Event_meetsConditions = Game_Event.prototype.meetsConditions;
+    // los interruptores que cuentan para este evento
+    function hiddenFor(ev) {
+        const h = npcHidden;
+        if (!h) return null;
+        const set = Object.assign({}, h.roles);
+        const data = ev.event();
+        const owners = data ? npcActorsOf(data) : {};
+        Object.keys(h.near).forEach(a => { if (owners[a]) Object.assign(set, h.near[a]); });
+        return set;
+    }
+
+    Game_Event.prototype.meetsConditions = function(page) {
+        const hidden = npcHidden && isHidePage(page) ? hiddenFor(this) : null;
+        if (!hidden || !pageSwitches(page).some(s => hidden[s])) return _Game_Event_meetsConditions.call(this, page);
+        const real = Game_Switches.prototype.value;
+        const sw = $gameSwitches;
+        sw.value = function(id) {
+            return !!hidden[id] || real.call(this, id);
+        };
+        try {
+            return _Game_Event_meetsConditions.call(this, page);
+        } finally {
+            delete sw.value;
+        }
+    };
+
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
+        npcSwitchesByActor: npcSwitchesByActor,
         lightTest: { watchPlayerLight: watchPlayerLight, beginMask: beginMask, endMask: endMask } };
 
     // ---- el cuerpo en el mapa (Fear & Hunger 1 y quien no tiene cadaver propio en Termina) ----

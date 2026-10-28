@@ -1040,6 +1040,49 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         lp.locate($gamePlayer.x, $gamePlayer.y);
     }
 
+    // ---- el personaje que lleva P2 no esta ademas como NPC (paginas vacias "ya en el grupo") ----
+    var hp = carrierN && CoopLocal.player(carrierN);
+    var hx = hp && hp.actor() && hp.actor().actorId();
+    var freeSw = function(from) { for (var i = from; i < from + 400; i++) if (!$dataSystem.switches[i] && !$gameSwitches.value(i)) return i; return 0; };
+    if (hx) {
+        var joinSw = freeSw(4600), otherSw = freeSw(joinSw + 1);
+        var origNames = [$dataSystem.switches[joinSw], $dataSystem.switches[otherSw]];
+        $dataSystem.switches[joinSw] = 'Test_InTheParty!';
+        $dataSystem.switches[otherSw] = 'Test_unrelated';
+        var npcImg = { characterName: 'npc', characterIndex: 0, direction: 2, pattern: 1, tileId: 0 };
+        var noImg = { characterName: '', characterIndex: 0, direction: 2, pattern: 1, tileId: 0 };
+        var cond = function(sw) { return { actorId: 1, actorValid: false, itemId: 1, itemValid: false, selfSwitchCh: 'A', selfSwitchValid: false,
+            switch1Id: sw || 1, switch1Valid: !!sw, switch2Id: 1, switch2Valid: false, variableId: 1, variableValid: false, variableValue: 0 }; };
+        var pg = function(sw, img, list) { return { conditions: cond(sw), image: img, list: list, moveType: 0, moveSpeed: 3, moveFrequency: 3,
+            moveRoute: { list: [{ code: 0 }], repeat: true, skippable: false, wait: false }, walkAnime: true, stepAnime: false, directionFix: false, through: false, priorityType: 1, trigger: 0 }; };
+        var recruit = [{ code: 121, indent: 0, parameters: [joinSw, joinSw, 0] }, { code: 129, indent: 0, parameters: [hx, 0, false] }, { code: 0, indent: 0, parameters: [] }];
+        var talk = [{ code: 101, indent: 0, parameters: ['', 0, 0, 2] }, { code: 0, indent: 0, parameters: [] }];
+        var realDataMap = $dataMap;
+        $dataMap = Object.assign({}, realDataMap, { events: realDataMap.events.slice() }); // (otro mapa cargado)
+        var idA = $dataMap.events.length, idB = idA + 1;
+        // A: el NPC que se contrata (pagina 1: "ya en el grupo" vacia); B: otro evento con una pagina vacia por otra cosa
+        $dataMap.events[idA] = { id: idA, name: 'npc_test', note: '', x: 0, y: 0, pages: [pg(0, npcImg, recruit), pg(joinSw, noImg, [{ code: 0, indent: 0, parameters: [] }])] };
+        $dataMap.events[idB] = { id: idB, name: 'other_test', note: '', x: 1, y: 0, pages: [pg(0, npcImg, talk), pg(otherSw, noImg, [{ code: 0, indent: 0, parameters: [] }])] };
+        var evA = new Game_Event($gameMap.mapId(), idA), evB = new Game_Event($gameMap.mapId(), idB);
+        $gameMap._events[idA] = evA; $gameMap._events[idB] = evB;
+        for (k = 0; k < 3; k++) frame();
+        evA.refresh(); evB.refresh();
+        check('T42 the NPC of the character P' + carrierN + ' plays is hidden (its "in the party" page)', evA._pageIndex === 1 && evB._pageIndex === 0,
+            'A page ' + evA._pageIndex + ' B page ' + evB._pageIndex + ' by ' + JSON.stringify(CoopRevive.npcSwitchesByActor()[hx]));
+        check('T42b the game switch itself is not touched', !$gameSwitches.value(joinSw));
+        // P2 deja el personaje: el NPC vuelve
+        $gameParty.removeActor(hx); // (sale del grupo: P2 espera)
+        for (k = 0; k < 5; k++) frame();
+        evA.refresh();
+        check('T42c nobody plays it any more: the NPC is back', evA._pageIndex === 0, 'A page ' + evA._pageIndex + ' P2 ' + (CoopLocal.player(carrierN) ? 'plays' : 'waits'));
+        $gameParty.addActor(hx);
+        for (k = 0; k < 10; k++) frame();
+        delete $gameMap._events[idA]; delete $gameMap._events[idB];
+        $dataMap = realDataMap;
+        $dataSystem.switches[joinSw] = origNames[0]; $dataSystem.switches[otherSw] = origNames[1];
+        for (k = 0; k < 3; k++) frame();
+    }
+
     // ---- quien seguia a P1 a traves de todo (se fue y volvio, escena) no se queda en la pared ----
     var walker = carrierN && CoopLocal.player(carrierN);
     var wall = null;

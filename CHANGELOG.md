@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The character a player picks in the mod is no longer also standing around as an NPC (Fear & Hunger 1: e.g. Cahara in his cell, in Mahabre or in the prison; Termina: e.g. Marina, Daan, Abella, Karin, Olivia). The games hide a companion who is already in the party (or the protagonist) with an empty page of the event ("Cahara_InTheParty!", "INITIAL_MERCENARY", "OCCULTIST_SELECT"...); while a player plays the character (or their body lies on the map) those pages count as met - only those empty pages: the NPC is gone and nothing else changes (no game switch is touched, the story does not think they were hired; if the player gives the character up, the NPC is back).
+
 ## v1.8.4
 
 - Fix (network game, separate battles): when the fighters of a separate battle died and the game took them out of the party during the battle (Fear & Hunger 1 does it from the enemy troop's page), the battle pulled in P1's character - P1 then "lost" in their place and the protagonist's defeat scenes (guards, blood pit...) played for everybody. Now a separate battle never takes other players' characters: if its fighters are all gone, the battle ends there and the dead stay as bodies.
