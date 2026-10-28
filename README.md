@@ -135,7 +135,7 @@ Only in Termina, and only if the host turns it on: setting **PvP (Termina)** - *
   - **a leg cut off** - the head of that player is easy to hit (normally it dodges most attacks);
   - **an arm cut off** - that player hits only half as hard; **both arms** - almost no damage;
   - **the head** - death (or the end of the fight when not to the death);
-  - the character gets *Arm cut* / *Leg cut*, and everybody sees a message. Limbs already lost before the fight are missing on the enemy from the start.
+  - the limb is lost the same way as in a normal Termina fight: the character's battle picture changes, they bleed, with no arms they drop the weapon; everybody sees a message. Limbs already lost before the fight are missing from the start (on the enemy and on the character).
 - **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends. Limbs cut off in the fight **come back** after it.
 - **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off); cut limbs stay. **If P1 (the protagonist) is killed, the game is over.**
 - **Running away:** the *Run* skill ends the fight for both; everybody goes back to the map as they are (HP, states).

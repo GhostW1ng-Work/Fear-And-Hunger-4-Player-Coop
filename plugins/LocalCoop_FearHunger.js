@@ -1328,18 +1328,79 @@
         const id = $dataTroops.length;
         const def = $gameActors.actor(defActorId);
         const att = $gameActors.actor(attActorId);
+        const cond = (turnValid, turnEnding) => ({ actorHp: 50, actorId: 1, actorValid: false, enemyHp: 50, enemyIndex: 0, enemyValid: false,
+            switchId: 1, switchValid: false, turnA: 0, turnB: 0, turnEnding: turnEnding, turnValid: turnValid });
+        const gfx = battleGfxEventId();
+        const call = gfx ? [{ code: 117, indent: 0, parameters: [gfx] }] : [];
         $dataTroops[id] = {
             id: id, name: (att ? att.name() : '?') + ' vs ' + (def ? def.name() : '?'), members: members,
-            pages: [{ conditions: { actorHp: 50, actorId: 1, actorValid: false, enemyHp: 50, enemyIndex: 0, enemyValid: false,
-                switchId: 1, switchValid: false, turnA: 0, turnB: 0, turnEnding: false, turnValid: false },
-                list: [{ code: 0, indent: 0, parameters: [] }], span: 0 }]
+            pages: [
+                { conditions: cond(true, false), list: call.concat([{ code: 0, indent: 0, parameters: [] }]), span: 0 },
+                { conditions: cond(false, true), list: call.concat([{ code: 0, indent: 0, parameters: [] }]), span: 1 }
+            ]
         };
         pvpTroopIds[key] = id;
         return id;
     }
 
-    const pvpPending = {}; // troopId -> { attacker, defender, attActorId, actorId, lethal, backstab, limbsBefore } del combate que va a empezar
-    const LIMB_STATE_RE = /^(arm cut|leg cut)$/i;
+    const pvpPending = {}; // troopId -> { attacker, defender, attActorId, actorId, lethal, backstab, before } del combate que va a empezar
+
+    // En Termina un miembro perdido es un interruptor del personaje (mechanic_arm1...): "Arm cut" y
+    // "Leg cut" solo avisan, y el suceso "Character_battleGFX" (y los que encadena) lo apunta.
+    // De ahi sale que interruptores son los brazos y las piernas de cada personaje.
+    let limbSwitchCache = null;
+    function battleGfxEventId() {
+        const ce = $dataCommonEvents.find(c => c && /^\/*Character_battleGFX$/i.test(c.name));
+        return ce ? ce.id : 0;
+    }
+    function limbSwitches(actorId) {
+        if (!limbSwitchCache) {
+            limbSwitchCache = {};
+            const armCut = stateIdNamed(/^arm cut$/i), legCut = stateIdNamed(/^leg cut$/i);
+            $dataCommonEvents.forEach(ce => {
+                if (!ce || !/Character_battleGFX/i.test(ce.name)) return;
+                ce.list.forEach((c, n) => {
+                    const pr = c.parameters;
+                    if (c.code !== 111 || pr[0] !== 4 || pr[2] !== 6 || (pr[3] !== armCut && pr[3] !== legCut)) return;
+                    const kind = pr[3] === armCut ? 'arm' : 'leg';
+                    const entry = limbSwitchCache[pr[1]] = limbSwitchCache[pr[1]] || { arm: [], leg: [] };
+                    for (let k = n + 1; k < ce.list.length && ce.list[k].indent > c.indent; k++) {
+                        const d = ce.list[k];
+                        if (d.code === 121 && entry[kind].indexOf(d.parameters[0]) < 0) entry[kind].push(d.parameters[0]);
+                    }
+                });
+            });
+        }
+        return limbSwitchCache[actorId] || { arm: [], leg: [] };
+    }
+    function limbsLost(actorId, kind) {
+        return limbSwitches(actorId)[kind].filter(sw => $gameSwitches.value(sw)).length;
+    }
+    // lo que el combate puede cambiar de un personaje por sus miembros (para devolverlo sin muerte)
+    const LIMB_STATE_NAMES = /^(arm cut|leg cut|bleeding|infection arm|infection leg|can't do shit)$/i;
+    function limbSnapshot(a) {
+        const sw = limbSwitches(a.actorId());
+        const switches = {};
+        sw.arm.concat(sw.leg).forEach(id => { switches[id] = $gameSwitches.value(id); });
+        return {
+            switches: switches,
+            states: a.states().filter(st => LIMB_STATE_NAMES.test(st.name)).map(st => st.id),
+            equips: a.equips().map(it => it ? (DataManager.isWeapon(it) ? 'w' : 'a') + it.id : '')
+        };
+    }
+    function limbRestore(a, snap) {
+        if (!a || !snap) return;
+        Object.keys(snap.switches).forEach(id => $gameSwitches.setValue(Number(id), snap.switches[id]));
+        a.states().filter(st => LIMB_STATE_NAMES.test(st.name) && snap.states.indexOf(st.id) < 0).forEach(st => a.removeState(st.id));
+        snap.states.forEach(id => { if (!a.isStateAffected(id)) a.addState(id); });
+        // el arma que solto al quedarse sin brazos
+        snap.equips.forEach((code, slot) => {
+            const now = a.equips()[slot];
+            if (!code || now) return;
+            const item = (code[0] === 'w' ? $dataWeapons : $dataArmors)[Number(code.slice(1))];
+            if (item && $gameParty.hasItem(item)) a.changeEquip(slot, item);
+        });
+    }
 
     function pvpEventList(attacker, defender) {
         const actor = playerActor(defender);
@@ -1401,8 +1462,8 @@
         const troopId = pvpTroopFor(me.actorId(), them.actorId());
         const backstab = !!it._coopPvpBackstab;
         pvpPending[troopId] = { attacker: attacker, defender: defender, attActorId: me.actorId(), actorId: them.actorId(), lethal: pvpMode() === 'death',
-            backstab: backstab, limbsBefore: {} };
-        [me, them].forEach(a => { pvpPending[troopId].limbsBefore[a.actorId()] = a.states().filter(st => LIMB_STATE_RE.test(st.name)).map(st => st.id); });
+            backstab: backstab, before: {} };
+        [me, them].forEach(a => { pvpPending[troopId].before[a.actorId()] = limbSnapshot(a); });
         if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
         coop.banner('P' + attacker + ' attacks P' + defender + '!', me.name() + ' vs ' + them.name() + (backstab ? ' - from behind: ' + them.name() + ' loses the first turn' : ''), '#ff6655', 200);
     }
@@ -1436,14 +1497,13 @@
             torso.recoverAll();
             torso._hp = Math.max(1, Math.round(torso.mhp * a.hp / Math.max(1, a.mhp)));
             torso._coopActorHp = a.hp;
-            // lo que ya le falta (de antes): esa parte del doble ya no esta
-            [['arm', /^arm cut$/i], ['leg', /^leg cut$/i]].forEach(pair => {
-                if (!a.states().some(st => pair[1].test(st.name))) return;
-                const part = mine.find(e => e._coopPart === pair[0] && e.isAlive());
-                if (part) {
+            // lo que ya le falta (de antes): esas partes del doble ya no estan
+            ['arm', 'leg'].forEach(kind => {
+                const lost = limbsLost(owner, kind);
+                mine.filter(e => e._coopPart === kind).slice(0, lost).forEach(part => {
                     part._hp = 0;
-                    Game_BattlerBase.prototype.addState.call(part, part.deathStateId());
-                }
+                    part.addNewState(part.deathStateId());
+                });
             });
         });
     };
@@ -1517,7 +1577,12 @@
             pvpEnd(a.name());
         } else if (this._coopPart === 'arm' || this._coopPart === 'leg') {
             const st = this._coopPart === 'arm' ? stateIdNamed(/^arm cut$/i) : stateIdNamed(/^leg cut$/i);
-            if (st && !coop.cheat('cheatLimbs')) a.addState(st);
+            if (st && !coop.cheat('cheatLimbs')) {
+                a.addState(st);
+                // el juego lo apunta ya (miembro perdido, sangrado, imagen de combate, el arma)
+                const gfx = battleGfxEventId();
+                if (gfx) $gameTemp.reserveCommonEvent(gfx);
+            }
             const part = (/\[(.*)\]/.exec(this.enemy().name) || [])[1] || this._coopPart;
             coop.banner(a.name() + ': ' + part + ' cut off!', this._coopPart === 'leg' ? 'The head is easy to hit now' : 'Hits much weaker', '#ff6655', 170);
         }
@@ -1588,11 +1653,7 @@
         const info = pvpInfo();
         if (info) {
             if (!info.lethal) {
-                [info.actorId, info.attActorId].forEach(id => {
-                    const a = $gameActors.actor(id);
-                    const before = (info.limbsBefore && info.limbsBefore[id]) || [];
-                    if (a) a.states().filter(st => LIMB_STATE_RE.test(st.name) && before.indexOf(st.id) < 0).forEach(st => a.removeState(st.id));
-                });
+                [info.actorId, info.attActorId].forEach(id => limbRestore($gameActors.actor(id), info.before && info.before[id]));
             }
             const hero = $gameActors.actor($gameParty._actors[0]);
             if (info.lethal && hero && hero.isDead() && (hero.actorId() === info.actorId || hero.actorId() === info.attActorId)) this._coopPvpGameOver = true;
@@ -1814,7 +1875,7 @@
         });
     });
 
-    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor };
+    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,

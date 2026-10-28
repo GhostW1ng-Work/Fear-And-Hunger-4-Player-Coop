@@ -1175,8 +1175,8 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         var startPvp = function(lethal, backstab) {
             var tid = CoopPvp.troopFor(lead.actorId(), defA.actorId());
             var lb = {};
-            [lead, defA].forEach(function(a) { lb[a.actorId()] = a.states().filter(function(st) { return /^(arm|leg) cut$/i.test(st.name); }).map(function(st) { return st.id; }); });
-            CoopPvp.pending[tid] = { attacker: 1, defender: defN, attActorId: lead.actorId(), actorId: defA.actorId(), lethal: lethal, backstab: !!backstab, limbsBefore: lb };
+            [lead, defA].forEach(function(a) { lb[a.actorId()] = CoopPvp.snapshot(a); });
+            CoopPvp.pending[tid] = { attacker: 1, defender: defN, attActorId: lead.actorId(), actorId: defA.actorId(), lethal: lethal, backstab: !!backstab, before: lb };
             BattleManager.setup(tid, true, false);
             $gameParty.onBattleStart();
         };
@@ -1186,6 +1186,17 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             $gameTroop._coopPvp = null;
             BattleManager._phase = '';
         };
+        var runReserved = function() {
+            var n = 0;
+            while ($gameTemp.isCommonEventReserved() && n++ < 5) {
+                var ce = $gameTemp.reservedCommonEvent();
+                $gameTemp.clearCommonEvent();
+                var it = new Game_Interpreter();
+                it.setup(ce.list);
+                for (var k = 0; k < 2000 && it.isRunning(); k++) { it.update(); if ($gameMessage.isBusy()) $gameMessage.clear(); }
+            }
+        };
+        var armSw = CoopPvp.limbSwitches(defA.actorId()).arm;
         var mirrorOf = function(actor) { return $gameTroop.members().filter(function(e) { return e._coopMirror === actor.actorId(); })[0]; };
         var partOf = function(actor, kind) { return $gameTroop.members().filter(function(e) { return e._coopOwner === actor.actorId() && e._coopPart === kind; })[0]; };
         CoopLocal.setSetting('pvp', 'duel');
@@ -1221,15 +1232,44 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         if (arm) arm.addState(arm.deathStateId());
         check('T44e arm cut off: that character hits much weaker', CoopPvp.armFactor(defA) < 1 && CoopPvp.armFactor(lead) === 1 && limbNames(defA).indexOf('Arm cut') >= 0,
             'factor ' + CoopPvp.armFactor(defA) + ' / ' + CoopPvp.armFactor(lead));
+        runReserved();
+        check('T44e2 the game records the lost arm (its switch, as in a normal fight: battle picture, weapon)', armSw.length > 0 && $gameSwitches.value(armSw[0]),
+            'arm switches ' + armSw + ' -> ' + armSw.map(function(id) { return $gameSwitches.value(id); }));
         // huir ("Run") acaba el combate; sin muerte lo cortado vuelve
         var runCe = $dataCommonEvents.filter(function(ce) { return ce && /skills_run/i.test(ce.name); })[0];
         if (runCe) $gameTemp.reserveCommonEvent(runCe.id);
         check('T44f "Run" ends the PvP fight', !runCe || BattleManager.isAborting(), 'phase ' + BattleManager._phase);
         var hpBefore = defA.hp;
         BattleManager.endBattle(1);
-        check('T44g not to the death: after the fight the cut limbs are back, HP stays as it was', limbNames(defA).length === 0 && defA.hp === hpBefore,
-            'states ' + limbNames(defA) + ' hp ' + hpBefore + ' -> ' + defA.hp);
+        check('T44g not to the death: after the fight the cut limbs are back, HP stays as it was', limbNames(defA).length === 0 && defA.hp === hpBefore &&
+            !armSw.some(function(id) { return $gameSwitches.value(id); }),
+            'states ' + limbNames(defA) + ' hp ' + hpBefore + ' -> ' + defA.hp + ' switches ' + armSw.map(function(id) { return $gameSwitches.value(id); }));
         endPvp();
+        // ya sin un brazo (de antes): el doble sale sin el (antes esto rompia el juego)
+        if (armSw.length) {
+            $gameSwitches.setValue(armSw[0], true);
+            var okStart = true, err = '';
+            try { startPvp(false); } catch (e) { okStart = false; err = String(e); }
+            var arms = $gameTroop.members().filter(function(e) { return e._coopOwner === defA.actorId() && e._coopPart === 'arm'; });
+            check('T44g2 an arm lost before the fight: the double starts without it (no crash)', okStart && arms.filter(function(e) { return e.isDead(); }).length === 1 && CoopPvp.armFactor(defA) < 1,
+                err + ' dead arms ' + arms.filter(function(e) { return e.isDead(); }).length + '/' + arms.length);
+            // a muerte y huye: lo perdido sigue perdido
+            BattleManager.endBattle(1);
+            endPvp();
+            startPvp(true);
+            arms = $gameTroop.members().filter(function(e) { return e._coopOwner === defA.actorId() && e._coopPart === 'arm' && e.isAlive(); });
+            if (arms[0]) arms[0].addState(arms[0].deathStateId());
+            runReserved();
+            BattleManager.endBattle(1);
+            check('T44g3 to the death, then running away: the limbs cut stay cut', armSw.length < 2 || (armSw.every(function(id) { return $gameSwitches.value(id); })),
+                armSw.map(function(id) { return $gameSwitches.value(id); }));
+            endPvp();
+            armSw.forEach(function(id) { $gameSwitches.setValue(id, false); });
+            defA.clearStates();
+            defA.setHp(defA.mhp);
+            lead.setHp(lead.mhp);
+            BattleManager._coopPvpEnded = false;
+        }
         // por la espalda: el atacado pierde el primer turno
         startPvp(false, true);
         check('T44h attacked from behind: they lose their first turn', !defA.canInput() && lead.canInput(), 'def ' + defA.canInput() + ' att ' + lead.canInput());
