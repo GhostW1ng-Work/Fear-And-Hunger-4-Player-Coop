@@ -1549,22 +1549,46 @@
         });
     }
 
+    // los jugadores que pueden entrar en una pelea ahora (con su personaje vivo, sin otro combate)
+    function pvpCandidates() {
+        const out = [];
+        [1].concat(coop.players().map(pl => pl.coopIndex())).forEach(n => {
+            const a = playerActor(n);
+            if (a && a.isAlive() && !inAnyBattle(n) && out.indexOf(n) < 0) out.push(n);
+        });
+        return out;
+    }
+
     function pvpEventList(attacker, defender) {
         const actor = playerActor(defender);
         const lethal = pvpMode() === 'death';
-        return [
+        // "Attack everyone": si hay alguien mas aparte de los dos
+        const all = pvpCandidates().length >= 3;
+        const choices = all ? ['Attack', 'Attack everyone', 'Leave'] : ['Attack', 'Leave'];
+        const list = [
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
             { code: 401, indent: 0, parameters: ['Attack ' + actor.name() + ' (P' + defender + ')?' + (lethal ? ' To the death.' : '')] },
-            { code: 102, indent: 0, parameters: [['Attack', 'Leave'], 1, 0, 2, 0] },
+            { code: 102, indent: 0, parameters: [choices, choices.length - 1, 0, 2, 0] },
             { code: 402, indent: 0, parameters: [0, 'Attack'] },
             { code: 355, indent: 1, parameters: ['CoopPvp.prepare(this, ' + attacker + ', ' + defender + ')'] },
             { code: 301, indent: 1, parameters: [0, 0, true, false] },
-            { code: 0, indent: 1, parameters: [] },
-            { code: 402, indent: 0, parameters: [1, 'Leave'] },
+            { code: 0, indent: 1, parameters: [] }
+        ];
+        if (all) {
+            list.push(
+                { code: 402, indent: 0, parameters: [1, 'Attack everyone'] },
+                { code: 355, indent: 1, parameters: ['CoopPvp.prepareAll(this, ' + attacker + ')'] },
+                { code: 301, indent: 1, parameters: [0, 0, true, false] },
+                { code: 0, indent: 1, parameters: [] }
+            );
+        }
+        list.push(
+            { code: 402, indent: 0, parameters: [choices.length - 1, 'Leave'] },
             { code: 0, indent: 1, parameters: [] },
             { code: 404, indent: 0, parameters: [] },
             { code: 0, indent: 0, parameters: [] }
-        ];
+        );
+        return list;
     }
 
     // OK delante de otro jugador
@@ -1614,6 +1638,25 @@
         [me, them].forEach(a => { pvpPending[troopId].before[a.actorId()] = limbSnapshot(a); });
         if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
         coop.banner('P' + attacker + ' attacks P' + defender + '!', me.name() + ' vs ' + them.name() + (backstab ? ' - from behind: ' + them.name() + ' loses the first turn' : ''), '#ff6655', 200);
+    }
+
+    // "Attack everyone": todos los que pueden, cada uno por su cuenta (el que ataca, el primero)
+    function prepareAll(it, attacker) {
+        const battleCmd = it._list[it._index + 1];
+        const players = pvpCandidates();
+        const me = playerActor(attacker);
+        if (!pvpMode() || !me || players.indexOf(attacker) < 0 || players.length < 2) {
+            if (battleCmd && battleCmd.code === 301) battleCmd.code = 108; // (ya no: sin combate)
+            return;
+        }
+        const order = [attacker].concat(players.filter(n => n !== attacker));
+        const actors = order.map(n => playerActor(n).actorId());
+        const troopId = pvpTroopFor(actors);
+        const info = { lethal: pvpMode() === 'death', sides: order.map((n, i) => ({ players: [n], actors: [actors[i]] })), backstabbed: [], before: {} };
+        actors.forEach(id => { info.before[id] = limbSnapshot($gameActors.actor(id)); });
+        pvpPending[troopId] = info;
+        if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
+        coop.banner('P' + attacker + ' attacks everyone!', order.map(n => 'P' + n).join(' vs ') + (info.lethal ? ' - to the death' : ''), '#ff6655', 220);
     }
 
     function pvpInfo() {
@@ -2124,7 +2167,7 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,

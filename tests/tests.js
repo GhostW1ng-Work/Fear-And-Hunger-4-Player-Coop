@@ -1449,6 +1449,18 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         };
         [pA, pB, pC].forEach(function(a) { a.setHp(a.mhp); });
         CoopLocal.setSetting('pvp', 'duel');
+        // "Attack everyone" en la pregunta (hay un tercero) y lo que prepara
+        var evl = CoopPvp.eventList(1, 2);
+        var choiceCmd = evl.filter(function(c) { return c.code === 102; })[0];
+        var fakeIt = { _list: [{ code: 355, indent: 0, parameters: [''] }, { code: 301, indent: 0, parameters: [0, 0, true, false] }], _index: 0 };
+        CoopPvp.prepareAll(fakeIt, 2);
+        var ffaTroop = fakeIt._list[1].parameters[1];
+        var ffa = CoopPvp.pending[ffaTroop];
+        check('T48 with a third player the question has "Attack everyone"; it puts every player in the fight, each on their own side (the attacker first)',
+            choiceCmd && choiceCmd.parameters[0].join('/') === 'Attack/Attack everyone/Leave' && choiceCmd.parameters[1] === 2 &&
+            !!ffa && ffa.sides.length === 3 && ffa.sides[0].players[0] === 2 && ffa.sides.every(function(sd) { return sd.players.length === 1; }),
+            (choiceCmd ? choiceCmd.parameters[0].join('/') : '-') + ' sides ' + (ffa ? JSON.stringify(ffa.sides) : '-'));
+        delete CoopPvp.pending[ffaTroop];
         startSides([[1], [2], [3]], false);
         var own = function(a) { return CoopPvp.rivals(a).slice().sort().join(','); };
         check('T47 everybody against everybody: three doubles, each one can hit the two others (never their own)',
