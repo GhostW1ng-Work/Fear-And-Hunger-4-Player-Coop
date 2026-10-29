@@ -1528,9 +1528,9 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var child = doorIt._childInterpreter;
             var texts = child ? child._list.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ') : '';
             var asks = child ? child._list.filter(function(c) { return c.code === 102; }) : [];
-            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", and each player is asked: Fight / End it',
+            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", and each player is asked: Fight / Commit suicide',
                 $gameVariables.value(crazedVar) === 0 && /Only one may leave/.test(texts) && asks.length === 3 &&
-                asks.every(function(c) { return c.parameters[0].join('/') === 'Fight/End it' && c.parameters[1] === -1; }),
+                asks.every(function(c) { return c.parameters[0].join('/') === 'Fight/Commit suicide' && c.parameters[1] === -1; }),
                 'var ' + $gameVariables.value(crazedVar) + ' asks ' + asks.length);
             // P1 y P3 luchan, P2 acaba con su vida
             CoopPvp.doorChoice(1, 'fight'); CoopPvp.doorChoice(2, 'end'); CoopPvp.doorChoice(3, 'fight');

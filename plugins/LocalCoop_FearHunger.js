@@ -1689,11 +1689,11 @@
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
                 { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
                 { code: 401, indent: 0, parameters: ['P' + n + ' - ' + (a ? a.name() : '?') + '. What will you do?'] },
-                { code: 102, indent: 0, parameters: [['Fight', 'End it'], -1, 0, 2, 0] },
+                { code: 102, indent: 0, parameters: [['Fight', 'Commit suicide'], -1, 0, 2, 0] },
                 { code: 402, indent: 0, parameters: [0, 'Fight'] },
                 { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "fight")'] },
                 { code: 0, indent: 1, parameters: [] },
-                { code: 402, indent: 0, parameters: [1, 'End it'] },
+                { code: 402, indent: 0, parameters: [1, 'Commit suicide'] },
                 { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "end")'] },
                 { code: 0, indent: 1, parameters: [] },
                 { code: 404, indent: 0, parameters: [] }
