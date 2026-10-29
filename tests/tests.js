@@ -1622,8 +1622,9 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             tIt2.setup([{ code: 0, indent: 0, parameters: [] }], 0);
             CoopForms.touch(tIt2, 'marcoh');
             var tl2 = tIt2._childInterpreter ? tIt2._childInterpreter._list : [];
-            check('T60f his figure after that: too late, no battle', /too late/i.test(tl2.map(function(c) { return c.code === 401 ? c.parameters[0] : ''; }).join(' ')) &&
-                !tl2.some(function(c) { return c.code === 301; }));
+            var fakeFig = { event: function() { return { _coopForm: 'marcoh' }; }, _mapId: 1, _eventId: 1 };
+            var figPage = Game_Event.prototype.findProperPageIndex.call(fakeFig);
+            check('T60f his figure after that: gone (no scene, no battle)', tl2.length === 0 && figPage === -1, 'list ' + tl2.length + ' page ' + figPage);
             $gameSwitches._data[sniper] = wasSn; $gameSwitches._data[crazy] = wasCr; $gameSwitches._data[marcohDead] = wasMd;
             // dia 3, tarde: los que no son libres se transforman
             $gameSystem._coopForms = { freed: { levi: true }, lost: {} };
@@ -1665,7 +1666,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 var asks2 = sl.filter(function(c) { return c.code === 102; });
                 var stext = sl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
                 check('T61b Per\'kele speaks to all of them, the protagonist answers, then each player chooses: Take his place / Break the circle',
-                    /All of you/.test(stext) && stext.indexOf(pA.name() + ': "') >= 0 && asks2.length === 3 &&
+                    /All of you/.test(stext) && stext.indexOf(pA.name() + ': "') < 0 && asks2.length === 3 &&
                     asks2.every(function(c) { return c.parameters[0].join('/') === 'Take his place/Break the circle'; }), asks2.length + ' asks');
                 var runNext = function() {
                     var r = new Game_Interpreter();
@@ -1673,7 +1674,14 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                     CoopTop.next(r);
                     return r._childInterpreter ? r._childInterpreter._list : [];
                 };
-                CoopTop.choose(1, 'break'); CoopTop.choose(2, 'break'); CoopTop.choose(3, 'break');
+                CoopTop.choose(1, 'take'); CoopTop.choose(2, 'break'); CoopTop.choose(3, 'break');
+                var rIt = new Game_Interpreter();
+                rIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+                CoopTop.resolve(rIt);
+                var rtext = (rIt._childInterpreter ? rIt._childInterpreter._list : []).filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
+                check('T61b2 then it says who chose what: to serve the Sulfur God (P1), to break the circle (P2, P3)',
+                    rtext.indexOf('Sulfur God: ' + pA.name()) >= 0 && rtext.indexOf('break the circle: ' + pB.name() + ', ' + pC.name()) >= 0, rtext);
+                CoopTop.choose(1, 'break');
                 var nl = runNext();
                 var perk = $dataTroops.filter(function(t) { return t && t.name === 'Perkele1'; })[0];
                 check('T61c everybody breaks the circle: all fight Per\'kele, then the ending The Broken Circle',

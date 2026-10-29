@@ -7,8 +7,8 @@
 ## Как идёт сцена
 
 1. Начало сцены игры (лифт, луна, Перкеле). Персонажи P2–P4 стоят рядом с героем.
-2. Перкеле говорит со **всеми** (вступление). Герой (P1) отвечает — у каждого персонажа своя строка.
-3. Перкеле делает предложение. **Каждый игрок выбирает на своём ПК**: *Занять его место* / *Разорвать круг* — и говорит свою строку.
+2. Перкеле говорит со **всеми** (вступление). Говорит только он.
+3. Перкеле делает предложение. **Каждый игрок выбирает на своём ПК**: *Занять его место* / *Разорвать круг*. Потом сцена называет, кто что выбрал.
 4. Дальше:
    - **все разрывают круг** → все вместе дерутся с Перкеле → его последние слова → концовка **«Разорванный круг»**;
    - **одни разрывают, другие хотят его место** → бой сторона против стороны, насмерть. Победили разрывающие → бой с Перкеле → «Разорванный круг». Победили желающие → как ниже;
@@ -35,20 +35,6 @@
 
 `{dead}` — сколько из 14 участников погибло (души умерших дошли до его господина).
 
-## Ответ героя (P1), по персонажу
-
-| Персонаж | English | Русский (черновик) |
-|---|---|---|
-| Levi | We didn't come up here to kneel. Not to you, not to anyone. | Мы пришли сюда не на колени вставать. Ни перед тобой, ни перед кем. |
-| Marina | I've read about circles like yours. Every one of them could be broken. | Я читала о таких кругах, как твой. Любой из них можно разорвать. |
-| Daan | We've buried enough people for your master. No more. | Мы похоронили достаточно людей ради твоего господина. Хватит. |
-| Abella | Nobody else is dying for this. Not on my watch. | Больше никто за это не умрёт. Пока я здесь — нет. |
-| O'saa | My master wanted me to serve as well. You see how that ended. | Мой господин тоже хотел, чтобы я служил. Ты видишь, чем это кончилось. |
-| Marcoh | You talk a lot for a man standing alone against all of us. | Многовато болтаешь для того, кто стоит один против всех нас. |
-| Karin | So this is the story. And we're the ending you didn't plan for. | Так вот она, история. А мы — концовка, которую ты не планировал. |
-| Olivia | We saved each other. You can't take that from us. | Мы спасли друг друга. Этого ты у нас не отнимешь. |
-| другой | We all made it here. That was never part of your plan. | Мы все дошли сюда. Этого в твоём плане не было. |
-
 ## Перкеле: предложение
 
 | English | Русский (черновик) |
@@ -60,19 +46,14 @@
 
 Выбор: **Take his place** — «Занять его место»; **Break the circle** — «Разорвать круг».
 
-## Что говорит игрок, когда выбрал
+## Кто что выбрал
 
-| Персонаж | Занять его место | Разорвать круг |
-|---|---|---|
-| Levi | Кто-то должен это нести. Пусть это буду я.<br>*Someone has to carry this. Let it be me.* | Я всю жизнь выполнял приказы. Но не этот.<br>*I've followed orders my whole life. Not this one.* |
-| Marina | Сила есть сила. Я не дам ей пропасть.<br>*Power is power. I won't let it go to waste.* | Сегодня это закончится. Я об этом позабочусь.<br>*This ends tonight. I'll make sure of it.* |
-| Daan | Если так остальные будут жить... я соглашусь.<br>*If it means the others live... I'll take it.* | Хватит кормить твоего господина.<br>*I'm done feeding your master.* |
-| Abella | Может, изнутри я смогу это понять.<br>*Maybe I can understand it from the inside.* | Давайте разломаем эту чёртову штуку.<br>*Let's break this damn thing.* |
-| O'saa | Ещё один господин. Этот хотя бы не разговаривает.<br>*One more master. At least this one does not talk.* | Больше никаких господ. Ни для кого.<br>*No more masters. For anyone.* |
-| Marcoh | Извините. С пустыми руками я не уйду.<br>*Sorry. I'm not walking away empty-handed.* | Давайте закончим это вместе.<br>*Let's finish this together.* |
-| Karin | Мне нужно увидеть, что за всем этим стоит. Всё целиком.<br>*I need to see what's behind all this. All of it.* | Больше никого в это не втянут.<br>*Nobody else gets dragged into this.* |
-| Olivia | Я... я устала бояться. Я соглашусь.<br>*I... I'm tired of being afraid. I'll take it.* | Я не дам больше никому превратиться в одну из этих тварей.<br>*I won't let anyone else turn into one of those things.* |
-| другой | Я займу его место.<br>*I will take his place.* | Я разорву круг.<br>*I'll break the circle.* |
+Когда все выбрали, сцена называет, кто что выбрал (строка видна, только если такой выбор есть):
+
+| English | Русский (черновик) |
+|---|---|
+| To take his place and serve the Sulfur God: *имена* | Занять его место и служить Серному богу: *имена* |
+| To break the circle: *имена* | Разорвать круг: *имена* |
 
 ## Перкеле перед боем
 
@@ -94,4 +75,4 @@
 
 Надпись в конце: **The Broken Circle** / *Ending* — «Разорванный круг» / «Концовка».
 
-Где в коде: английский — `plugins/LocalCoop_FearHunger.js` (`TOP_PERKELE_INTRO`, `TOP_HERO_LINES`, `TOP_PERKELE_OFFER`, `TOP_CHOICE_LINES`, `TOP_FIGHT_*`, `TOP_PERKELE_DEATH`, `TOP_AFTER_TEXT`); русский — `plugins/LookOutsideOnline.js`, `I18N_RU_EXACT`.
+Где в коде: английский — `plugins/LocalCoop_FearHunger.js` (`TOP_PERKELE_INTRO`, `TOP_PERKELE_SOME_DEAD`, `TOP_PERKELE_OFFER`, `TOP_FIGHT_*`, `TOP_PERKELE_DEATH`, `TOP_AFTER_TEXT`); русский — `plugins/LookOutsideOnline.js`, `I18N_RU_EXACT`.

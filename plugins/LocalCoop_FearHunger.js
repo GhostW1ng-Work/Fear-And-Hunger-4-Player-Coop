@@ -2895,9 +2895,11 @@
                 // (libre: no se transforma)
                 if (hit.every(f => st.freed[f.key])) return;
                 hit.forEach(f => { if (!st.freed[f.key] && !formDead(f)) st.lost[f.key] = true; });
+                if ($gameMap) $gameMap.requestRefresh();
             }
             if ($dataSystem.switches[switchId] === 'DAY3_EVENING') {
                 FORMS.forEach(f => { if (!st.freed[f.key] && !formDead(f)) st.lost[f.key] = true; });
+                if ($gameMap) $gameMap.requestRefresh();
             }
         }
         _Game_Switches_setValue_forms.apply(this, arguments);
@@ -2937,7 +2939,8 @@
         const data = this.event();
         if (data && data._coopForm) {
             const f = formByKey(data._coopForm);
-            return f && !formFreed(f) ? 0 : -1;
+            // (libre, o ya transformado: no esta)
+            return f && !formFreed(f) && !formState().lost[f.key] ? 0 : -1;
         }
         // (la forma del juego de quien ya es libre no aparece: Marina, su capullo)
         const mapId = this._mapId;
@@ -2959,8 +2962,7 @@
         const list = [];
         const troopId = formTroopId(f);
         if (formState().lost[key] || !troopId) {
-            formSay(list, withName('A cracked clay figure. It looked like {name} once.', f));
-            formSay(list, withName('It is too late. {name} has already turned.', f));
+            return;
         } else {
             formSay(list, withName('A small clay figure. It looks like {name}...', f));
             formSay(list, coop.tr('Something moves inside the clay. The moon is looking at you through its eyes.'));
@@ -3147,30 +3149,6 @@
         'Or you may try to break the circle. Kill me, and the festival loses its purpose. Prehevil will finally be silent.',
         'Choose. Each of you. My master is listening.'
     ];
-    // lo que le dice el protagonista (por su personaje)
-    const TOP_HERO_LINES = {
-        1: "We didn't come up here to kneel. Not to you, not to anyone.",
-        3: "I've read about circles like yours. Every one of them could be broken.",
-        4: "We've buried enough people for your master. No more.",
-        5: 'Nobody else is dying for this. Not on my watch.',
-        6: 'My master wanted me to serve as well. You see how that ended.',
-        13: 'You talk a lot for a man standing alone against all of us.',
-        14: "So this is the story. And we're the ending you didn't plan for.",
-        15: "We saved each other. You can't take that from us."
-    };
-    const TOP_HERO_ANY = 'We all made it here. That was never part of your plan.';
-    // lo que dice cada uno al elegir: [ocupar su sitio, romper el circulo]
-    const TOP_CHOICE_LINES = {
-        1: ['Someone has to carry this. Let it be me.', "I've followed orders my whole life. Not this one."],
-        3: ["Power is power. I won't let it go to waste.", "This ends tonight. I'll make sure of it."],
-        4: ["If it means the others live... I'll take it.", "I'm done feeding your master."],
-        5: ['Maybe I can understand it from the inside.', "Let's break this damn thing."],
-        6: ['One more master. At least this one does not talk.', 'No more masters. For anyone.'],
-        13: ["Sorry. I'm not walking away empty-handed.", "Let's finish this together."],
-        14: ["I need to see what's behind all this. All of it.", 'Nobody else gets dragged into this.'],
-        15: ["I... I'm tired of being afraid. I'll take it.", "I won't let anyone else turn into one of those things."]
-    };
-    const TOP_CHOICE_ANY = ['I will take his place.', "I'll break the circle."];
     const TOP_FIGHT_ALL = 'Then come. All of you. Let us see what your unity is worth.';
     const TOP_FIGHT_SIDES = 'Then it is decided the old way. Blood against blood.';
     const TOP_FIGHT_TAKERS = 'Only one may sit beside my master. Settle it.';
@@ -3202,10 +3180,6 @@
     function perkeleSay(list, text) {
         list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] }, { code: 401, indent: 0, parameters: [PERKELE_NAME] });
         wrapText('"' + coop.tr(text) + '"', 60).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
-    }
-    function heroSay(list, actor, text) {
-        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
-        wrapText(actor.name() + ': "' + coop.tr(text) + '"', 52).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
     }
 
     // la escena del juego: lo de antes del primer "Ah, you are finally here." (el protagonista en su
@@ -3278,8 +3252,6 @@
             if (i === 2 && dead > 0) t = dead === 1 ? TOP_PERKELE_ONE_DEAD : coop.tr(TOP_PERKELE_SOME_DEAD).split('{dead}').join(String(dead));
             perkeleSay(list, t);
         });
-        const hero = playerActor(1);
-        heroSay(list, hero, TOP_HERO_LINES[hero.actorId()] || TOP_HERO_ANY);
         TOP_PERKELE_OFFER.forEach(t => perkeleSay(list, t));
         players.forEach(n => {
             const a = playerActor(n);
@@ -3326,15 +3298,16 @@
         }
         return 0;
     }
+    // todos han elegido: se dice quien eligio cada cosa
     function topResolve(it) {
         const ch = $gameSystem._coopTopChoices || {};
+        const names = what => Object.keys(ch).map(Number).sort((x, y) => x - y).filter(n => ch[n] === what && playerActor(n))
+            .map(n => playerActor(n).name());
         const list = [];
-        Object.keys(ch).map(Number).sort((x, y) => x - y).forEach(n => {
-            const a = playerActor(n);
-            if (!a) return;
-            const lines = TOP_CHOICE_LINES[a.actorId()] || TOP_CHOICE_ANY;
-            heroSay(list, a, lines[ch[n] === 'take' ? 0 : 1]);
-        });
+        const take = names('take'), brk = names('break');
+        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
+        if (take.length) wrapText(coop.tr('To take his place and serve the Sulfur God:') + ' ' + take.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+        if (brk.length) wrapText(coop.tr('To break the circle:') + ' ' + brk.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         list.push({ code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }, { code: 0, indent: 0, parameters: [] });
         it.setupChild(list, it._eventId);
     }
