@@ -2800,8 +2800,12 @@
     };
     const _Sprite_Picture_updateBitmap_run = Sprite_Picture.prototype.updateBitmap;
     Sprite_Picture.prototype.updateBitmap = function() {
-        // (no dejar que el juego le vuelva a poner la de P1)
-        if (this._pictureId === 18 && isTermina() && ownRunState()) return;
+        // (no dejar que el juego le vuelva a poner la de P1; para el juego esta oculta: puede no
+        // haber imagen 18 y lo demas de su update fallaria; la nuestra se pone despues)
+        if (this._pictureId === 18 && isTermina() && ownRunState()) {
+            this.visible = false;
+            return;
+        }
         _Sprite_Picture_updateBitmap_run.apply(this, arguments);
     };
 
