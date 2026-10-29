@@ -2830,14 +2830,14 @@
     // puerta de la torre se abre para todos, como si todos los demas hubieran muerto.
     const FORMS = [
         { key: 'levi', name: 'Levi', dead: 'levi1', troop: 'Weeping_scope', turn: ['sniper_scene1'], at: [39, 29, 7], look: [4, 0] },
-        { key: 'marcoh', name: 'Marcoh', dead: 'Marcoh1', troop: 'Giant', turn: ['Marcoh_gone_crazy', 'giant_upstairs', 'giant_downstairs'], at: [93, 36, 32], look: [4, 1] },
-        { key: 'abella', name: 'Abella', dead: 'Abella1', troop: 'Chaugnar', turn: ['Abella_gone'], at: [24, 65, 42], look: [6, 0] },
-        { key: 'marina', name: 'Marina', dead: 'marina1', troop: 'Cocoon', turn: [], at: [81, 25, 43], look: [6, 1], hide: [81, [276, 277, 278, 279, 280]] },
-        { key: 'olivia', name: 'Olivia', dead: 'Olivia1', troop: 'Mechanical_dance', turn: ['mechanical_dance_appear'], at: [84, 27, 65], look: [6, 2] },
+        { key: 'marcoh', name: 'Marcoh', dead: 'Marcoh1', troop: 'Giant', turn: ['Marcoh_gone_crazy', 'giant_upstairs', 'giant_downstairs'], at: [93, 36, 32], look: [6, 1] },
+        { key: 'abella', name: 'Abella', dead: 'Abella1', troop: 'Chaugnar', turn: ['Abella_gone'], at: [24, 65, 42], look: [6, 2] },
+        { key: 'marina', name: 'Marina', dead: 'marina1', troop: 'Cocoon', turn: [], at: [81, 25, 43], look: [4, 1], hide: [81, [276, 277, 278, 279, 280]] },
+        { key: 'olivia', name: 'Olivia', dead: 'Olivia1', troop: 'Mechanical_dance', turn: ['mechanical_dance_appear'], at: [84, 27, 65], look: [6, 0] },
         { key: 'daan', name: 'Daan', dead: 'Daan1', troop: 'Pocketcat2', turn: ['Pocketdaan_appear', 'pocketdaan_inside', 'pocketdaan_outside'], at: [88, 6, 2], look: [4, 2] },
-        { key: 'osaa', name: "O'saa", dead: 'yellow_mage1', troop: 'Mastermind', turn: ['mastermind_mausoleum_alley'], at: [80, 10, 10], look: [8, 0] },
+        { key: 'osaa', name: "O'saa", dead: 'yellow_mage1', troop: 'Mastermind', turn: ['mastermind_mausoleum_alley'], at: [80, 10, 10], look: [8, 2] },
         { key: 'karin', name: 'Karin', dead: 'karin1', troop: 'Valkyrie', turn: ['valkyrie_active', 'valkyrie_flight1'], at: [41, 24, 33], look: [8, 1] },
-        { key: 'henryk', name: 'Henryk', dead: 'Henryk1', troop: 'Gentleman1', turn: ['Mayor_appears'], at: [20, 4, 54], look: [8, 2] },
+        { key: 'henryk', name: 'Henryk', dead: 'Henryk1', troop: 'Gentleman1', turn: ['Mayor_appears'], at: [20, 4, 54], look: [8, 0] },
         { key: 'samarie', name: 'Samarie', dead: 'samarie1', troop: 'Dysmorphia', turn: ['samarie_full_transformation'], at: [48, 27, 17], look: [2, 0] },
         { key: 'tanaka', name: 'Tanaka', dead: 'Tanaka1', troop: 'Judgement', turn: ['Tanaka_alone', 'Tanaka_final'], at: [84, 56, 65], look: [2, 1] },
         { key: 'caligura', name: 'Caligura', dead: 'caligura1', troop: 'Monster', turn: ['caligura_monster'], at: [78, 29, 56], look: [2, 2] }
