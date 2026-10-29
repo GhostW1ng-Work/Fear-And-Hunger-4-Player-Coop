@@ -1814,24 +1814,12 @@
     // Pantalla en negro, campanas, la torre de fondo, el texto que sube despacio y el nombre del final;
     // luego el titulo. (El texto: docs/ENDING_FOURTH_FESTIVAL.md; en ruso, en la traduccion.)
     const FOURTH_FESTIVAL_TEXT = [
-        'The festival of Termina has ended without a winner.',
+        'The winner of the third festival never climbed the tower.',
         '',
-        'No one climbed the tower.',
-        'No one stood before the moon.',
+        'The fate of all the contestants will remain unknown.',
         '',
-        'The last contestants chose to die',
-        'rather than to kill each other.',
-        '',
-        '{names}.',
-        '',
-        'Their bodies were left by the stone door,',
-        'and the town forgot them soon enough.',
-        '',
-        'Prehevil does not mourn. Prehevil waits.',
-        '',
-        'Before long, the Fourth Festival of Termina will begin.',
-        'New contestants will come to the town of the moon...',
-        '...and none of them will know these names.'
+        'But soon, in Prehevil, the fourth festival',
+        'of Termina will begin.'
     ];
     function partyNames() {
         const names = $gameParty._actors.map(id => $gameActors.actor(id)).filter(a => a).map(a => a.name());

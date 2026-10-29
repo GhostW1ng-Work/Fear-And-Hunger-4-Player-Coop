@@ -1573,7 +1573,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var scroll = el.filter(function(c) { return c.code === 405; }).map(function(c) { return c.parameters[0]; }).join(' / ');
             check('T50f the ending: bells, the tower picture, slow rising text with the names of the party, its name, then the title screen',
                 el.some(function(c) { return c.code === 250; }) && el.some(function(c) { return c.code === 231 && c.parameters[1] === 'tower_view2'; }) &&
-                el.some(function(c) { return c.code === 105; }) && scroll.indexOf(pA.name()) >= 0 && /Fourth Festival/.test(scroll) &&
+                el.some(function(c) { return c.code === 105; }) && /third festival/.test(scroll) && /fourth festival/.test(scroll) &&
                 el.some(function(c) { return c.code === 401 && /The Fourth Festival/.test(c.parameters[0]); }) && el.some(function(c) { return c.code === 354; }),
                 scroll.slice(0, 160));
             $gameSystem._coopDoorChoices = {};

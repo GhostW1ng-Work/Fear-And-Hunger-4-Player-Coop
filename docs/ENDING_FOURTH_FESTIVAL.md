@@ -11,32 +11,18 @@
 5. Ещё один колокол — посреди экрана надпись **The Fourth Festival** / *Ending*.
 6. Затемнение — титульный экран.
 
-`{names}` — имена персонажей отряда в этот момент, через запятую и «и» (например: *Marcoh, Abella и Levi*). Пустые строки — паузы между абзацами.
-
 ## Текст
 
-Первая колонка — английский (черновик), вторая — русский (**черновик, замените на свой**). С языком мода *English* идёт первая, с *Русский* — вторая.
+Слева — русский (автор мода), справа — английский (перевод). С языком мода *Русский* идёт левая колонка, с *English* — правая. Пустые строки — паузы.
 
-| English | Русский (черновик) |
+| Русский | English |
 |---|---|
-| The festival of Termina has ended without a winner. | Фестиваль Термины закончился без победителя. |
+| Победитель третьего фестиваля так и не поднялся на башню. | The winner of the third festival never climbed the tower. |
 | *(пусто)* | *(пусто)* |
-| No one climbed the tower. | Никто не поднялся на башню. |
-| No one stood before the moon. | Никто не предстал перед луной. |
+| Судьба всех участников останется неизвестной. | The fate of all the contestants will remain unknown. |
 | *(пусто)* | *(пусто)* |
-| The last contestants chose to die | Последние участники выбрали смерть, |
-| rather than to kill each other. | лишь бы не убивать друг друга. |
-| *(пусто)* | *(пусто)* |
-| {names}. | {names}. |
-| *(пусто)* | *(пусто)* |
-| Their bodies were left by the stone door, | Их тела остались у каменной двери, |
-| and the town forgot them soon enough. | и город быстро о них забыл. |
-| *(пусто)* | *(пусто)* |
-| Prehevil does not mourn. Prehevil waits. | Прехевиль не скорбит. Прехевиль ждёт. |
-| *(пусто)* | *(пусто)* |
-| Before long, the Fourth Festival of Termina will begin. | Совсем скоро начнётся четвёртый фестиваль Термины. |
-| New contestants will come to the town of the moon... | В город луны придут новые участники... |
-| ...and none of them will know these names. | ...и никто из них не узнает этих имён. |
+| Но вскоре в Прехевиле начнётся четвёртый фестиваль | But soon, in Prehevil, the fourth festival |
+| Термина. | of Termina will begin. |
 
 Надпись в конце:
 

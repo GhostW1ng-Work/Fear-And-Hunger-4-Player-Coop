@@ -455,21 +455,13 @@
         "I don't want to hurt anyone.": 'Я не хочу никому причинять боль.',
         'Only one leaves. It will be me.': 'Уйдёт только один. Это буду я.',
         "I won't fight you. Let it end here.": 'Я не стану с вами драться. Пусть всё кончится здесь.',
-        // final "The Fourth Festival" (CHERNOVIK: el autor del co-op escribe el suyo, ver docs/ENDING_FOURTH_FESTIVAL.md)
+        // final "The Fourth Festival" (el texto del autor del co-op, ver docs/ENDING_FOURTH_FESTIVAL.md)
         'Cheat: play the ending The Fourth Festival': 'Чит: показать концовку The Fourth Festival',
         ' and ': ' и ', 'The Fourth Festival': 'Четвёртый фестиваль', 'Ending': 'Концовка',
-        'The festival of Termina has ended without a winner.': 'Фестиваль Термины закончился без победителя.',
-        'No one climbed the tower.': 'Никто не поднялся на башню.',
-        'No one stood before the moon.': 'Никто не предстал перед луной.',
-        'The last contestants chose to die': 'Последние участники выбрали смерть,',
-        'rather than to kill each other.': 'лишь бы не убивать друг друга.',
-        '{names}.': '{names}.',
-        'Their bodies were left by the stone door,': 'Их тела остались у каменной двери,',
-        'and the town forgot them soon enough.': 'и город быстро о них забыл.',
-        'Prehevil does not mourn. Prehevil waits.': 'Прехевиль не скорбит. Прехевиль ждёт.',
-        'Before long, the Fourth Festival of Termina will begin.': 'Совсем скоро начнётся четвёртый фестиваль Термины.',
-        'New contestants will come to the town of the moon...': 'В город луны придут новые участники...',
-        '...and none of them will know these names.': '...и никто из них не узнает этих имён.'
+        'The winner of the third festival never climbed the tower.': 'Победитель третьего фестиваля так и не поднялся на башню.',
+        'The fate of all the contestants will remain unknown.': 'Судьба всех участников останется неизвестной.',
+        'But soon, in Prehevil, the fourth festival': 'Но вскоре в Прехевиле начнётся четвёртый фестиваль',
+        'of Termina will begin.': 'Термина.'
     };
     // [regex, plantilla]: $1.. = lo capturado (traducido si es una frase de EXACT)
     const I18N_RU_PATTERNS = [
