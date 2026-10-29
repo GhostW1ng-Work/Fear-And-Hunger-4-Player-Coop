@@ -1723,7 +1723,7 @@
     const DOOR_LINES = {
         1: ['Forgive me, but I just want to survive.', "...I won't fight anymore. Farewell, everyone..."],
         3: ["I didn't come back to this cursed town to die here.", 'I just want to end this... All of this nightmare...'],
-        4: ['I want to go on living. Without regrets about the past.', "Eliza, I'm coming to you."],
+        4: ['I want to go on living. Without regrets about the past.', "Elise, I'm coming to you."],
         5: ["Well, it seems I have no other choice. I'm so, so sorry.", "I won't kill any of you. I've had enough."],
         6: ['The tower calls for the strongest. Come, then.', 'So be it. My path ends here, by my own hand.'],
         13: ["Fine. Let's get this over with.", "...I don't want to kill anyone anymore."],

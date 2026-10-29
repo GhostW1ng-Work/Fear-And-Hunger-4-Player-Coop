@@ -348,8 +348,8 @@
         'Local co-op': 'Локальный кооператив', 'Camera': 'Камера', 'Split screen view': 'Масштаб разделённого экрана',
         'Split with 2 players': 'Разделение на двоих', 'Split with 3 players': 'Разделение на троих', 'Gamepads for P2-P4': 'Геймпады для P2–P4',
         'P3 keyboard': 'Клавиатура P3', 'Rejoin after loading': 'Возвращаться после загрузки', 'When P2-P4 die': 'Когда умирают P2–P4',
-        "Keep players' characters": 'Сохранять персонажей игроков', 'Cheats': 'Читы', 'Cheat: immortal party': 'Чит: бессмертный отряд',
-        'Cheat: keep limbs': 'Чит: конечности не отрубаются', 'Cheat: one-hit kills': 'Чит: убийство с одного удара', 'Cheat: open locks': 'Чит: открывать замки',
+        "Keep players' characters": 'Не отнимать персонажей', 'Cheats': 'Читы', 'Cheat: immortal party': 'Чит: бессмертный отряд',
+        'Cheat: keep limbs': 'Чит: не терять конечности', 'Cheat: one-hit kills': 'Чит: убийство с одного удара', 'Cheat: open locks': 'Чит: открывать замки',
         'Check for updates': 'Проверять обновления', 'Revive with soul stones': 'Воскрешение камнем душ', 'Revived with': 'Воскресает с',
         'Mind cost of reviving': 'Цена воскрешения (рассудок)', "Played characters' NPCs": 'NPC персонажей игроков', 'PvP (Termina)': 'PvP (Termina)',
         'PvP damage': 'Урон в PvP', 'Hero dies (not by a player)': 'Смерть героя (не от игрока)',
@@ -395,7 +395,7 @@
         // menu Co-op
         'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Who controls each character in combat': 'Кто управляет каждым персонажем в бою',
         'Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it;  "Pn plays it": for who waits)':
-            'Влево / Вправо или OK: сменить    Отмена: назад    (главный у P2–P4: отошёл / забрать;  «Pn играет»: для ожидающего)',
+            'Влево/Вправо, OK: сменить   Отмена: назад   (P2–P4: отошёл / забрать; «Pn играет» — ожидающему)',
         'Cheat: restore HP, mind and hunger': 'Чит: восстановить здоровье, рассудок и голод', 'Cheat: get torches and fire': 'Чит: факелы и огонь',
         'Cheat: kill all contestants not in the party': 'Чит: убить всех участников не в отряде', 'Cheat: teleport to the tower door': 'Чит: телепорт к двери башни',
         'PARTY': 'ОТРЯД', 'G: camera': 'G: камера', 'measuring...': 'измеряю...',
@@ -412,7 +412,7 @@
         'Left / Right changes the mode, OK on a line to change it.': 'Влево / Вправо меняют режим, OK на строке — изменить её.',
         'Connected: nobody yet': 'Подключены: пока никто', 'Players can join or come back during the game.': 'Игроки могут войти или вернуться во время игры.',
         'Starts by itself when everybody is ready.': 'Начнётся само, когда все будут готовы.',
-        'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).': 'Локальная сеть: скажите этот IP. Интернет: IP VPN или внешний IP (docs/NETPLAY.ru.md).',
+        'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).': 'LAN: скажите этот IP. Интернет: IP VPN или внешний IP (NETPLAY.ru.md).',
         'The host starts the game; you will see their world.': 'Игру начинает хост; вы увидите его мир.', 'Press "I\'m ready" - the game starts when everybody is.': 'Нажмите «Я готов» — игра начнётся, когда будут готовы все.',
         // carteles
         'Cheats are off': 'Читы выключены', 'Options > Co-op > Co-op settings > Cheats': 'Опции > Кооп > Настройки кооператива > Читы', 'Only the host saves': 'Сохраняет только хост',
@@ -442,7 +442,7 @@
         "I didn't come back to this cursed town to die here.": 'Я вернулась в этот проклятый город не для того, чтобы умереть здесь.',
         'I just want to end this... All of this nightmare...': 'Я просто хочу покончить с этим... Со всем этим кошмаром...',
         'I want to go on living. Without regrets about the past.': 'Я хочу жить дальше. Без сожалений о прошлом.',
-        "Eliza, I'm coming to you.": 'Элиза, я иду к тебе.',
+        "Elise, I'm coming to you.": 'Элиза, я иду к тебе.',
         "Well, it seems I have no other choice. I'm so, so sorry.": 'Что ж, видимо, другого выбора у меня нет. Я очень, очень сожалею.',
         "I won't kill any of you. I've had enough.": 'Я никого из вас убивать не буду. С меня хватит.',
         'The tower calls for the strongest. Come, then.': 'Башня зовёт сильнейшего. Что ж, подходите.',
@@ -2350,6 +2350,7 @@
         // el texto en el idioma del mod (ver IDIOMA DEL MOD)
         tr(text) { return tr(text); },
         language() { return coopLanguage(); },
+        i18nTable() { return I18N_RU_EXACT; }, // (para pruebas: que quepa)
         // un truco encendido (y los trucos permitidos)
         cheat(key) { return coopSettings.cheats !== false && !!coopSettings[key]; },
         // cambia un ajuste del co-op y lo guarda (p.ej. desde el menu de red)
@@ -4398,11 +4399,20 @@
         this._coopText = key;
         const cw = this.contents.width;
         this.contents.clear();
-        this.contents.fontSize = 24;
+        this.contents.fontSize = 22;
         this.drawText(title, 0, 0, cw, 'left');
         this.contents.fontSize = 18;
         this.changeTextColor('#cfcfcf');
-        this.drawText(text, 0, 36, cw, 'left');
+        // (largo: en dos lineas, partido por palabras, en vez de apretarlo)
+        const words = tr(String(text || '')).split(' ');
+        const lines = [''];
+        words.forEach(wd => {
+            const cur = lines[lines.length - 1];
+            const next = cur ? cur + ' ' + wd : wd;
+            if (cur && this.textWidth(next) > cw && lines.length < 2) lines.push(wd);
+            else lines[lines.length - 1] = next;
+        });
+        lines.forEach((line, i) => _Window_Base_drawText_tr.call(this, line, 0, 30 + i * 22, cw, 'left'));
         this.resetTextColor();
     };
 
@@ -4480,7 +4490,7 @@
     Scene_CoopSettings.prototype.create = function() {
         Scene_MenuBase.prototype.create.call(this);
         const w = Graphics.boxWidth;
-        const helpH = 96;
+        const helpH = 118;
         this._coopHelp = new Window_CoopText(0, 0, w, helpH);
         this.addWindow(this._coopHelp);
         this._coopList = new Window_CoopSettings(0, helpH, w, Graphics.boxHeight - helpH, this._coopHelp);

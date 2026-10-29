@@ -1575,7 +1575,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var en = CoopLocal.tr('Cheats are off');
             check('T51 language Russian: the mod texts are translated (whole phrases, with names, labels, the door lines); English: as written',
                 ru[0] === 'Читы выключены' && ru[1] === 'P1 нападает на P2!' && ru[2] === '< Вкл — насмерть >' &&
-                ru[3] === 'Marcoh: «Ладно. Давайте покончим с этим.»' && ru[4] === '  Чит: конечности не отрубаются' && ru[5] === 'Abella' && en === 'Cheats are off',
+                ru[3] === 'Marcoh: «Ладно. Давайте покончим с этим.»' && ru[4] === '  Чит: не терять конечности' && ru[5] === 'Abella' && en === 'Cheats are off',
                 ru.join(' | ') + ' | en ' + en);
             CoopLocal.setSetting('language', langWas || 'en');
             // el protagonista muere (no por un jugador): el siguiente jugador vivo es el protagonista

@@ -8,7 +8,7 @@
 |---|---|---|
 | **Levi** (1) | Простите меня, но я просто хочу выжить.<br>*Forgive me, but I just want to survive.* | ...Я больше не буду сражаться. Прощайте, ребята...<br>*...I won't fight anymore. Farewell, everyone...* |
 | **Marina** (3) | Я вернулась в этот проклятый город не для того, чтобы умереть здесь.<br>*I didn't come back to this cursed town to die here.* | Я просто хочу покончить с этим... Со всем этим кошмаром...<br>*I just want to end this... All of this nightmare...* |
-| **Daan** (4) | Я хочу жить дальше. Без сожалений о прошлом.<br>*I want to go on living. Without regrets about the past.* | Элиза, я иду к тебе.<br>*Eliza, I'm coming to you.* |
+| **Daan** (4) | Я хочу жить дальше. Без сожалений о прошлом.<br>*I want to go on living. Without regrets about the past.* | Элиза, я иду к тебе.<br>*Elise, I'm coming to you.* |
 | **Abella** (5) | Что ж, видимо, другого выбора у меня нет. Я очень, очень сожалею.<br>*Well, it seems I have no other choice. I'm so, so sorry.* | Я никого из вас убивать не буду. С меня хватит.<br>*I won't kill any of you. I've had enough.* |
 | **O'saa** (6) | Башня зовёт сильнейшего. Что ж, подходите.<br>*The tower calls for the strongest. Come, then.* | Да будет так. Мой путь кончается здесь, моей же рукой.<br>*So be it. My path ends here, by my own hand.* |
 | **Marcoh** (13) | Ладно. Давайте покончим с этим.<br>*Fine. Let's get this over with.* | ...Я больше не хочу никого убивать.<br>*...I don't want to kill anyone anymore.* |
