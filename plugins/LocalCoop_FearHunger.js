@@ -1719,17 +1719,47 @@
     }
 
     // lo que dice cada uno al final (por su personaje)
+    // (las del autor del co-op, en ruso; ver docs/DOOR_LINES.md)
     const DOOR_LINES = {
-        1: ["I've survived worse than this. I'm not stopping now.", "...I'm done fighting. Tell them I tried."],
-        3: ["I didn't come back to this cursed town to die at its door.", 'The visions were right... This is where my story ends.'],
-        4: ['Forgive me. I want to live.', "I've seen enough suffering. I won't add to it."],
-        5: ["Sorry, mates. I'm getting out of here, ay?", "Nah... I'm not killing any of you. I'm done."],
-        6: ['The tower calls for the strongest. Come, then.', 'So be it. My path ends here, by my own hand.'],
-        13: ["Fine. Let's get this over with.", '...Go on. Get out of this hell for the both of us.'],
-        14: ["Someone has to make it out and tell the story. It'll be me.", "I'd rather end it myself than become one of them."],
-        15: ["I'm sorry... I have to try.", "I can't hurt anyone. Not anymore."]
+        1: ['Простите меня, но я просто хочу выжить.', '...Я больше не буду сражаться. Прощайте, ребята...'],
+        3: ['Я вернулась в этот проклятый город не для того, чтобы умереть здесь.', 'Я просто хочу покончить с этим... Со всем этим кошмаром...'],
+        4: ['Я хочу жить дальше. Без сожалений о прошлом.', 'Элиза, я иду к тебе.'],
+        5: ['Что ж, видимо, другого выбора у меня нет. Я очень, очень сожалею.', 'Я никого из вас убивать не буду. С меня хватит.'],
+        6: ['Башня зовёт сильнейшего. Что ж, подходите.', 'Да будет так. Мой путь кончается здесь, моей же рукой.'],
+        13: ['Ладно. Давайте покончим с этим.', '...Я больше не хочу никого убивать.'],
+        14: ['Кто-то должен выбраться и рассказать эту историю.', 'Лучше я покончу с собой, чем стану убийцей.'],
+        15: ['Прости... Я должна попытаться.', 'Я не хочу никому причинять боль.']
     };
-    const DOOR_LINES_ANY = ['Only one leaves. It will be me.', "I won't fight you. Let it end here."];
+    const DOOR_LINES_ANY = ['Уйдёт только один. Это буду я.', 'Я не стану с вами драться. Пусть всё кончится здесь.'];
+
+    // El tipo de letra de Termina (Cardo) no tiene cirilico: esas letras salen con Crimson Text, que
+    // viene con el juego y si lo tiene (el resto del texto sigue igual)
+    const CYRILLIC_FONT = 'CoopCyrillic';
+    (function() {
+        let file = '';
+        try {
+            const fs = require('fs'), path = require('path');
+            const base = path.join(path.dirname(process.mainModule.filename), 'fonts');
+            if (fs.existsSync(path.join(base, 'CrimsonText-Regular.ttf'))) file = 'CrimsonText-Regular.ttf';
+        } catch (e) {
+            file = 'CrimsonText-Regular.ttf';
+        }
+        if (!file || typeof Graphics === 'undefined' || !Graphics.loadFont) return;
+        try { Graphics.loadFont(CYRILLIC_FONT, 'fonts/' + file); } catch (e) { return; }
+        const withCyrillic = face => (face && face.indexOf(CYRILLIC_FONT) < 0 ? face + ', ' + CYRILLIC_FONT : face);
+        const wrap = proto => {
+            if (!proto || !Object.prototype.hasOwnProperty.call(proto, 'standardFontFace') || proto._coopCyr) return;
+            const orig = proto.standardFontFace;
+            proto.standardFontFace = function() { return withCyrillic(orig.call(this)); };
+            proto._coopCyr = true;
+        };
+        // (despues de todos los plugins: algunos cambian la letra de los mensajes)
+        const _Scene_Boot_start = Scene_Boot.prototype.start;
+        Scene_Boot.prototype.start = function() {
+            Object.keys(window).forEach(k => { if (/^Window_/.test(k) && window[k] && window[k].prototype) wrap(window[k].prototype); });
+            _Scene_Boot_start.apply(this, arguments);
+        };
+    })();
 
     // todos han elegido: dicen lo suyo; quien acaba con su vida muere; los que luchan, a muerte
     // (P1, si acaba con su vida y hay otros que luchan, muere al final: el que quede es el protagonista)
@@ -1743,10 +1773,8 @@
             const a = playerActor(n);
             if (!a) return;
             const lines = DOOR_LINES[a.actorId()] || DOOR_LINES_ANY;
-            list.push(
-                { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-                { code: 401, indent: 0, parameters: [a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"'] }
-            );
+            list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
+            wrapText(a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"', 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         });
         // los que acaban con su vida (P1 al final si alguien lucha)
         enders.filter(n => n !== 1 || fighters.length === 0).forEach(n => {
@@ -1774,6 +1802,22 @@
         }
         list.push({ code: 0, indent: 0, parameters: [] });
         it.setupChild(list, it._eventId);
+    }
+
+    // (las ventanas de mensajes no parten las lineas: en trozos por palabras, hasta 4 lineas)
+    function wrapText(text, width) {
+        const out = [];
+        let line = '';
+        text.split(' ').forEach(w => {
+            if (line && (line + ' ' + w).length > width) {
+                out.push(line);
+                line = w;
+            } else {
+                line = line ? line + ' ' + w : w;
+            }
+        });
+        if (line) out.push(line);
+        return out.slice(0, 4);
     }
 
     function doorEnd(n) {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The tower door: the choice is *Fight* / *Commit suicide*; the characters' lines are in Russian (written by the mod's author; see `docs/DOOR_LINES.md`); Russian letters in message windows use Crimson Text from the game (Termina's font has no Cyrillic); long lines wrap.
 - Termina, the tower door with other players in the party: before the fight each player chooses *Fight* or *Commit suicide*; everyone says their line (a line of their own for each playable character); who ends it dies; those who fight fight to the death (the others watch); if only one fights, they are the one left (and the protagonist; P1 who chose to end it dies at the end); everybody ends it - game over.
 
 ## v1.8.9
