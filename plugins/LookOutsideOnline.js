@@ -360,6 +360,9 @@
         'Off (story decides)': 'Выкл (решает сюжет)', 'Off (death is for good)': 'Выкл (смерть навсегда)', 'Hidden': 'Скрыты', 'Shown': 'Видны',
         'None': 'Нет', 'On - not to the death': 'Вкл — не насмерть', 'On - to the death': 'Вкл — насмерть',
         'The next one takes over': 'Героем становится следующий',
+        "Players' own skill branches": 'Свои ветки навыков игроков', 'Open': 'Открыты', 'Closed (as in the game)': 'Закрыты (как в игре)',
+        "Termina, Hexen: the skill branch of each contestant a player plays is open, like the protagonist's (companions' branches open only when they die, as in the game).":
+            'Termina, Хексен: ветка навыков участника, которым играет игрок, открыта, как у героя (ветки спутников — только после их смерти, как в игре).',
         'Off: arrows, Enter, numpad and gamepads are normal keys for P1 (nobody joins). The network game still works.':
             'Выкл: стрелки, Enter, Numpad и геймпады — обычные клавиши P1 (никто не входит). Сетевая игра всё равно работает.',
         'Auto: shared while everyone is close, split screen when someone walks away. G changes it while playing.':

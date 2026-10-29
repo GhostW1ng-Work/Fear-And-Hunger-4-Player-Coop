@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Players' own skill branches** (Termina, setting, default *Open*): at Hexen the skill branch of each contestant a player plays is open while they play it (as the protagonist's own branch is); companions' branches still open only when they die, as in the game.
+
 ## v1.9.0
 
 - **Language of the mod** (setting *Language*: English / Русский): menus, settings, the network menu, messages, questions and scenes of the mod in Russian. Online it is the host's language (messages have to last the same on every PC). Russian letters use the game's own Crimson Text where the main font has none; settings help wraps onto two lines.

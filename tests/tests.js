@@ -1577,6 +1577,33 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 el.some(function(c) { return c.code === 401 && /The Fourth Festival/.test(c.parameters[0]); }) && el.some(function(c) { return c.code === 354; }),
                 scroll.slice(0, 160));
             $gameSystem._coopDoorChoices = {};
+            // ramas de Hexen: la de cada jugador abierta mientras lo lleva; la de un companero, no
+            var csB = CoopTower.contestants();
+            var soulOf = function(a) { var c = csB.filter(function(x) { return x.actorId === a.actorId(); })[0]; return c ? c.soul : 0; };
+            var deadOf = function(a) { var c = csB.filter(function(x) { return x.actorId === a.actorId(); })[0]; return c ? c.deadSwitch : 0; };
+            var sB = soulOf(pB), sC = soulOf(pC), dB = deadOf(pB);
+            var soulsWas = [$gameSwitches.value(sB), $gameSwitches.value(sC), $gameSwitches.value(dB)];
+            $gameSwitches.setValue(sB, false); $gameSwitches.setValue(sC, false); $gameSwitches.setValue(dB, false);
+            $gameSystem._coopOpenedSouls = {};
+            CoopLocal.setSetting('playerBranches', true);
+            CoopTower.updateBranches();
+            var openB = $gameSwitches.value(sB), openC = $gameSwitches.value(sC);
+            var compId = $gameParty._actors.filter(function(id) { return id !== pA.actorId() && CoopLocal.players().every(function(pl) { return pl._coopActorId !== id; }); })[0];
+            var compSoul = compId ? soulOf($gameActors.actor(compId)) : 0;
+            var compOpen = compSoul ? $gameSwitches.value(compSoul) : false;
+            var p2Keep = $gamePlayer2._coopActorId;
+            $gamePlayer2._coopActorId = 0; // (P2 deja de llevar su personaje)
+            CoopTower.updateBranches();
+            var closedB = !$gameSwitches.value(sB);
+            $gamePlayer2._coopActorId = p2Keep;
+            check('T53 Hexen: the skill branch of each character a player plays is open; it closes when nobody plays it; a companion does not open one',
+                sB > 0 && openB && openC && closedB && !compOpen, 'P2 soul ' + openB + ' P3 soul ' + openC + ' after leaving ' + !closedB + ' companion ' + compId + ' ' + compOpen);
+            CoopLocal.setSetting('playerBranches', false);
+            CoopTower.updateBranches();
+            check('T53b setting Closed: as in the game', !$gameSwitches.value(sB) && !$gameSwitches.value(sC));
+            $gameSwitches.setValue(sB, soulsWas[0]); $gameSwitches.setValue(sC, soulsWas[1]); $gameSwitches.setValue(dB, soulsWas[2]);
+            $gameSystem._coopOpenedSouls = {};
+            CoopLocal.setSetting('playerBranches', true);
             // el idioma del mod
             var langWas = CoopLocal.setting('language');
             CoopLocal.setSetting('language', 'ru');

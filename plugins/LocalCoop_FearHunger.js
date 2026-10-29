@@ -835,6 +835,44 @@
         }
     };
     coop.addAssignAction(killContestantsAction);
+
+    // ---- las ramas de habilidades de Hexen de los jugadores ------------------------------------
+    // En Hexen la rama de cada concursante se abre con su interruptor de alma (mechanic_SOUL...): la
+    // del protagonista al empezar, la de otro cuando muere. Ajuste "Players' own skill branches": la
+    // de cada concursante que lleva un jugador (P2-P4) esta abierta mientras lo lleva (los companeros
+    // del juego no). Si deja de llevarlo y no ha muerto, la que abrio el mod se vuelve a cerrar.
+    coop.addSettings([
+        { key: 'playerBranches', name: "Players' own skill branches", values: [true, false], labels: ['Open', 'Closed (as in the game)'],
+            after: 'heroDeath',
+            help: "Termina, Hexen: the skill branch of each contestant a player plays is open, like the protagonist's (companions' branches open only when they die, as in the game)." }
+    ], true);
+    let contestantList = null;
+    function updatePlayerBranches() {
+        if (!isTermina() || !$gameSystem || !$gameSwitches) return;
+        if (!contestantList) contestantList = contestants();
+        const opened = $gameSystem._coopOpenedSouls = $gameSystem._coopOpenedSouls || {};
+        const on = coop.setting('playerBranches') !== false;
+        // (y el protagonista: tras un cambio de protagonista puede ser uno que era P2-P4)
+        const played = on ? coop.players().map(pl => pl._coopActorId).concat($gameParty._actors.slice(0, 1)) : [];
+        contestantList.forEach(c => {
+            if (!c.actorId || c.soul <= 0) return;
+            if (played.indexOf(c.actorId) >= 0) {
+                if (!$gameSwitches.value(c.soul)) {
+                    $gameSwitches.setValue(c.soul, true);
+                    opened[c.soul] = true;
+                }
+            } else if (opened[c.soul]) {
+                // (si murio, el alma es suya como en el juego)
+                if (!$gameSwitches.value(c.deadSwitch)) $gameSwitches.setValue(c.soul, false);
+                delete opened[c.soul];
+            }
+        });
+    }
+    const _Game_Map_update_branches = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        _Game_Map_update_branches.apply(this, arguments);
+        updatePlayerBranches();
+    };
     // (para probar el final y su texto)
     coop.addAssignAction({
         cheat: true,
@@ -2642,7 +2680,7 @@
         });
     });
 
-    window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
+    window.CoopTower = { updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
     window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, fourthFestival: fourthFestival, fourthFestivalText: FOURTH_FESTIVAL_TEXT, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
         doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, heroDied: () => heroDiedTakeOver(), sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 

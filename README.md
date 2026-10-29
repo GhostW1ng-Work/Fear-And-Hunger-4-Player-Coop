@@ -191,6 +191,7 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. |
 | *PvP (Termina)* | Off | Players can attack each other (OK next to another player). Not to the death / to the death. |
 | *PvP damage* | x1 | Damage in PvP fights: x1, x0.5, x0.25 or x2. |
+| *Players' own skill branches* | Open | Termina, Hexen: the skill branch of each contestant a player plays is open, like the protagonist's (normally a contestant's branch opens only when they die). Companions' branches: as in the game. *Closed* = as in the game. |
 | *Language* | English | Language of the mod: English or Русский (menus, messages, scenes). Online the host's. Russian letters use Crimson Text from the game where the game's font has none. |
 | *Cheats* | On | Allows F6 / F7 anywhere and the cheats below. |
 
