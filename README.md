@@ -183,6 +183,7 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | Setting | Default | What it does |
 |---|---|---|
 | *When P2-P4 die* | The party goes on | Only the death of P1 ends the game. *Game over* = the original rule. |
+| *Hero dies (not by a player)* | The next one takes over | Termina: if the protagonist dies (a monster, a trap...), the next player alive becomes the protagonist (online their PC plays P1); with no players left, a companion who can be the protagonist (played by P1). *Game over* = as in the game. |
 | *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (the solo parts of the story still work). |
 | *Revive with soul stones* | On | Off: death is for good, there is no body to revive. |
 | *Revived with* | 30% | HP and mind of a character brought back. |
@@ -190,6 +191,7 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | *Played characters' NPCs* | Hidden | Hidden: a played character is not also an NPC on the map. Shown: as in the game. |
 | *PvP (Termina)* | Off | Players can attack each other (OK next to another player). Not to the death / to the death. |
 | *PvP damage* | x1 | Damage in PvP fights: x1, x0.5, x0.25 or x2. |
+| *Language* | English | Language of the mod: English or Русский (menus, messages, scenes). Online the host's. Russian letters use Crimson Text from the game where the game's font has none. |
 | *Cheats* | On | Allows F6 / F7 anywhere and the cheats below. |
 
 ---

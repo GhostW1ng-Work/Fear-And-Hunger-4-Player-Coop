@@ -586,9 +586,9 @@
         const stone = soulStone();
         return [
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: [actor.name() + "'s body."] },
-            { code: 401, indent: 0, parameters: ['Use the ' + stone.name + ' to bring ' + actor.name() + ' back?'] },
-            { code: 102, indent: 0, parameters: [['Yes', 'No'], 1, 0, 2, 0] },
+            { code: 401, indent: 0, parameters: [coop.tr(actor.name() + "'s body")] },
+            { code: 401, indent: 0, parameters: [coop.tr('Use the ' + stone.name + ' to bring ' + actor.name() + ' back?')] },
+            { code: 102, indent: 0, parameters: [[coop.tr('Yes'), coop.tr('No')], 1, 0, 2, 0] },
             { code: 402, indent: 0, parameters: [0, 'Yes'] },
             { code: 355, indent: 1, parameters: ['CoopRevive.revive(' + c.actorId + ', ' + n + ')'] },
             { code: 0, indent: 1, parameters: [] },
@@ -1564,10 +1564,10 @@
         const lethal = pvpMode() === 'death';
         // "Attack everyone": si hay alguien mas aparte de los dos
         const all = pvpCandidates().length >= 3;
-        const choices = all ? ['Attack', 'Attack everyone', 'Leave'] : ['Attack', 'Leave'];
+        const choices = (all ? ['Attack', 'Attack everyone', 'Leave'] : ['Attack', 'Leave']).map(c => coop.tr(c));
         const list = [
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: ['Attack ' + actor.name() + ' (P' + defender + ')?' + (lethal ? ' To the death.' : '')] },
+            { code: 401, indent: 0, parameters: [coop.tr('Attack ' + actor.name() + ' (P' + defender + ')?' + (lethal ? ' To the death.' : ''))] },
             { code: 102, indent: 0, parameters: [choices, choices.length - 1, 0, 2, 0] },
             { code: 402, indent: 0, parameters: [0, 'Attack'] },
             { code: 355, indent: 1, parameters: ['CoopPvp.prepare(this, ' + attacker + ', ' + defender + ')'] },
@@ -1678,9 +1678,9 @@
         $gameSystem._coopDoorChoices = {};
         const list = [
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: ['The stone slab does not move. Something ancient is watching you all...'] },
+            { code: 401, indent: 0, parameters: [coop.tr('The stone slab does not move. Something ancient is watching you all...')] },
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: ['Only one may leave Termina. Only the last one standing.'] }
+            { code: 401, indent: 0, parameters: [coop.tr('Only one may leave Termina. Only the last one standing.')] }
         ];
         // cada uno elige (contesta su jugador): luchar o acabar con su vida
         players.forEach(n => {
@@ -1688,8 +1688,8 @@
             list.push(
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
                 { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-                { code: 401, indent: 0, parameters: ['P' + n + ' - ' + (a ? a.name() : '?') + '. What will you do?'] },
-                { code: 102, indent: 0, parameters: [['Fight', 'Commit suicide'], -1, 0, 2, 0] },
+                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + (a ? a.name() : '?') + '. What will you do?')] },
+                { code: 102, indent: 0, parameters: [[coop.tr('Fight'), coop.tr('Commit suicide')], -1, 0, 2, 0] },
                 { code: 402, indent: 0, parameters: [0, 'Fight'] },
                 { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "fight")'] },
                 { code: 0, indent: 1, parameters: [] },
@@ -1719,47 +1719,20 @@
     }
 
     // lo que dice cada uno al final (por su personaje)
-    // (las del autor del co-op, en ruso; ver docs/DOOR_LINES.md)
+    // las del autor del co-op (en ruso en la traduccion: ver docs/DOOR_LINES.md)
     const DOOR_LINES = {
-        1: ['Простите меня, но я просто хочу выжить.', '...Я больше не буду сражаться. Прощайте, ребята...'],
-        3: ['Я вернулась в этот проклятый город не для того, чтобы умереть здесь.', 'Я просто хочу покончить с этим... Со всем этим кошмаром...'],
-        4: ['Я хочу жить дальше. Без сожалений о прошлом.', 'Элиза, я иду к тебе.'],
-        5: ['Что ж, видимо, другого выбора у меня нет. Я очень, очень сожалею.', 'Я никого из вас убивать не буду. С меня хватит.'],
-        6: ['Башня зовёт сильнейшего. Что ж, подходите.', 'Да будет так. Мой путь кончается здесь, моей же рукой.'],
-        13: ['Ладно. Давайте покончим с этим.', '...Я больше не хочу никого убивать.'],
-        14: ['Кто-то должен выбраться и рассказать эту историю.', 'Лучше я покончу с собой, чем стану убийцей.'],
-        15: ['Прости... Я должна попытаться.', 'Я не хочу никому причинять боль.']
+        1: ['Forgive me, but I just want to survive.', "...I won't fight anymore. Farewell, everyone..."],
+        3: ["I didn't come back to this cursed town to die here.", 'I just want to end this... All of this nightmare...'],
+        4: ['I want to go on living. Without regrets about the past.', "Eliza, I'm coming to you."],
+        5: ["Well, it seems I have no other choice. I'm so, so sorry.", "I won't kill any of you. I've had enough."],
+        6: ['The tower calls for the strongest. Come, then.', 'So be it. My path ends here, by my own hand.'],
+        13: ["Fine. Let's get this over with.", "...I don't want to kill anyone anymore."],
+        14: ['Someone has to make it out and tell this story.', "I'd rather kill myself than become a murderer."],
+        15: ["I'm sorry... I have to try.", "I don't want to hurt anyone."]
     };
-    const DOOR_LINES_ANY = ['Уйдёт только один. Это буду я.', 'Я не стану с вами драться. Пусть всё кончится здесь.'];
+    const DOOR_LINES_ANY = ['Only one leaves. It will be me.', "I won't fight you. Let it end here."];
 
-    // El tipo de letra de Termina (Cardo) no tiene cirilico: esas letras salen con Crimson Text, que
-    // viene con el juego y si lo tiene (el resto del texto sigue igual)
-    const CYRILLIC_FONT = 'CoopCyrillic';
-    (function() {
-        let file = '';
-        try {
-            const fs = require('fs'), path = require('path');
-            const base = path.join(path.dirname(process.mainModule.filename), 'fonts');
-            if (fs.existsSync(path.join(base, 'CrimsonText-Regular.ttf'))) file = 'CrimsonText-Regular.ttf';
-        } catch (e) {
-            file = 'CrimsonText-Regular.ttf';
-        }
-        if (!file || typeof Graphics === 'undefined' || !Graphics.loadFont) return;
-        try { Graphics.loadFont(CYRILLIC_FONT, 'fonts/' + file); } catch (e) { return; }
-        const withCyrillic = face => (face && face.indexOf(CYRILLIC_FONT) < 0 ? face + ', ' + CYRILLIC_FONT : face);
-        const wrap = proto => {
-            if (!proto || !Object.prototype.hasOwnProperty.call(proto, 'standardFontFace') || proto._coopCyr) return;
-            const orig = proto.standardFontFace;
-            proto.standardFontFace = function() { return withCyrillic(orig.call(this)); };
-            proto._coopCyr = true;
-        };
-        // (despues de todos los plugins: algunos cambian la letra de los mensajes)
-        const _Scene_Boot_start = Scene_Boot.prototype.start;
-        Scene_Boot.prototype.start = function() {
-            Object.keys(window).forEach(k => { if (/^Window_/.test(k) && window[k] && window[k].prototype) wrap(window[k].prototype); });
-            _Scene_Boot_start.apply(this, arguments);
-        };
-    })();
+
 
     // todos han elegido: dicen lo suyo; quien acaba con su vida muere; los que luchan, a muerte
     // (P1, si acaba con su vida y hay otros que luchan, muere al final: el que quede es el protagonista)
@@ -1774,7 +1747,7 @@
             if (!a) return;
             const lines = DOOR_LINES[a.actorId()] || DOOR_LINES_ANY;
             list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
-            wrapText(a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"', 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+            wrapText(coop.tr(a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         });
         // los que acaban con su vida (P1 al final si alguien lucha)
         enders.filter(n => n !== 1 || fighters.length === 0).forEach(n => {
@@ -1782,7 +1755,7 @@
                 { code: 224, indent: 0, parameters: [[255, 0, 0, 170], 40, true] },
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorEnd(' + n + ')'] },
                 { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-                { code: 401, indent: 0, parameters: [(playerActor(n) ? playerActor(n).name() : 'P' + n) + ' ends their own life.'] }
+                { code: 401, indent: 0, parameters: [coop.tr((playerActor(n) ? playerActor(n).name() : 'P' + n) + ' ends their own life.')] }
             );
         });
         if (fighters.length === 0) {
@@ -1963,15 +1936,15 @@
             if (!sideInGame(sd, info)) return;
             const lead = sd.players[0];
             const a = $gameActors.actor(sd.actors[0]);
-            opts.push('Help P' + lead + (a ? ' (' + a.name() + ')' : ''));
+            opts.push(coop.tr('Help P' + lead + (a ? ' (' + a.name() + ')' : '')));
             cmds.push(i);
         });
-        opts.push('Attack everyone');
+        opts.push(coop.tr('Attack everyone'));
         cmds.push(-1);
-        opts.push('Leave');
+        opts.push(coop.tr('Leave'));
         const list = [
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-            { code: 401, indent: 0, parameters: ['A fight between players' + (info.lethal ? ', to the death' : '') + '. Join it?'] },
+            { code: 401, indent: 0, parameters: [coop.tr('A fight between players' + (info.lethal ? ', to the death' : '') + '. Join it?')] },
             { code: 102, indent: 0, parameters: [opts, opts.length - 1, 0, 2, 0] }
         ];
         cmds.forEach((side, i) => {
@@ -2200,7 +2173,7 @@
         const prof = gameProfile();
         return (prof && prof.select[actorId]) || (isTermina() && PROTAGONIST_SELECT_EXTRA[actorId]) || 0;
     }
-    function takeOverProtagonist(victim, killer) {
+    function takeOverProtagonist(victim, killer, reason) {
         if (!victim || !killer || killer.isDead() || !isTermina()) return false;
         const net = window.CoopNet;
         if (net && net.active && !net.swapSeats) return false; // (en red: hasta que se puedan cambiar los PC)
@@ -2237,6 +2210,13 @@
         if (killerPlayer.refresh) killerPlayer.refresh();
         $gameMap.requestRefresh();
         $gameSystem._coopProtagonistChanges = ($gameSystem._coopProtagonistChanges || 0) + 1;
+        if (reason === 'died') {
+            const me = net && net.active ? net.swapSeats(1, m) : 0;
+            if (me === 1) coop.banner('You are the protagonist now', victim.name() + ' died - ' + killer.name() + ' takes over', '#ffcc55', 360);
+            else if (net && net.active) coop.banner(victim.name() + ' died - ' + killer.name() + ' takes over', '', '#ffcc55', 300);
+            else coop.banner(victim.name() + ' died - ' + killer.name() + ' takes over', 'P' + m + ", take P1's controls - " + victim.name() + "'s player takes P" + m + "'s", '#ffcc55', 420);
+            return true;
+        }
         if (net && net.active) {
             const me = net.swapSeats(1, m);
             if (me === 1) coop.banner('You are the protagonist now', 'You killed ' + victim.name() + ' - you play P1: ' + killer.name(), '#ffcc55', 360);
@@ -2245,6 +2225,86 @@
         } else coop.banner(killer.name() + ' is the protagonist now', 'P' + m + ', take P1\'s controls - ' + victim.name() + "'s player takes P" + m + "'s", '#ffcc55', 420);
         return true;
     }
+    // ---- el protagonista muere (no a manos de un jugador) ----------------------------------
+    // Ajuste "Hero dies": el siguiente jugador vivo (P2, P3, P4) pasa a ser el protagonista; si no
+    // queda ninguno, un companero vivo que pueda serlo (lo lleva el jugador de P1). El juego, al morir
+    // el protagonista, saca a todos del grupo y acaba ("main_character_dead?", "DEATH_MAIN_CHARACTER",
+    // "GameOver"): antes de eso se cambia el protagonista, y esos sucesos ya no hacen nada.
+    coop.addSettings([
+        { key: 'heroDeath', name: 'Hero dies (not by a player)', values: ['next', 'gameover'], labels: ['The next one takes over', 'Game over'],
+            after: 'deathRule',
+            help: 'If the protagonist dies (a monster, a trap...): the next player alive (or a companion who can be the protagonist) takes over. Game over: as in the game.' }
+    ], true);
+    function heroHeir(hero) {
+        for (let n = 2; n <= 4; n++) {
+            const p = coop.player(n);
+            const a = p && p.actor();
+            if (a && a !== hero && a.isAlive() && selectSwitchOf(a.actorId())) return { actor: a, player: n };
+        }
+        const played = coop.players().map(pl => pl._coopActorId);
+        for (const id of $gameParty._actors) {
+            const a = $gameActors.actor(id);
+            if (a && a !== hero && a.isAlive() && played.indexOf(id) < 0 && selectSwitchOf(id)) return { actor: a, player: 0 };
+        }
+        return null;
+    }
+    // (un companero: lo lleva el mismo jugador de P1)
+    function companionTakesOver(hero, comp) {
+        const oldSw = selectSwitchOf(hero.actorId());
+        const newSw = selectSwitchOf(comp.actorId());
+        if (!oldSw || !newSw) return false;
+        const actors = $gameParty._actors;
+        const ih = actors.indexOf(hero.actorId());
+        const ic = actors.indexOf(comp.actorId());
+        if (ih < 0 || ic < 0) return false;
+        $gameSwitches.setValue(oldSw, false);
+        $gameSwitches.setValue(newSw, true);
+        actors[ih] = comp.actorId();
+        actors[ic] = hero.actorId();
+        $gamePlayer.refresh();
+        $gameMap.requestRefresh();
+        $gameSystem._coopProtagonistChanges = ($gameSystem._coopProtagonistChanges || 0) + 1;
+        coop.banner(hero.name() + ' died - ' + comp.name() + ' takes over', '', '#ffcc55', 300);
+        return true;
+    }
+    function heroDiedTakeOver() {
+        if (!isTermina() || coop.setting('heroDeath') === 'gameover' || !$gameParty) return false;
+        const hero = $gameActors.actor($gameParty._actors[0]);
+        if (!hero || hero.isAlive()) return false;
+        const heir = heroHeir(hero);
+        if (!heir) return false;
+        return heir.player ? takeOverProtagonist(hero, heir.actor, 'died') : companionTakesOver(hero, heir.actor);
+    }
+    const HERO_DEATH_EVENTS = /^(main_character_dead\?|DEATH_MAIN_CHARACTER|GameOver)$/i;
+    const _Game_Interpreter_setup_hero = Game_Interpreter.prototype.setup;
+    Game_Interpreter.prototype.setup = function(list, eventId) {
+        if (list && $dataCommonEvents && isTermina()) {
+            const ce = $dataCommonEvents.find(c => c && c.list === list);
+            if (ce && HERO_DEATH_EVENTS.test(ce.name)) heroDiedTakeOver();
+        }
+        return _Game_Interpreter_setup_hero.apply(this, arguments);
+    };
+    const _Game_Interpreter_command117_hero = Game_Interpreter.prototype.command117;
+    Game_Interpreter.prototype.command117 = function() {
+        const ce = $dataCommonEvents[this._params[0]];
+        if (ce && isTermina() && HERO_DEATH_EVENTS.test(ce.name)) heroDiedTakeOver();
+        return _Game_Interpreter_command117_hero.call(this);
+    };
+    // un combate perdido con el protagonista muerto (p.ej. luchaba solo) y alguien vivo fuera: el
+    // otro es el protagonista y se vuelve al mapa (perder sin que muera P1 ya no acaba la partida)
+    const _BattleManager_processDefeat_hero = BattleManager.processDefeat;
+    BattleManager.processDefeat = function() {
+        heroDiedTakeOver();
+        return _BattleManager_processDefeat_hero.call(this);
+    };
+
+    // "Fin de la partida" con el protagonista muerto y alguien que puede seguir: sigue
+    const _Game_Interpreter_command353_hero = Game_Interpreter.prototype.command353;
+    Game_Interpreter.prototype.command353 = function() {
+        if (heroDiedTakeOver()) return true;
+        return _Game_Interpreter_command353_hero.call(this);
+    };
+
     const _BattleManager_updateBattleEnd_pvp = BattleManager.updateBattleEnd;
     BattleManager.updateBattleEnd = function() {
         _BattleManager_updateBattleEnd_pvp.call(this);
@@ -2498,7 +2558,7 @@
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
     window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
-        doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
+        doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, heroDied: () => heroDiedTakeOver(), sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,

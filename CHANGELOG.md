@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Language setting** (*Language*: English / Русский): the mod's menus, settings, messages, questions and scenes in Russian; online the host's language (messages must last the same on every PC). Cyrillic uses the game's Crimson Text where the main font has none.
+- **Hero dies (not by a player)** (Termina, default *The next one takes over*): when the protagonist dies (a monster, a trap...), the next player alive becomes the protagonist (online their PC plays P1); with no players, a companion who can be; the old one is a dead companion. A battle lost by a protagonist fighting alone ends without game over then. *Game over* = as in the game.
+- The door lines in English are now the translations of the Russian ones.
 - The tower door: the choice is *Fight* / *Commit suicide*; the characters' lines are in Russian (written by the mod's author; see `docs/DOOR_LINES.md`); Russian letters in message windows use Crimson Text from the game (Termina's font has no Cyrillic); long lines wrap.
 - Termina, the tower door with other players in the party: before the fight each player chooses *Fight* or *Commit suicide*; everyone says their line (a line of their own for each playable character); who ends it dies; those who fight fight to the death (the others watch); if only one fights, they are the one left (and the protagonist; P1 who chose to end it dies at the end); everybody ends it - game over.
 

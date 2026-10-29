@@ -329,8 +329,242 @@
     }
 
     function mainFont() {
-        return (typeof $gameSystem !== 'undefined' && $gameSystem && $gameSystem.mainFontFace)
-            ? $gameSystem.mainFontFace() : 'sans-serif';
+        return withCyrillic((typeof $gameSystem !== 'undefined' && $gameSystem && $gameSystem.mainFontFace)
+            ? $gameSystem.mainFontFace() : 'sans-serif');
+    }
+
+    // =========================================================================
+    // IDIOMA DEL MOD (Opciones > Co-op: Language)
+    // =========================================================================
+    // Los textos del mod se escriben en ingles y se traducen al mostrarlos (carteles, menus del
+    // co-op, ajustes) o al crear los mensajes del mod (preguntas, escenas). En la partida en red el
+    // idioma es el del anfitrion (los mensajes tienen que durar lo mismo en todos los PC).
+    // EXACT: frases enteras; PATTERNS: frases con nombres / numeros ($1...: lo capturado, traducido
+    // si es una frase conocida); FRAGMENTS: trozos sueltos dentro de otros textos.
+    const I18N_RU_EXACT = {
+        // ajustes
+        'Language': 'Язык', 'English': 'English', 'Русский': 'Русский',
+        'Language of the co-op mod (its menus, messages and scenes). Online: the host\'s.': 'Язык мода (меню, надписи и сцены). Онлайн — язык хоста.',
+        'Local co-op': 'Локальный кооператив', 'Camera': 'Камера', 'Split screen view': 'Масштаб разделённого экрана',
+        'Split with 2 players': 'Разделение на двоих', 'Split with 3 players': 'Разделение на троих', 'Gamepads for P2-P4': 'Геймпады для P2–P4',
+        'P3 keyboard': 'Клавиатура P3', 'Rejoin after loading': 'Возвращаться после загрузки', 'When P2-P4 die': 'Когда умирают P2–P4',
+        "Keep players' characters": 'Сохранять персонажей игроков', 'Cheats': 'Читы', 'Cheat: immortal party': 'Чит: бессмертный отряд',
+        'Cheat: keep limbs': 'Чит: конечности не отрубаются', 'Cheat: one-hit kills': 'Чит: убийство с одного удара', 'Cheat: open locks': 'Чит: открывать замки',
+        'Check for updates': 'Проверять обновления', 'Revive with soul stones': 'Воскрешение камнем душ', 'Revived with': 'Воскресает с',
+        'Mind cost of reviving': 'Цена воскрешения (рассудок)', "Played characters' NPCs": 'NPC персонажей игроков', 'PvP (Termina)': 'PvP (Termina)',
+        'PvP damage': 'Урон в PvP', 'Hero dies (not by a player)': 'Смерть героя (не от игрока)',
+        'On': 'Вкл', 'Off': 'Выкл', 'Auto': 'Авто', 'Shared': 'Общий', 'Split screen': 'Разделённый', 'Far (full view)': 'Далеко (всё видно)',
+        'Medium': 'Средне', 'Close': 'Близко', 'Side by side': 'Рядом', 'Stacked': 'Друг над другом', '2 + 1': '2 + 1', '2x2 + party panel': '2x2 + панель отряда',
+        'P1 half screen': 'P1 на половину экрана', 'On (Start joins)': 'Вкл (Start — войти)', 'Off (P1 only)': 'Выкл (только P1)',
+        'Numpad + IJKL': 'Numpad + IJKL', 'Numpad': 'Numpad', 'IJKL': 'IJKL', 'The party goes on': 'Отряд продолжает', 'Game over': 'Конец игры',
+        'Off (story decides)': 'Выкл (решает сюжет)', 'Off (death is for good)': 'Выкл (смерть навсегда)', 'Hidden': 'Скрыты', 'Shown': 'Видны',
+        'None': 'Нет', 'On - not to the death': 'Вкл — не насмерть', 'On - to the death': 'Вкл — насмерть',
+        'The next one takes over': 'Героем становится следующий',
+        'Off: arrows, Enter, numpad and gamepads are normal keys for P1 (nobody joins). The network game still works.':
+            'Выкл: стрелки, Enter, Numpad и геймпады — обычные клавиши P1 (никто не входит). Сетевая игра всё равно работает.',
+        'Auto: shared while everyone is close, split screen when someone walks away. G changes it while playing.':
+            'Авто: общий экран, пока все рядом, разделённый — когда кто-то отходит. G меняет во время игры.',
+        'How far each split view is zoomed out. - and = change it while playing.': 'Насколько отдалена каждая часть разделённого экрана. − и = меняют во время игры.',
+        'With 2 players: one view on each side, or one above the other.': 'Для двоих: экраны рядом или один над другим.',
+        '2 + 1: three equal views. 2x2: the fourth corner shows the party HP/MP.': '2 + 1: три равных экрана. 2x2: в четвёртом углу здоровье и рассудок отряда.',
+        'On: Start on a free gamepad joins the next player. Off: gamepads always control P1.': 'Вкл: Start на свободном геймпаде добавляет следующего игрока. Выкл: геймпады всегда управляют P1.',
+        'Keys P3 can use on the keyboard.': 'Клавиши P3 на клавиатуре.',
+        'On: players that were playing come back by themselves when a save is loaded.': 'Вкл: после загрузки сохранения игроки возвращаются сами.',
+        'The party goes on: only the death of P1 ends the game; the others wait for their character (or play a free one).':
+            'Отряд продолжает: игру заканчивает только смерть P1; остальные ждут своего персонажа (или берут свободного).',
+        'On: if the story removes the character of P2-P4 from the party, it stays (solo parts of the story still apply).':
+            'Вкл: если сюжет убирает персонажа P2–P4 из отряда, он остаётся (одиночные части сюжета всё равно работают).',
+        'On: F6 / F7 save and load anywhere (quick save plugin), the cheats in the Co-op menu (e.g. a soul stone) and the three below.':
+            'Вкл: F6 / F7 — сохранение и загрузка где угодно, читы в меню Co-op (например, камень душ) и три настройки ниже.',
+        'Needs Cheats On. The party never goes below 1 HP and nothing kills it outright.': 'Нужны включённые читы. Здоровье отряда не падает ниже 1, и ничто не убивает сразу.',
+        'Needs Cheats On. Arms, legs and head are never cut off.': 'Нужны включённые читы. Руки, ноги и голова не отрубаются.',
+        'Needs Cheats On. Any damage the party deals kills the enemy (or the enemy part) at once.': 'Нужны включённые читы. Любой урон отряда сразу убивает врага (или часть врага).',
+        'Needs Cheats On. Doors, chests and cells that ask for a key or a lockpick open as if you had it.': 'Нужны включённые читы. Двери, сундуки и камеры, которым нужен ключ или отмычка, открываются, как будто он есть.',
+        'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.': 'Один раз при запуске: сообщает, если на GitHub есть новая версия мода.',
+        'Off: a dead character stays dead (no body to revive); their player waits until the host gives them a free character (Co-op menu) or a new companion joins.':
+            'Выкл: погибший остаётся мёртвым (тела нет); его игрок ждёт, пока хост не даст ему свободного персонажа (меню Co-op) или не придёт новый спутник.',
+        'HP and mind of a character brought back from the dead with a soul stone.': 'Здоровье и рассудок персонажа, возвращённого камнем душ.',
+        'Whoever uses the soul stone on a body loses this much of their max mind.': 'Кто использует камень душ на теле, теряет столько от своего рассудка.',
+        'Hidden: a character a player plays is not also standing around as an NPC (waiting, in a cell...). Shown: they are, as in the game.':
+            'Скрыты: персонаж, которым играет игрок, не стоит ещё и как NPC (ждёт, в камере...). Видны: как в игре.',
+        'OK next to another player: attack them (no consent needed). Each of you fights the other one, with your own turns. Not to the death: whoever drops to 0 HP is left with 1 and the fight ends.':
+            'OK рядом с другим игроком — напасть (согласия не нужно). Каждый дерётся с другим своими ходами. Не насмерть: кто дошёл до 0, остаётся с 1, бой кончается.',
+        'Damage in PvP fights. A fight already lasts about as long as a fight against that contestant in the game.': 'Урон в PvP. Бой и так длится примерно как бой с этим участником в игре.',
+        'If the protagonist dies (a monster, a trap...): the next player alive (or a companion who can be the protagonist) takes over. Game over: as in the game.':
+            'Если герой погибает (монстр, ловушка...): героем становится следующий живой игрок (или спутник, который может быть героем). Конец игры — как в игре.',
+        // menu Co-op
+        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Who controls each character in combat': 'Кто управляет каждым персонажем в бою',
+        'Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it;  "Pn plays it": for who waits)':
+            'Влево / Вправо или OK: сменить    Отмена: назад    (главный у P2–P4: отошёл / забрать;  «Pn играет»: для ожидающего)',
+        'Cheat: restore HP, mind and hunger': 'Чит: восстановить здоровье, рассудок и голод', 'Cheat: get torches and fire': 'Чит: факелы и огонь',
+        'Cheat: kill all contestants not in the party': 'Чит: убить всех участников не в отряде', 'Cheat: teleport to the tower door': 'Чит: телепорт к двери башни',
+        'PARTY': 'ОТРЯД', 'G: camera': 'G: камера', 'measuring...': 'измеряю...',
+        // menu de red
+        'Mode': 'Режим', 'Games found': 'Найденные игры', "Host's IP": 'IP хоста', 'Port': 'Порт', 'Password': 'Пароль', 'Bring character': 'Свой персонаж',
+        'Input delay': 'Задержка ввода', 'Battles': 'Бои', 'Revive (soul stones)': 'Воскрешение (камни душ)', 'Ping on screen': 'Пинг на экране',
+        'Host (I am P1)': 'Хост (я — P1)', 'Join a host': 'Подключиться к хосту', '(not available here)': '(здесь недоступно)', 'Searching...': 'Поиск...',
+        'None found  (OK: search again)': 'Ничего не найдено  (OK: искать снова)', '(none)': '(нет)', 'None (a companion)': 'Нет (спутник)',
+        "(the host's)": '(как у хоста)', 'Separate (experimental)': 'Отдельные (экспериментально)', 'Together': 'Вместе', 'Auto (by ping)': 'Авто (по пингу)',
+        'Close the game (stop hosting)': 'Закрыть игру (перестать быть хостом)', 'Disconnect': 'Отключиться', 'Open the game for other players': 'Открыть игру для других',
+        'Connect to the host': 'Подключиться к хосту', 'Waiting for players to connect...': 'Ждём подключения игроков...', 'Load your game first, then start': 'Сначала загрузите игру, потом начинайте',
+        'Ready! (OK: not ready)': 'Готов! (OK: не готов)', "I'm ready": 'Я готов', 'Play over the network, each player on their own PC.': 'Игра по сети, каждый на своём ПК.',
+        "Host: load your game and open it.  Join: type the host's IP and connect.": 'Хост: загрузите игру и откройте её.  Подключение: введите IP хоста и подключитесь.',
+        'Left / Right changes the mode, OK on a line to change it.': 'Влево / Вправо меняют режим, OK на строке — изменить её.',
+        'Connected: nobody yet': 'Подключены: пока никто', 'Players can join or come back during the game.': 'Игроки могут войти или вернуться во время игры.',
+        'Starts by itself when everybody is ready.': 'Начнётся само, когда все будут готовы.',
+        'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).': 'Локальная сеть: скажите этот IP. Интернет: IP VPN или внешний IP (docs/NETPLAY.ru.md).',
+        'The host starts the game; you will see their world.': 'Игру начинает хост; вы увидите его мир.', 'Press "I\'m ready" - the game starts when everybody is.': 'Нажмите «Я готов» — игра начнётся, когда будут готовы все.',
+        // carteles
+        'Cheats are off': 'Читы выключены', 'Options > Co-op > Co-op settings > Cheats': 'Опции > Кооп > Настройки кооператива > Читы', 'Only the host saves': 'Сохраняет только хост',
+        'Only the host loads': 'Загружает только хост', "F6 / F7 work on the host's PC": 'F6 / F7 работают на ПК хоста', 'No saving until the battle ends': 'Сохранение — после боя',
+        'No quick save yet': 'Быстрого сохранения ещё нет', 'Press Shift+F6 first': 'Сначала нажмите Shift+F6', 'Quick save': 'Быстрое сохранение', 'Quick save failed': 'Быстрое сохранение не удалось',
+        'The host is loading a save': 'Хост загружает сохранение', 'The game comes back by itself': 'Игра вернётся сама', 'P1 left': 'P1 вышел', 'The host plays the protagonist now': 'Теперь героем управляет хост',
+        'You have no character now': 'Сейчас у вас нет персонажа', 'Nobody leaves, sleeps or saves until the battle ends': 'Никто не уходит, не спит и не сохраняется до конца боя',
+        'Joining the battle...': 'Вход в бой...', 'At the next turn': 'Со следующего хода', 'Stand next to them and press OK to join': 'Встаньте рядом и нажмите OK, чтобы помочь',
+        'Fixing it at the next quiet moment...': 'Исправим в ближайший спокойный момент...', 'Network game stopped': 'Сетевая игра остановлена',
+        'Joining at the next quiet moment...': 'Войдёт в ближайший спокойный момент...', 'Start cancelled': 'Старт отменён', 'Not everybody is ready': 'Не все готовы',
+        'The network game is full': 'Сетевая игра заполнена', 'Waiting for the host to start...': 'Ждём, пока хост начнёт...', 'The host did not let you in': 'Хост вас не пустил',
+        'For everybody': 'Для всех', 'Details in www/coop_net_error.log': 'Подробности в www/coop_net_error.log', 'All players have joined': 'Все игроки вошли',
+        'Player windows need the game app': 'Окнам игроков нужна игра (не браузер)', '(not available in a browser)': '(в браузере недоступно)', 'Player windows: ON': 'Окна игроков: ВКЛ',
+        'This window = P1. Drag the others to their monitors, double click = fullscreen': 'Это окно — P1. Перетащите остальные на свои мониторы, двойной щелчок — на весь экран',
+        'Player windows: OFF': 'Окна игроков: ВЫКЛ', 'F9 to open them again': 'F9 — открыть снова', 'No characters available': 'Нет свободных персонажей',
+        'Check the P2ActorChoices parameter': 'Проверьте параметр P2ActorChoices', 'The party is full': 'Отряд полон', 'The story removed them from the party': 'Сюжет убрал его из отряда',
+        'The fight is over': 'Бой окончен', 'The head is easy to hit now': 'Теперь легко попасть в голову', 'Hits much weaker': 'Бьёт гораздо слабее',
+        'You are the protagonist now': 'Теперь вы главный герой', 'Only one may leave': 'Уйти может только один', 'against everyone': 'против всех',
+        'Gamepad connected': 'Геймпад подключён',
+        // escenas y preguntas
+        'The stone slab does not move. Something ancient is watching you all...': 'Каменная плита не сдвигается. Что-то древнее наблюдает за вами всеми...',
+        'Only one may leave Termina. Only the last one standing.': 'Покинуть Термину может только один. Только последний выживший.',
+        'Fight': 'Драться', 'Commit suicide': 'Покончить с собой', 'Attack': 'Напасть', 'Attack everyone': 'Напасть на всех', 'Leave': 'Уйти', 'Yes': 'Да', 'No': 'Нет',
+        // lo que dicen en la puerta (ver docs/DOOR_LINES.md)
+        "Forgive me, but I just want to survive.": 'Простите меня, но я просто хочу выжить.',
+        "...I won't fight anymore. Farewell, everyone...": '...Я больше не буду сражаться. Прощайте, ребята...',
+        "I didn't come back to this cursed town to die here.": 'Я вернулась в этот проклятый город не для того, чтобы умереть здесь.',
+        'I just want to end this... All of this nightmare...': 'Я просто хочу покончить с этим... Со всем этим кошмаром...',
+        'I want to go on living. Without regrets about the past.': 'Я хочу жить дальше. Без сожалений о прошлом.',
+        "Eliza, I'm coming to you.": 'Элиза, я иду к тебе.',
+        "Well, it seems I have no other choice. I'm so, so sorry.": 'Что ж, видимо, другого выбора у меня нет. Я очень, очень сожалею.',
+        "I won't kill any of you. I've had enough.": 'Я никого из вас убивать не буду. С меня хватит.',
+        'The tower calls for the strongest. Come, then.': 'Башня зовёт сильнейшего. Что ж, подходите.',
+        'So be it. My path ends here, by my own hand.': 'Да будет так. Мой путь кончается здесь, моей же рукой.',
+        "Fine. Let's get this over with.": 'Ладно. Давайте покончим с этим.',
+        "...I don't want to kill anyone anymore.": '...Я больше не хочу никого убивать.',
+        'Someone has to make it out and tell this story.': 'Кто-то должен выбраться и рассказать эту историю.',
+        "I'd rather kill myself than become a murderer.": 'Лучше я покончу с собой, чем стану убийцей.',
+        "I'm sorry... I have to try.": 'Прости... Я должна попытаться.',
+        "I don't want to hurt anyone.": 'Я не хочу никому причинять боль.',
+        'Only one leaves. It will be me.': 'Уйдёт только один. Это буду я.',
+        "I won't fight you. Let it end here.": 'Я не стану с вами драться. Пусть всё кончится здесь.'
+    };
+    // [regex, plantilla]: $1.. = lo capturado (traducido si es una frase de EXACT)
+    const I18N_RU_PATTERNS = [
+        [/^(.+)'s body$/, 'Тело: $1'], [/^A (.+) could bring them back$/, '$1 может вернуть его'], [/^No (.+)$/, 'Нет: $1'],
+        [/^(.+) is back from the dead$/, '$1 снова среди живых'], [/^(.+) paid with their mind$/, '$1 заплатил(а) рассудком'],
+        [/^(\d+) contestants are dead$/, 'Погибло участников: $1'], [/^Contestants left: (\d+)$/, 'Осталось участников: $1'],
+        [/^Contestants left: (\d+) \(the tower opens at 1, alone in the party\)$/, 'Осталось участников: $1 (башня откроется при 1, когда в отряде никого)'],
+        [/^(.+)'s torch died down$/, 'Факел погас: $1'],
+        [/^P(\d+) attacks P(\d+)!$/, 'P$1 нападает на P$2!'], [/^P(\d+) attacks everyone!$/, 'P$1 нападает на всех!'],
+        [/^(.+) vs (.+) - from behind: (.+) loses the first turn$/, '$1 против $2 — сзади: $3 пропускает первый ход'],
+        [/^(.+) - to the death$/, '$1 — насмерть'], [/^(.+) ends their own life$/, '$1 обрывает свою жизнь'], [/^(.+) ends their own life\.$/, '$1 обрывает свою жизнь.'],
+        [/^(.+) walks on alone$/, '$1 идёт дальше один'], [/^(.+) joins the fight$/, '$1 вступает в бой'], [/^helping P(\d+)$/, 'помогает P$1'],
+        [/^(.+) is down$/, '$1 выбыл(а)'], [/^(\d+) sides still fighting$/, 'Ещё дерутся сторон: $1'], [/^(.+): (.+) cut off!$/, '$1: $2 — отрублено!'],
+        [/^(.+) runs away$/, '$1 убегает'], [/^You killed (.+) - you play P1: (.+)$/, 'Вы убили: $1 — теперь вы P1: $2'],
+        [/^(.+) is dead$/, '$1 мёртв(а)'], [/^(.+) is the protagonist now\. You are P(\d+): wait for a character, or a soul stone$/, 'Теперь герой — $1. Вы — P$2: ждите персонажа или камень душ'],
+        [/^(.+) is the protagonist now$/, 'Теперь главный герой — $1'], [/^(.+) killed (.+)$/, '$1 убил(а): $2'],
+        [/^P(\d+), take P1's controls - (.+)'s player takes P(\d+)'s$/, 'P$1, возьмите управление P1; игрок за $2 — управление P$3'],
+        [/^(.+) died - (.+) takes over$/, '$1 погиб(ла) — героем становится $2'], [/^(.+) takes over$/, 'Героем становится $1'],
+        [/^Network error: (.*)$/, 'Ошибка сети: $1'], [/^(.+) fighting$/, 'Дерутся: $1'], [/^(.+) fighting here$/, 'Здесь дерутся: $1'], [/^Slot (\d+)$/, 'Слот $1'],
+        [/^Slot (\d+)  -  Shift\+F7 to load it$/, 'Слот $1  —  Shift+F7 — загрузить'],
+        [/^P(\d+) disconnected$/, 'P$1 отключился'], [/^P(\d+) plays their character until the battle ends$/, 'P$1 ведёт его персонажа до конца боя'],
+        [/^Their character follows the party until they come back$/, 'Его персонаж идёт с отрядом, пока он не вернётся'],
+        [/^Watching P(\d+)'s battle$/, 'Вы смотрите бой P$1'], [/^P(\d+) joins the battle$/, 'P$1 вступает в бой'], [/^P(\d+) is in a battle$/, 'P$1 в бою'],
+        [/^PCs out of sync \((.+)\)$/, 'ПК разошлись ($1)'], [/^Network game: you are P(\d+)$/, 'Сетевая игра: вы — P$1'], [/^Players: (.+)$/, 'Игроки: $1'],
+        [/^(.+) joined$/, 'Вошли: $1'], [/^Back in sync$/, 'Снова синхронно'],
+        [/^P(\d+) connected$/, 'P$1 подключился'], [/^(.+)  -  Options > Co-op > Network game to start$/, '$1  —  Опции > Кооп > Сетевая игра, чтобы начать'],
+        [/^Everybody is ready - starting in (\d+)\.\.\.$/, 'Все готовы — старт через $1...'], [/^A player could not join \((.+)\)$/, 'Игрок не смог войти ($1)'],
+        [/^P(\d+) is ready$/, 'P$1 готов'], [/^P(\d+) is not ready$/, 'P$1 не готов'], [/^(\d+)\/(\d+) ready$/, 'Готовы: $1/$2'],
+        [/^Network: cannot open port (.+)$/, 'Сеть: не открыть порт $1'], [/^Connected to the host as P(\d+)$/, 'Подключено к хосту как P$1'],
+        [/^PvP: on - to the death$/, 'PvP: вкл — насмерть'], [/^PvP: on - not to the death$/, 'PvP: вкл — не насмерть'], [/^PvP: off$/, 'PvP: выкл'],
+        [/^Revive with soul stones: off - death is for good$/, 'Воскрешение камнем душ: выкл — смерть навсегда'], [/^Revive with soul stones: on$/, 'Воскрешение камнем душ: вкл'],
+        [/^Played characters' NPCs: shown$/, 'NPC персонажей игроков: видны'], [/^Played characters' NPCs: hidden$/, 'NPC персонажей игроков: скрыты'],
+        [/^Cheats on$/, 'Читы включены'], [/^Cheats off$/, 'Читы выключены'], [/^Online game open  -  your IP: (.+)$/, 'Сетевая игра открыта  —  ваш IP: $1'],
+        [/^Player (\d+) is away$/, 'Игрок $1 отошёл'], [/^(.+) plays (.+)  -  any button to come back$/, '$1 ведёт: $2  —  любая кнопка, чтобы вернуться'],
+        [/^Player (\d+) is back$/, 'Игрок $1 вернулся'], [/^Player (\d+)$/, 'Игрок $1'], [/^Split view: (.+)$/, 'Масштаб экрана: $1'],
+        [/^Player (\d+) is waiting for (.+)$/, 'Игрок $1 ждёт: $2'], [/^Player (\d+) is now (.+)$/, 'Игрок $1 теперь: $2'], [/^(.+) stays with Player (\d+)$/, '$1 остаётся у игрока $2'],
+        [/^Make room and press (.+) again$/, 'Освободите место и снова нажмите $1'], [/^(.+)  -  Press G to change camera$/, '$1  —  G — сменить камеру'],
+        [/^Co-op restored: (.+)$/, 'Кооператив восстановлен: $1'], [/^P1 took (.+) from Player (\d+)$/, 'P1 забрал $1 у игрока $2'],
+        [/^Co-op mod v(.+) is available$/, 'Доступна версия мода v$1'], [/^You have v(.+?)  -  (.+)$/, 'У вас v$1  —  $2'],
+        [/^Cheat: get 1 (.+)$/, 'Чит: получить 1 $1'], [/^P(\d+) is in their menu\.\.\.$/, 'P$1 в своём меню...'],
+        [/^Attack (.+) \(P(\d+)\)\? To the death\.$/, 'Напасть на $1 (P$2)? Насмерть.'], [/^Attack (.+) \(P(\d+)\)\?$/, 'Напасть на $1 (P$2)?'],
+        [/^A fight between players, to the death\. Join it\?$/, 'Драка между игроками, насмерть. Вмешаться?'], [/^A fight between players\. Join it\?$/, 'Драка между игроками. Вмешаться?'],
+        [/^Help P(\d+) \((.+)\)$/, 'Помочь P$1 ($2)'], [/^Help P(\d+)$/, 'Помочь P$1'], [/^P(\d+) - (.+)\. What will you do\?$/, 'P$1 — $2. Что ты сделаешь?'],
+        [/^Use the (.+) to bring (.+) back\?$/, 'Использовать $1, чтобы вернуть: $2?'],
+        [/^(.+): "(.+)"$/, '$1: «$2»'],
+        [/^< (.+) >$/, '< $1 >'], [/^< P(\d+) >$/, '< P$1 >'], [/^P(\d+) plays it \(was waiting\)$/, 'P$1 играет им (ждал)'],
+        [/^You are the host \(P1\)\. Your IP: (.+)  port (\d+)$/, 'Вы хост (P1). Ваш IP: $1  порт $2'], [/^Lobby: (.+)$/, 'Лобби: $1'],
+        [/^Joining (.+) - connected as P(.+)$/, 'Подключение к $1 — вы P$2'], [/^Joining (.+) - connecting\.\.\.$/, 'Подключение к $1 — соединяемся...'],
+        [/^In the network game as P(\d+)\.$/, 'В сетевой игре как P$1.'], [/^Playing \((.+)\)$/, 'Играем ($1)'], [/^Playing as P(\d+)$/, 'Играете за P$1'],
+        [/^Not let in: (.+)$/, 'Не пустили: $1'], [/^Connecting to (.+)\.\.\.$/, 'Подключение к $1...'],
+        [/^Start now \((\d+)\/(\d+) ready - starts by itself when all are\)$/, 'Начать ($1/$2 готовы — начнётся само, когда готовы все)'],
+        [/^(\d+) frames$/, '$1 кадр.'], [/^Slot (\d+): (.+) \(Lv (\d+)\)$/, 'Слот $1: $2 (ур. $3)']
+    ];
+    const I18N_RU_FRAGMENTS = [
+        ['  (now ', '  (сейчас '], ['  (more in Co-op settings)', '  (подробнее в настройках кооператива)'], [' (host)', ' (хост)'], [' - ready', ' — готов'],
+        [' - waiting', ' — ждёт'], ['immortal', 'бессмертие'], ['one-hit', 'с одного удара'], ['limbs', 'конечности'], ['  (dead)', '  (мёртв)'], [', password', ', пароль'],
+        [' vs ', ' против ']
+    ];
+
+    function trRu(text) {
+        if (typeof text !== 'string' || !text) return text;
+        const lead = /^\s*/.exec(text)[0];
+        const core = text.slice(lead.length);
+        if (Object.prototype.hasOwnProperty.call(I18N_RU_EXACT, core)) return lead + I18N_RU_EXACT[core];
+        for (const pair of I18N_RU_PATTERNS) {
+            const m = pair[0].exec(core);
+            if (!m) continue;
+            return lead + pair[1].replace(/\$(\d)/g, (x, i) => {
+                const g = m[Number(i)] || '';
+                return g && g.length < core.length ? trRu(g) : g;
+            });
+        }
+        let out = core;
+        I18N_RU_FRAGMENTS.forEach(f => { if (out.indexOf(f[0]) >= 0) out = out.split(f[0]).join(f[1]); });
+        return lead + out;
+    }
+    function coopLanguage() {
+        try {
+            return coopSettings.language || 'en';
+        } catch (e) {
+            return 'en'; // (aun cargando el plugin)
+        }
+    }
+    function tr(text) {
+        return coopLanguage() === 'ru' ? trRu(text) : text;
+    }
+
+    // la letra del juego puede no tener cirilico (Termina: Cardo): esas letras con Crimson Text, si el
+    // juego la trae (si no, la del sistema)
+    const CYRILLIC_FONT = 'CoopCyrillic';
+    let cyrillicFont = false;
+    (function() {
+        let file = '';
+        try {
+            const fs = require('fs'), path = require('path');
+            const base = path.join(path.dirname(process.mainModule.filename), 'fonts');
+            if (fs.existsSync(path.join(base, 'CrimsonText-Regular.ttf'))) file = 'CrimsonText-Regular.ttf';
+        } catch (e) {
+            file = '';
+        }
+        if (!file || typeof Graphics === 'undefined' || !Graphics.loadFont) return;
+        try {
+            Graphics.loadFont(CYRILLIC_FONT, 'fonts/' + file);
+            cyrillicFont = true;
+        } catch (e) {
+            cyrillicFont = false;
+        }
+    })();
+    function withCyrillic(face) {
+        return cyrillicFont && face && face.indexOf(CYRILLIC_FONT) < 0 ? face + ', ' + CYRILLIC_FONT : face;
     }
 
     function getRenderer() {
@@ -1185,7 +1419,7 @@
                 scene._coopBanner.parent.removeChild(scene._coopBanner);
                 if (scene._coopBanner.destroy) scene._coopBanner.destroy();
             }
-            scene._coopBanner = new Sprite_CoopBanner(title, sub, color || COLOR_P2, duration);
+            scene._coopBanner = new Sprite_CoopBanner(tr(title), tr(sub), color || COLOR_P2, duration);
             scene.addChild(scene._coopBanner);
         }
     };
@@ -2113,6 +2347,9 @@
             });
         },
         setting(key) { return coopSettings[key]; },
+        // el texto en el idioma del mod (ver IDIOMA DEL MOD)
+        tr(text) { return tr(text); },
+        language() { return coopLanguage(); },
         // un truco encendido (y los trucos permitidos)
         cheat(key) { return coopSettings.cheats !== false && !!coopSettings[key]; },
         // cambia un ajuste del co-op y lo guarda (p.ej. desde el menu de red)
@@ -2249,6 +2486,45 @@
         }
     };
     window.CoopLocal = CoopView;
+
+    // ---- textos de las ventanas del co-op en el idioma del mod --------------------------------
+    function isCoopWindow(w) {
+        return !!(w && w.constructor && /^Window_Coop/.test(w.constructor.name));
+    }
+    const _Window_Base_drawText_tr = Window_Base.prototype.drawText;
+    Window_Base.prototype.drawText = function(text) {
+        if (isCoopWindow(this) && typeof text === 'string') arguments[0] = tr(text);
+        return _Window_Base_drawText_tr.apply(this, arguments);
+    };
+    const _Window_Base_drawTextEx_tr = Window_Base.prototype.drawTextEx;
+    Window_Base.prototype.drawTextEx = function(text) {
+        if (isCoopWindow(this) && typeof text === 'string') arguments[0] = tr(text);
+        return _Window_Base_drawTextEx_tr.apply(this, arguments);
+    };
+    // "Co-op" en el menu y "Co-op settings..." en Opciones
+    [window.Window_MenuCommand, window.Window_Options].forEach(cls => {
+        if (!cls || !cls.prototype.commandName) return;
+        const orig = cls.prototype.commandName;
+        cls.prototype.commandName = function(index) {
+            const name = orig.call(this, index);
+            return name === 'Co-op' || name === 'Co-op settings...' ? tr(name) : name;
+        };
+    });
+    // la letra de las ventanas: con cirilico (despues de todos los plugins: algunos la cambian)
+    const _Scene_Boot_start_cyr = Scene_Boot.prototype.start;
+    Scene_Boot.prototype.start = function() {
+        if (cyrillicFont) {
+            Object.keys(window).forEach(k => {
+                const cls = window[k];
+                if (!/^Window_/.test(k) || !cls || !cls.prototype || cls.prototype._coopCyr) return;
+                if (!Object.prototype.hasOwnProperty.call(cls.prototype, 'standardFontFace')) return;
+                const orig = cls.prototype.standardFontFace;
+                cls.prototype.standardFontFace = function() { return withCyrillic(orig.call(this)); };
+                cls.prototype._coopCyr = true;
+            });
+        }
+        _Scene_Boot_start_cyr.apply(this, arguments);
+    };
 
     // ---- registro de fallos ------------------------------------------------------------
     // Cuando el juego se rompe ("Game has encountered a bug") se apunta en www/coop_crash.log que
@@ -2543,10 +2819,10 @@
         bmp.outlineWidth = 3;
         bmp.fontSize = 20;
         bmp.textColor = '#d8d8d8';
-        bmp.drawText('PARTY', 16, 6, w - 32, 28, 'left');
+        bmp.drawText(tr('PARTY'), 16, 6, w - 32, 28, 'left');
         bmp.fontSize = 15;
         bmp.textColor = '#8a8a8a';
-        bmp.drawText('G: camera', 16, 6, w - 32, 28, 'right');
+        bmp.drawText(tr('G: camera'), 16, 6, w - 32, 28, 'right');
 
         const members = $gameParty.members().slice(0, 4);
         const rowH = Math.floor((h - 40) / 4);
@@ -2561,7 +2837,7 @@
             bmp.textColor = color;
             bmp.drawText('P' + owner, 24, y - 2, 40, 24, 'left');
             bmp.textColor = actor.isDead() ? '#888888' : '#ffffff';
-            bmp.drawText(actor.name() + (actor.isDead() ? '  (dead)' : ''), 64, y - 2, w - 80, 24, 'left');
+            bmp.drawText(actor.name() + (actor.isDead() ? tr('  (dead)') : ''), 64, y - 2, w - 80, 24, 'left');
             const gw = Math.floor((w - 88) / 2);
             drawGauge(bmp, 24, y + 26, gw, actor.hp, actor.mhp, '#b03a2e', hpLabel);
             drawGauge(bmp, 24 + gw + 16, y + 26, gw, actor.mp, actor.mmp, '#2471a3', mpLabel);
@@ -3952,6 +4228,8 @@
             help: 'Needs Cheats On. Arms, legs and head are never cut off.' },
         { key: 'cheatOneShot', name: '  Cheat: one-hit kills', values: [false, true], labels: ['Off', 'On'],
             help: 'Needs Cheats On. Any damage the party deals kills the enemy (or the enemy part) at once.' },
+        { key: 'language', name: 'Language', values: ['en', 'ru'], labels: ['English', 'Русский'],
+            help: "Language of the co-op mod (its menus, messages and scenes). Online: the host's." },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
             help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
@@ -3975,11 +4253,12 @@
         cheatGod: false,
         cheatLimbs: false,
         cheatOneShot: false,
-        updateCheck: true
+        updateCheck: true,
+        language: 'en'
     };
 
     // ajustes que cambian el juego: en la partida en red son los del anfitrion en todos los PC
-    const RULE_KEYS = ['keepCharacters', 'deathRule', 'cheats', 'cheatGod', 'cheatLimbs', 'cheatOneShot'];
+    const RULE_KEYS = ['keepCharacters', 'deathRule', 'cheats', 'cheatGod', 'cheatLimbs', 'cheatOneShot', 'language'];
 
     function applyCoopSettings(changedKey) {
         const st = coopSettings;

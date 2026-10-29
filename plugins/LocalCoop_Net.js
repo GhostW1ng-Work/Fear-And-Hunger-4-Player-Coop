@@ -854,7 +854,7 @@
             bmp.clear();
             bmp.fontSize = 26;
             bmp.fillRect(0, 0, Graphics.width, 64, 'rgba(0, 0, 0, 0.6)');
-            bmp.drawText('P' + owner + ' is in their menu...', 0, 0, Graphics.width, 64, 'center');
+            bmp.drawText(coop.tr('P' + owner + ' is in their menu...'), 0, 0, Graphics.width, 64, 'center');
         }
         if (this._netMenuNote) this._netMenuNote.visible = hide;
     };

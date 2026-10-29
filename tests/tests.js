@@ -1566,6 +1566,40 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var rl3 = res3._childInterpreter ? res3._childInterpreter._list : [];
             check('T50e everybody ends it: game over', rl3.some(function(c) { return c.code === 353; }));
             $gameSystem._coopDoorChoices = {};
+            // el idioma del mod
+            var langWas = CoopLocal.setting('language');
+            CoopLocal.setSetting('language', 'ru');
+            var ru = [CoopLocal.tr('Cheats are off'), CoopLocal.tr('P1 attacks P2!'), CoopLocal.tr('< On - to the death >'),
+                CoopLocal.tr('Marcoh: "Fine. Let' + "'" + 's get this over with."'), CoopLocal.tr('  Cheat: keep limbs'), CoopLocal.tr('Abella')];
+            CoopLocal.setSetting('language', 'en');
+            var en = CoopLocal.tr('Cheats are off');
+            check('T51 language Russian: the mod texts are translated (whole phrases, with names, labels, the door lines); English: as written',
+                ru[0] === 'Читы выключены' && ru[1] === 'P1 нападает на P2!' && ru[2] === '< Вкл — насмерть >' &&
+                ru[3] === 'Marcoh: «Ладно. Давайте покончим с этим.»' && ru[4] === '  Чит: конечности не отрубаются' && ru[5] === 'Abella' && en === 'Cheats are off',
+                ru.join(' | ') + ' | en ' + en);
+            CoopLocal.setSetting('language', langWas || 'en');
+            // el protagonista muere (no por un jugador): el siguiente jugador vivo es el protagonista
+            var swA = CoopPvp.selectSwitchOf(pA.actorId()), swB = CoopPvp.selectSwitchOf(pB.actorId());
+            var swWas = [$gameSwitches.value(swA), $gameSwitches.value(swB)];
+            var partyWas = $gameParty._actors.slice();
+            var p2Was = $gamePlayer2._coopActorId;
+            $gameSwitches.setValue(swA, true); $gameSwitches.setValue(swB, false);
+            CoopLocal.setSetting('heroDeath', 'next');
+            Game_BattlerBase.prototype.setHp.call(pA, 0); pA.addState(pA.deathStateId());
+            var took = CoopPvp.heroDied();
+            check('T52 the protagonist dies (a monster): no game over - the next player alive (P2) is the protagonist now',
+                took === true && $gameParty._actors[0] === pB.actorId() && $gameSwitches.value(swB) && !$gameSwitches.value(swA) && $gamePlayer2._coopActorId === pA.actorId(),
+                'took ' + took + ' party ' + $gameParty._actors + ' sw ' + [$gameSwitches.value(swA), $gameSwitches.value(swB)]);
+            // (como estaba)
+            pA.removeState(pA.deathStateId()); pA.setHp(pA.mhp);
+            $gameParty._actors = partyWas; $gamePlayer2._coopActorId = p2Was;
+            $gameSwitches.setValue(swA, swWas[0]); $gameSwitches.setValue(swB, swWas[1]);
+            $gamePlayer.refresh();
+            CoopLocal.setSetting('heroDeath', 'gameover');
+            Game_BattlerBase.prototype.setHp.call(pA, 0); pA.addState(pA.deathStateId());
+            check('T52b setting "Game over": the protagonist dies = game over, as in the game', CoopPvp.heroDied() === false && $gameParty._actors[0] === pA.actorId());
+            pA.removeState(pA.deathStateId()); pA.setHp(pA.mhp);
+            CoopLocal.setSetting('heroDeath', 'next');
             if (doorFight) delete CoopPvp.pending[fakeDoor._list[1].parameters[1]];
         }
         for (k = 0; k < 5; k++) frame();
