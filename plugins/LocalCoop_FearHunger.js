@@ -835,6 +835,23 @@
         }
     };
     coop.addAssignAction(killContestantsAction);
+    // (para probar el final y su texto)
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: play the ending The Fourth Festival';
+        },
+        run() {
+            const it = $gameMap._interpreter;
+            if (it.isRunning()) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            it.setup([{ code: 355, indent: 0, parameters: ['CoopPvp.fourthFestival(this)'] }, { code: 0, indent: 0, parameters: [] }], 0);
+            SoundManager.playOk();
+        }
+    });
     coop.addAssignAction({
         cheat: true,
         visible() { return isTermina(); },
@@ -1750,7 +1767,7 @@
             wrapText(coop.tr(a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         });
         // los que acaban con su vida (P1 al final si alguien lucha)
-        enders.filter(n => n !== 1 || fighters.length === 0).forEach(n => {
+        enders.filter(n => n !== 1).forEach(n => {
             list.push(
                 { code: 224, indent: 0, parameters: [[255, 0, 0, 170], 40, true] },
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorEnd(' + n + ')'] },
@@ -1759,7 +1776,7 @@
             );
         });
         if (fighters.length === 0) {
-            list.push({ code: 353, indent: 0, parameters: [] });
+            list.push({ code: 355, indent: 0, parameters: ['CoopPvp.fourthFestival(this)'] });
         } else if (fighters.length >= 2) {
             list.push(
                 { code: 355, indent: 0, parameters: ['CoopPvp.prepareDoorFight(this, [' + fighters.join(',') + '])'] },
@@ -1791,6 +1808,87 @@
         });
         if (line) out.push(line);
         return out.slice(0, 4);
+    }
+
+    // ---- final "The Fourth Festival": en la puerta, todos eligen quitarse la vida ----------------
+    // Pantalla en negro, campanas, la torre de fondo, el texto que sube despacio y el nombre del final;
+    // luego el titulo. (El texto: docs/ENDING_FOURTH_FESTIVAL.md; en ruso, en la traduccion.)
+    const FOURTH_FESTIVAL_TEXT = [
+        'The festival of Termina has ended without a winner.',
+        '',
+        'No one climbed the tower.',
+        'No one stood before the moon.',
+        '',
+        'The last contestants chose to die',
+        'rather than to kill each other.',
+        '',
+        '{names}.',
+        '',
+        'Their bodies were left by the stone door,',
+        'and the town forgot them soon enough.',
+        '',
+        'Prehevil does not mourn. Prehevil waits.',
+        '',
+        'Before long, the Fourth Festival of Termina will begin.',
+        'New contestants will come to the town of the moon...',
+        '...and none of them will know these names.'
+    ];
+    function partyNames() {
+        const names = $gameParty._actors.map(id => $gameActors.actor(id)).filter(a => a).map(a => a.name());
+        const and = coop.tr(' and ');
+        return names.length <= 1 ? names.join('') : names.slice(0, -1).join(', ') + and + names[names.length - 1];
+    }
+    // (una linea del mensaje en medio: YEP_MessageCore la pone en \px[x]; tamano = el del mensaje + delta)
+    function centered(text, delta, prefix) {
+        try {
+            const w = Window_Message.prototype;
+            const bmp = new Bitmap(4, 4);
+            bmp.fontFace = w.standardFontFace();
+            bmp.fontSize = w.standardFontSize() + delta;
+            const cw = Graphics.boxWidth - w.standardPadding() * 2;
+            const x = Math.max(0, Math.round((cw - bmp.measureTextWidth(text)) / 2));
+            return prefix + (typeof Yanfly !== 'undefined' && Yanfly.Message ? '\\px[' + x + ']' : '') + text;
+        } catch (e) {
+            return prefix + text;
+        }
+    }
+
+    function fourthFestival(it) {
+        const names = partyNames();
+        const bell = { name: 'rher_bell_01_01', volume: 60, pitch: 100, pan: 0 };
+        const lines = FOURTH_FESTIVAL_TEXT.map(l => (l ? coop.tr(l) : '').replace('{names}', names));
+        const list = [
+            { code: 242, indent: 0, parameters: [3] },                                    // la musica se apaga
+            { code: 221, indent: 0, parameters: [] },                                     // a negro
+            { code: 230, indent: 0, parameters: [60] },
+            { code: 250, indent: 0, parameters: [bell] }, { code: 230, indent: 0, parameters: [100] },
+            { code: 250, indent: 0, parameters: [Object.assign({}, bell, { pan: -40 })] }, { code: 230, indent: 0, parameters: [100] },
+            { code: 250, indent: 0, parameters: [Object.assign({}, bell, { pan: 40 })] }, { code: 230, indent: 0, parameters: [120] },
+            { code: 241, indent: 0, parameters: [{ name: 'breath_of_the_moon', volume: 70, pitch: 100, pan: 0 }] },
+            // (negro debajo: no se ve el mapa ni sus imagenes)
+            { code: 231, indent: 0, parameters: [89, 'blackscreen', 0, 0, 0, 0, 100, 100, 255, 0] },
+            { code: 231, indent: 0, parameters: [90, 'tower_view2', 0, 0, 0, 0, 100, 100, 0, 0] },
+            { code: 234, indent: 0, parameters: [90, [-90, -90, -70, 60], 1, false] },
+            { code: 222, indent: 0, parameters: [] },
+            { code: 232, indent: 0, parameters: [90, 0, 0, 0, 0, 0, 100, 100, 200, 0, 240, true] }, // la torre aparece despacio, oscura
+            { code: 105, indent: 0, parameters: [1, true] }                                // texto que sube despacio (sin acelerar)
+        ];
+        lines.forEach(l => list.push({ code: 405, indent: 0, parameters: [l] }));
+        list.push(
+            { code: 230, indent: 0, parameters: [60] },
+            { code: 250, indent: 0, parameters: [bell] },
+            { code: 101, indent: 0, parameters: ['', 0, 2, 1] },                           // en medio, sin ventana
+            { code: 401, indent: 0, parameters: [centered(coop.tr('The Fourth Festival'), 12, '\\{')] },
+            { code: 401, indent: 0, parameters: [centered(coop.tr('Ending'), 0, '\\}')] },
+            { code: 242, indent: 0, parameters: [6] },
+            { code: 221, indent: 0, parameters: [] },
+            { code: 235, indent: 0, parameters: [90] },
+            { code: 235, indent: 0, parameters: [89] },
+            { code: 230, indent: 0, parameters: [90] },
+            { code: 354, indent: 0, parameters: [] },                                     // al titulo
+            { code: 0, indent: 0, parameters: [] }
+        );
+        it.setupChild(list, it._eventId);
     }
 
     function doorEnd(n) {
@@ -2557,7 +2655,7 @@
     });
 
     window.CoopTower = { contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
-    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
+    window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, fourthFestival: fourthFestival, fourthFestivalText: FOURTH_FESTIVAL_TEXT, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
         doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, heroDied: () => heroDiedTakeOver(), sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
     window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,

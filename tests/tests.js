@@ -1564,7 +1564,18 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             res3.setup([{ code: 0, indent: 0, parameters: [] }], 0);
             CoopPvp.doorResolve(res3);
             var rl3 = res3._childInterpreter ? res3._childInterpreter._list : [];
-            check('T50e everybody ends it: game over', rl3.some(function(c) { return c.code === 353; }));
+            var sc3 = rl3.filter(function(c) { return c.code === 355; }).map(function(c) { return c.parameters[0]; }).join(' ; ');
+            check('T50e everybody commits suicide: the ending The Fourth Festival (P1 is not killed before it)', /fourthFestival/.test(sc3) && !/doorEnd\(1\)/.test(sc3) && /doorEnd\(2\)/.test(sc3), sc3);
+            var endIt = new Game_Interpreter();
+            endIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopPvp.fourthFestival(endIt);
+            var el = endIt._childInterpreter ? endIt._childInterpreter._list : [];
+            var scroll = el.filter(function(c) { return c.code === 405; }).map(function(c) { return c.parameters[0]; }).join(' / ');
+            check('T50f the ending: bells, the tower picture, slow rising text with the names of the party, its name, then the title screen',
+                el.some(function(c) { return c.code === 250; }) && el.some(function(c) { return c.code === 231 && c.parameters[1] === 'tower_view2'; }) &&
+                el.some(function(c) { return c.code === 105; }) && scroll.indexOf(pA.name()) >= 0 && /Fourth Festival/.test(scroll) &&
+                el.some(function(c) { return c.code === 401 && /The Fourth Festival/.test(c.parameters[0]); }) && el.some(function(c) { return c.code === 354; }),
+                scroll.slice(0, 160));
             $gameSystem._coopDoorChoices = {};
             // el idioma del mod
             var langWas = CoopLocal.setting('language');

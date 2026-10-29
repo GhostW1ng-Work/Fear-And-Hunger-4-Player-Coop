@@ -21,7 +21,7 @@ foreach ($f in @('install.bat', 'install.ps1', 'README.md', 'README.ru.md', 'LIC
     Copy-Item (Join-Path $root $f) $stage
 }
 New-Item -ItemType Directory -Force (Join-Path $stage 'docs') | Out-Null
-foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'TEST_CHECKLIST.md', 'DOOR_LINES.md')) {
+foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'TEST_CHECKLIST.md', 'DOOR_LINES.md', 'ENDING_FOURTH_FESTIVAL.md')) {
     Copy-Item (Join-Path $root ('docs\' + $f)) (Join-Path $stage 'docs')
 }
 
