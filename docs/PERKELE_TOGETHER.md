@@ -27,9 +27,13 @@
 | Ah, you are finally here. | А, вот вы наконец и здесь. |
 | ...All of you. | ...Все вы. |
 | Fourteen souls were promised to my master. Not a single one of them has reached him. | Моему господину обещали четырнадцать душ. Ни одна из них до него не дошла. |
+| *(если кто-то из участников умер — вместо строки выше)* Fourteen souls were promised to my master. Only {dead} of them reached him. The rest you tore away from him. | Моему господину обещали четырнадцать душ. До него дошли лишь {dead}. Остальных вы у него вырвали. |
+| *(если умер один)* Fourteen souls were promised to my master. Only one of them reached him. The rest you tore away from him. | Моему господину обещали четырнадцать душ. До него дошла лишь одна. Остальных вы у него вырвали. |
 | You broke the clay. One by one, you pulled yourselves out of the moon's grip. | Вы разбили глину. Одного за другим вы вырвали себя из хватки луны. |
 | A festival without a champion is simply held again. And again. That is how it has always been, wherever the Moon God went. | Фестиваль без победителя просто проводят заново. И снова. Так было всегда, куда бы ни уходил Лунный бог. |
 | But never before has anyone climbed these stairs together. | Но никогда прежде никто не поднимался по этим ступеням вместе. |
+
+`{dead}` — сколько из 14 участников погибло (души умерших дошли до его господина).
 
 ## Ответ героя (P1), по персонажу
 

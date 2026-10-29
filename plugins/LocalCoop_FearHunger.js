@@ -3134,11 +3134,13 @@
     const TOP_PERKELE_INTRO = [
         'Ah, you are finally here.',
         '...All of you.',
-        'Fourteen souls were promised to my master. Not a single one of them has reached him.',
+        'Fourteen souls were promised to my master. Not a single one of them has reached him.', // (si murio alguno: TOP_PERKELE_SOME_DEAD)
         "You broke the clay. One by one, you pulled yourselves out of the moon's grip.",
         'A festival without a champion is simply held again. And again. That is how it has always been, wherever the Moon God went.',
         'But never before has anyone climbed these stairs together.'
     ];
+    const TOP_PERKELE_SOME_DEAD = 'Fourteen souls were promised to my master. Only {dead} of them reached him. The rest you tore away from him.';
+    const TOP_PERKELE_ONE_DEAD = 'Fourteen souls were promised to my master. Only one of them reached him. The rest you tore away from him.';
     const TOP_PERKELE_OFFER = [
         'So be it. I will make you one last offer.',
         'One of you may take my place. Serve my master, and the circle keeps turning. The rest may walk away.',
@@ -3232,7 +3234,18 @@
         if (this._mapId === TOP.mapId && $gameSystem && $gameSystem._coopTopShown) {
             const name = (this.event() && this.event().name) || '';
             const m = /^elevator_character_(\w+)$/.exec(name);
-            if (m && $gameSystem._coopTopShown[m[1]]) return 0;
+            if (m && $gameSystem._coopTopShown[m[1]]) {
+                // (su pagina como si fuera el protagonista: su dibujo, sin brazo si lo perdio...)
+                const id = Number(Object.keys(TOP_ELEVATOR).find(k => TOP_ELEVATOR[k] === m[1]));
+                const sw = switchNamed(TOP_SELECT[id]);
+                const real = Game_Switches.prototype.value;
+                $gameSwitches.value = function(x) { return x === sw ? true : real.call(this, x); };
+                try {
+                    return _Game_Event_findProperPageIndex_top.call(this);
+                } finally {
+                    delete $gameSwitches.value;
+                }
+            }
         }
         return _Game_Event_findProperPageIndex_top.call(this);
     };
@@ -3247,7 +3260,6 @@
             if (!ev) return;
             ev.refresh();
             ev.locate(TOP_SLOTS[slot][0], TOP_SLOTS[slot][1]);
-            ev.setDirection(8);
             slot++;
         });
         $gameMap.requestRefresh();
@@ -3260,7 +3272,12 @@
         $gameSystem._coopTopActors = {};
         players.forEach(n => { $gameSystem._coopTopActors[n] = playerActor(n).actorId(); });
         const list = [];
-        TOP_PERKELE_INTRO.forEach(t => perkeleSay(list, t));
+        // (cuantos concursantes murieron: sus almas si llegaron a su senor)
+        const dead = contestants().filter(c => $gameSwitches.value(c.deadSwitch)).length;
+        TOP_PERKELE_INTRO.forEach((t, i) => {
+            if (i === 2 && dead > 0) t = dead === 1 ? TOP_PERKELE_ONE_DEAD : coop.tr(TOP_PERKELE_SOME_DEAD).split('{dead}').join(String(dead));
+            perkeleSay(list, t);
+        });
         const hero = playerActor(1);
         heroSay(list, hero, TOP_HERO_LINES[hero.actorId()] || TOP_HERO_ANY);
         TOP_PERKELE_OFFER.forEach(t => perkeleSay(list, t));
