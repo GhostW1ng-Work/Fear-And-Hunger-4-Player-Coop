@@ -2680,7 +2680,132 @@
         });
     });
 
-    window.CoopTower = { updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
+    // ---- correr (Termina): cada jugador con su resistencia ----------------------------------
+    // El juego hace correr solo a P1: "run_key" enciende SKILL_dash con Shift de P1, los sucesos de
+    // ropa ponen la imagen de correr a todos los del grupo, "Speed Status_check" sube la velocidad de P1
+    // y run_meter es una sola barra (imagen 18). P1 sigue asi. P2-P4: su propia resistencia con las
+    // mismas reglas (+1 cada 20 cuadros corriendo; a 51, agotado hasta bajar a 26; sin correr, -1
+    // cada 15), su velocidad (la de P1 andando; corriendo +0.5), la imagen de correr solo si corren
+    // ellos, y en red cada PC ve su barra.
+    const SW_DASH = 1956, SW_RUN_EXHAUST = 4820;
+    const RUN_MAX = 51, RUN_RECOVERED = 26;
+    // (en la partida: tambien va en la instantanea de la red, igual en todos los PC)
+    function runState(pl) {
+        const all = $gameSystem._coopRun = $gameSystem._coopRun || {};
+        const n = pl.coopIndex();
+        return all[n] || (all[n] = { meter: 0, cooldown: false, t: 0 });
+    }
+    // la imagen de correr de cada personaje (de sus sucesos de ropa): nombre y la de sin perder brazos
+    let runImages = null;
+    function runImageOf(actor) {
+        if (!runImages) {
+            runImages = {};
+            ($dataCommonEvents || []).forEach(ce => {
+                if (!ce || !/outfit/i.test(ce.name)) return;
+                ce.list.forEach(c => {
+                    if (c.code !== 355) return;
+                    const m = /actor\((\d+)\)\.setCharacterImage\('(run[^']*)',\s*(\d+)\)/.exec(c.parameters[0]);
+                    if (!m) return;
+                    const id = Number(m[1]);
+                    const cur = runImages[id];
+                    if (!cur || Number(m[3]) < cur.index) runImages[id] = { name: m[2], index: Number(m[3]) };
+                });
+            });
+        }
+        const r = runImages[actor.actorId()];
+        return r ? [r.name, r.index + Math.min(2, limbsLost(actor.actorId(), 'arm'))] : null;
+    }
+    // (la de andar: la ultima que el juego le puso que no es de correr)
+    const _Game_Actor_setCharacterImage_run = Game_Actor.prototype.setCharacterImage;
+    Game_Actor.prototype.setCharacterImage = function(name, index) {
+        if (!/^run/i.test(String(name))) this._coopWalkImage = [name, index];
+        return _Game_Actor_setCharacterImage_run.apply(this, arguments);
+    };
+    if (window.Game_CoopPlayer) {
+        const _isDashing = Game_CoopPlayer.prototype.isDashing;
+        Game_CoopPlayer.prototype.isDashing = function() {
+            if (!isTermina()) return _isDashing.call(this);
+            return !runState(this).cooldown && _isDashing.call(this);
+        };
+        const _realMoveSpeed = Game_CoopPlayer.prototype.realMoveSpeed;
+        Game_CoopPlayer.prototype.realMoveSpeed = function() {
+            if (!isTermina() || !$gamePlayer || !$gameSwitches) return _realMoveSpeed.call(this);
+            // (la de P1 andando: si P1 corre, el juego le ha sumado 0.5)
+            const base = $gamePlayer._moveSpeed - ($gameSwitches.value(SW_DASH) ? 0.5 : 0);
+            return base + (this.isDashing() ? 0.5 : 0);
+        };
+        const _syncActorImage = Game_CoopPlayer.prototype.syncActorImage;
+        Game_CoopPlayer.prototype.syncActorImage = function() {
+            const actor = this.actor();
+            if (!isTermina() || !actor) return _syncActorImage.call(this);
+            let img = [actor.characterName(), actor.characterIndex()];
+            const running = this.isDashing() && this.isMoving();
+            if (running) {
+                img = runImageOf(actor) || img;
+            } else if (/^run/i.test(img[0]) && actor._coopWalkImage) {
+                img = actor._coopWalkImage; // (corre P1, no este)
+            }
+            if (this._characterName !== img[0] || this._characterIndex !== img[1]) this.setImage(img[0], img[1]);
+        };
+        const _update = Game_CoopPlayer.prototype.update;
+        Game_CoopPlayer.prototype.update = function() {
+            _update.apply(this, arguments);
+            if (!isTermina() || !$gameSwitches) return;
+            const st = runState(this);
+            st.t++;
+            if (this.isDashing() && this.isMoving()) {
+                if (st.t >= ($gameSwitches.value(SW_RUN_EXHAUST) ? 3 : 20)) {
+                    st.t = 0;
+                    st.meter = Math.min(RUN_MAX, st.meter + 1);
+                    if (st.meter >= RUN_MAX) st.cooldown = true;
+                }
+            } else if (st.t >= 15) {
+                st.t = 0;
+                if (st.meter > 0) st.meter--;
+                if (st.cooldown && st.meter <= RUN_RECOVERED) st.cooldown = false;
+            }
+        };
+    }
+    // en red: en el PC de P2-P4, la barra de arriba (imagen 18) es la suya (solo dibujo)
+    function ownRunState() {
+        const net = window.CoopNet;
+        if (!net || !net.active || !(net.player >= 2)) return null;
+        const pl = coop.player(net.player);
+        return pl ? runState(pl) : null;
+    }
+    const _Sprite_Picture_update_run = Sprite_Picture.prototype.update;
+    Sprite_Picture.prototype.update = function() {
+        _Sprite_Picture_update_run.apply(this, arguments);
+        if (this._pictureId !== 18 || !isTermina()) return;
+        const st = ownRunState();
+        if (!st) return;
+        if (st.meter <= 0 && !st.cooldown) {
+            this.visible = false;
+            return;
+        }
+        const name = (st.cooldown ? 'meter_grey_' : 'meter_') + Math.min(RUN_MAX + 1, st.meter + 1);
+        if (this._coopRunPic !== name) {
+            this._coopRunPic = name;
+            this.bitmap = ImageManager.loadPicture(name);
+        }
+        this.visible = true;
+        this.anchor.x = 0;
+        this.anchor.y = 0;
+        this.x = 2;
+        this.y = 2;
+        this.scale.x = 0.8;
+        this.scale.y = 0.5;
+        this.opacity = 200;
+        this.setColorTone([0, 0, 0, 0]);
+    };
+    const _Sprite_Picture_updateBitmap_run = Sprite_Picture.prototype.updateBitmap;
+    Sprite_Picture.prototype.updateBitmap = function() {
+        // (no dejar que el juego le vuelva a poner la de P1)
+        if (this._pictureId === 18 && isTermina() && ownRunState()) return;
+        _Sprite_Picture_updateBitmap_run.apply(this, arguments);
+    };
+
+    window.CoopTower = { runState: runState, runImageOf: runImageOf, updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
     window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, fourthFestival: fourthFestival, fourthFestivalText: FOURTH_FESTIVAL_TEXT, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
         doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, heroDied: () => heroDiedTakeOver(), sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 

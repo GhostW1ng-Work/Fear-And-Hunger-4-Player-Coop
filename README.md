@@ -79,6 +79,8 @@ The installer only copies the mod's files and adds them to `www/js/plugins.js` (
 | Split screen zoom | `-` / `=` | | | |
 | Player windows | `F9` | | | |
 
+In Termina every player has their own stamina for running (like the protagonist in the game): only the one who holds run runs and gets tired. Online each PC shows its own stamina bar in the corner.
+
 Numpad keys work with NumLock on or off. In the online game each PC has only one player, who can use **any** of these keys (WASD or arrows, Z / Space / Enter, X / Esc / Backspace, Shift) or a gamepad.
 
 ---

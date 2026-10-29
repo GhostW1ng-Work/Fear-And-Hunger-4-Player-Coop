@@ -1577,6 +1577,37 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 el.some(function(c) { return c.code === 401 && /The Fourth Festival/.test(c.parameters[0]); }) && el.some(function(c) { return c.code === 354; }),
                 scroll.slice(0, 160));
             $gameSystem._coopDoorChoices = {};
+            // correr: cada uno con su resistencia y su imagen (P1 corre: los demas no)
+            var swDash = 1956;
+            var st2 = CoopTower.runState($gamePlayer2);
+            st2.meter = 0; st2.cooldown = false; st2.t = 0;
+            var spd0 = $gamePlayer._moveSpeed;
+            $gameSwitches.setValue(swDash, true); $gamePlayer._moveSpeed = spd0 + 0.5; // (P1 corre)
+            var p2Speed = $gamePlayer2.realMoveSpeed();
+            var walkKeep = pB._coopWalkImage;
+            pB._coopWalkImage = [pB.characterName(), pB.characterIndex()];
+            var runImg = CoopTower.runImageOf(pB);
+            var pBimg = [pB.characterName(), pB.characterIndex()];
+            if (runImg) pB._characterName = runImg[0], pB._characterIndex = runImg[1]; // (el juego le pone la de correr a todos)
+            $gamePlayer2.syncActorImage();
+            var p2Shown = $gamePlayer2._characterName;
+            pB._characterName = pBimg[0]; pB._characterIndex = pBimg[1]; pB._coopWalkImage = walkKeep;
+            $gameSwitches.setValue(swDash, false); $gamePlayer._moveSpeed = spd0;
+            check('T54 P1 runs: P2 does not get faster and does not show the running picture',
+                p2Speed === spd0 && !!runImg && !/^run/i.test(p2Shown), 'P1 ' + spd0 + ' P2 ' + p2Speed + ' P2 picture ' + p2Shown + ' run picture ' + runImg);
+            // P2 corre solo: su barra sube; a 51, agotado; luego baja
+            $gamePlayer2.keys().shift = true;
+            var origMoving = $gamePlayer2.isMoving;
+            $gamePlayer2.isMoving = function() { return true; };
+            var fast = $gamePlayer2.realMoveSpeed();
+            for (k = 0; k < 20 * 52; k++) Game_CoopPlayer.prototype.update.call($gamePlayer2);
+            var tired = st2.cooldown && !$gamePlayer2.isDashing();
+            $gamePlayer2.keys().shift = false;
+            $gamePlayer2.isMoving = origMoving;
+            for (k = 0; k < 15 * 30; k++) Game_CoopPlayer.prototype.update.call($gamePlayer2);
+            check('T54b P2 runs on their own stamina: faster (+0.5), exhausted at the top, runs again after resting',
+                fast === spd0 + 0.5 && tired && !st2.cooldown && st2.meter <= 26, 'fast ' + fast + ' tired ' + tired + ' meter ' + st2.meter + ' cooldown ' + st2.cooldown);
+            st2.meter = 0; st2.cooldown = false;
             // ramas de Hexen: la de cada jugador abierta mientras lo lleva; la de un companero, no
             var csB = CoopTower.contestants();
             var soulOf = function(a) { var c = csB.filter(function(x) { return x.actorId === a.actorId(); })[0]; return c ? c.soul : 0; };

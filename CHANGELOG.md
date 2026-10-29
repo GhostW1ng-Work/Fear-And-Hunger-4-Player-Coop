@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Running, each player on their own** (Termina): P2-P4 have their own stamina with the game's rules (it rises while running, at the top they are exhausted until it drops back, it recovers when not running); when P1 runs, the others no longer show the running picture or get faster; each one shows the running picture only when they run themselves. Online every PC shows its own stamina bar in the corner.
 - **Players' own skill branches** (Termina, setting, default *Open*): at Hexen the skill branch of each contestant a player plays is open while they play it (as the protagonist's own branch is); companions' branches still open only when they die, as in the game.
 
 ## v1.9.0
