@@ -1852,7 +1852,7 @@
             { code: 250, indent: 0, parameters: [bell] }, { code: 230, indent: 0, parameters: [100] },
             { code: 250, indent: 0, parameters: [Object.assign({}, bell, { pan: -40 })] }, { code: 230, indent: 0, parameters: [100] },
             { code: 250, indent: 0, parameters: [Object.assign({}, bell, { pan: 40 })] }, { code: 230, indent: 0, parameters: [120] },
-            { code: 241, indent: 0, parameters: [{ name: 'breath_of_the_moon', volume: 70, pitch: 100, pan: 0 }] },
+            { code: 241, indent: 0, parameters: [{ name: 'fear_and_hunger', volume: 70, pitch: 100, pan: 0 }] },
             // (negro debajo: no se ve el mapa ni sus imagenes)
             { code: 231, indent: 0, parameters: [89, 'blackscreen', 0, 0, 0, 0, 100, 100, 255, 0] },
             { code: 231, indent: 0, parameters: [90, 'tower_view2', 0, 0, 0, 0, 100, 100, 0, 0] },
