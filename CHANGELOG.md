@@ -1,13 +1,11 @@
 # Changelog
 
-## Unreleased
+## v1.9.0
 
-- **Ending The Fourth Festival** (Termina): when everybody at the tower door chooses *Commit suicide* - the music fades, Rher's bells, the tower, a slowly rising text with the party's names, the name of the ending, then the title screen. Cheat *Play the ending The Fourth Festival* in the Co-op menu shows it at once. Text: `docs/ENDING_FOURTH_FESTIVAL.md`.
-- **Language setting** (*Language*: English / Русский): the mod's menus, settings, messages, questions and scenes in Russian; online the host's language (messages must last the same on every PC). Cyrillic uses the game's Crimson Text where the main font has none.
-- **Hero dies (not by a player)** (Termina, default *The next one takes over*): when the protagonist dies (a monster, a trap...), the next player alive becomes the protagonist (online their PC plays P1); with no players, a companion who can be; the old one is a dead companion. A battle lost by a protagonist fighting alone ends without game over then. *Game over* = as in the game.
-- The door lines in English are now the translations of the Russian ones.
-- The tower door: the choice is *Fight* / *Commit suicide*; the characters' lines are in Russian (written by the mod's author; see `docs/DOOR_LINES.md`); Russian letters in message windows use Crimson Text from the game (Termina's font has no Cyrillic); long lines wrap.
-- Termina, the tower door with other players in the party: before the fight each player chooses *Fight* or *Commit suicide*; everyone says their line (a line of their own for each playable character); who ends it dies; those who fight fight to the death (the others watch); if only one fights, they are the one left (and the protagonist; P1 who chose to end it dies at the end); everybody ends it - game over.
+- **Language of the mod** (setting *Language*: English / Русский): menus, settings, the network menu, messages, questions and scenes of the mod in Russian. Online it is the host's language (messages have to last the same on every PC). Russian letters use the game's own Crimson Text where the main font has none; settings help wraps onto two lines.
+- **The tower door with players (ending B):** before the fight each player chooses on their own PC: *Fight* or *Commit suicide*. Everyone says their line (the author's lines for each playable character, English and Russian: `docs/DOOR_LINES.md`); those who chose to die die; those who fight fight each other to the death while the others watch; if only one chose to fight, they are the one left - and the protagonist (if P1 chose to die, P1 dies at the end).
+- **New ending "The Fourth Festival":** when everybody chooses *Commit suicide* - the music fades, Rher's bells, the tower, music *fear_and_hunger*, a slowly rising text (the author's), the name of the ending, then the title screen. Cheat *Play the ending The Fourth Festival* in the Co-op menu shows it at once. Text: `docs/ENDING_FOURTH_FESTIVAL.md`.
+- **Hero dies by a monster** (setting *Hero dies (not by a player)*, default *The next one takes over*): the next player alive becomes the protagonist (online their PC plays P1); with no players left, a companion who can be; the old one is a dead companion. A battle lost by a protagonist fighting alone then ends without game over. *Game over* = as in the game.
 
 ## v1.8.9
 
