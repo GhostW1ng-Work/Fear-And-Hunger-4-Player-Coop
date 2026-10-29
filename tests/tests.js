@@ -1577,6 +1577,78 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 el.some(function(c) { return c.code === 401 && /The Fourth Festival/.test(c.parameters[0]); }) && el.some(function(c) { return c.code === 354; }),
                 scroll.slice(0, 160));
             $gameSystem._coopDoorChoices = {};
+            // figuras de barro: liberar a los concursantes
+            var forms = CoopForms.list;
+            var noTroop = forms.filter(function(f) { return !CoopForms.troopId(f); }).map(function(f) { return f.key; });
+            check('T60 a clay figure for each of the 12 contestants with a moonscorched form, each with its battle', forms.length === 12 && noTroop.length === 0, 'no troop: ' + noTroop);
+            var ed = CoopForms.eventData(forms[0], 99);
+            check('T60b the figure is an event with the clay statue picture that starts its scene', ed.pages[0].image.characterName === '$clay_statue1' &&
+                ed.pages[0].priorityType === 1 && /CoopForms\.touch/.test(ed.pages[0].list[0].parameters[0]) && ed.x === forms[0].at[1], JSON.stringify(ed.pages[0].image));
+            $gameSystem._coopForms = {};
+            var tIt = new Game_Interpreter();
+            tIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopForms.touch(tIt, 'levi');
+            var tl = tIt._childInterpreter ? tIt._childInterpreter._list : [];
+            var bat = tl.filter(function(c) { return c.code === 301; })[0];
+            check('T60c touching it: Touch it / Leave, then the battle against that form (can escape, cannot lose)',
+                tl.some(function(c) { return c.code === 102; }) && !!bat && bat.parameters[1] === CoopForms.troopId(forms[0]) && bat.parameters[2] === true && bat.parameters[3] === false,
+                bat ? JSON.stringify(bat.parameters) : 'no battle');
+            // el combate: lo que cambian sus sucesos se deshace; ganado -> libre
+            var legSw = $dataSystem.switches.indexOf('weeping_scope_legL');
+            $gameSwitches.setValue(legSw, false);
+            CoopForms.fight('levi');
+            BattleManager.setup(CoopForms.troopId(forms[0]), true, false);
+            $gameParty._inBattle = true;
+            var bIt = new Game_Interpreter();
+            bIt.setup([{ code: 121, indent: 0, parameters: [legSw, legSw, 0] }, { code: 0, indent: 0, parameters: [] }], 0);
+            bIt.executeCommand();
+            var legDuring = $gameSwitches.value(legSw);
+            try { BattleManager.endBattle(0); } catch (e) { __log.push('endBattle ' + e.message); }
+            $gameParty._inBattle = false;
+            check('T60d won the battle: Levi is free, and what the battle changed is undone (no limbs/death left behind)',
+                legDuring === true && $gameSwitches.value(legSw) === false && CoopForms.state().freed.levi === true && CoopForms.count() >= 1,
+                'during ' + legDuring + ' after ' + $gameSwitches.value(legSw) + ' freed ' + JSON.stringify(CoopForms.state().freed));
+            var sniper = $dataSystem.switches.indexOf('sniper_scene1');
+            var crazy = $dataSystem.switches.indexOf('Marcoh_gone_crazy');
+            var marcohDead = $dataSystem.switches.indexOf('Marcoh1');
+            var wasSn = $gameSwitches.value(sniper), wasCr = $gameSwitches.value(crazy), wasMd = $gameSwitches.value(marcohDead);
+            $gameSwitches.setValue(marcohDead, false);
+            $gameSwitches.setValue(sniper, true);
+            $gameSwitches.setValue(crazy, true);
+            check('T60e a freed contestant does not turn (Levi: no sniper); one not freed turns and it is too late (Marcoh)',
+                $gameSwitches.value(sniper) === false && $gameSwitches.value(crazy) === true && CoopForms.state().lost.marcoh === true,
+                'sniper ' + $gameSwitches.value(sniper) + ' lost ' + JSON.stringify(CoopForms.state().lost));
+            var tIt2 = new Game_Interpreter();
+            tIt2.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopForms.touch(tIt2, 'marcoh');
+            var tl2 = tIt2._childInterpreter ? tIt2._childInterpreter._list : [];
+            check('T60f his figure after that: too late, no battle', /too late/i.test(tl2.map(function(c) { return c.code === 401 ? c.parameters[0] : ''; }).join(' ')) &&
+                !tl2.some(function(c) { return c.code === 301; }));
+            $gameSwitches._data[sniper] = wasSn; $gameSwitches._data[crazy] = wasCr; $gameSwitches._data[marcohDead] = wasMd;
+            // dia 3, tarde: los que no son libres se transforman
+            $gameSystem._coopForms = { freed: { levi: true }, lost: {} };
+            var d3 = $dataSystem.switches.indexOf('DAY3_EVENING');
+            var wasD3 = $gameSwitches.value(d3);
+            $gameSwitches._data[d3] = false;
+            $gameSwitches.setValue(d3, true);
+            var lostN = Object.keys(CoopForms.state().lost).length;
+            var deadN = forms.filter(function(f) { return $gameSwitches.value($dataSystem.switches.indexOf(f.dead)); }).length;
+            check('T60g the evening of day 3: everyone not free (and alive) turns - too late for them', lostN === 11 - deadN && !CoopForms.state().lost.levi, lostN + ' lost, ' + deadN + ' dead');
+            $gameSwitches._data[d3] = wasD3;
+            // todos libres: la puerta se abre para todos
+            $gameSystem._coopForms = { freed: {}, lost: {} };
+            forms.forEach(function(f) { CoopForms.state().freed[f.key] = true; });
+            $gameVariables.setValue(crazedVar, 0);
+            var dIt = new Game_Interpreter();
+            dIt.setup([{ code: 122, indent: 0, parameters: [crazedVar, crazedVar, 0, 0, 1] }, { code: 0, indent: 0, parameters: [] }], 0);
+            dIt.executeCommand();
+            var dl = dIt._childInterpreter ? dIt._childInterpreter._list : [];
+            var dtexts = dl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
+            var doorSw = $dataSystem.switches.indexOf('tower_door1');
+            check('T60h everyone free: the tower door opens for all of them (no "only one may leave", no moonscorched scene)',
+                $gameVariables.value(crazedVar) === 0 && /opens for all of you/.test(dtexts) && !/Only one may leave/.test(dtexts) &&
+                dl.some(function(c) { return c.code === 121 && c.parameters[0] === doorSw && c.parameters[2] === 0; }), dtexts.slice(0, 120));
+            $gameSystem._coopForms = {};
             // correr: cada uno con su resistencia y su imagen (P1 corre: los demas no)
             var swDash = 1956;
             var st2 = CoopTower.runState($gamePlayer2);

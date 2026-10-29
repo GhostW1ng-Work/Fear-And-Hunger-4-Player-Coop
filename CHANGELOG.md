@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Freeing the contestants: clay figures** (Termina). From the start of the game a clay figure stands near the place of each contestant's moonscorched form (12: the 8 playable ones, Henryk, Samarie, Tanaka, Caligura). Anyone can touch it: the whole party fights that form. Win - the contestant is free: never turns, and does not die (what the battle changed is undone). A contestant who died counts as free; one who turned before being freed (everyone left on the evening of day 3) is lost for good. With all 12 free the tower door opens for all players together - no *Only one may leave*, no moonscorched scene. Co-op menu: *Freed contestants: N/12*; cheats *Free all contestants*, *Teleport to the clay figure*. Details: `docs/FREE_CONTESTANTS.md`.
+
 ## v1.9.1
 
 - **Running, each player on their own** (Termina): P2-P4 have their own stamina with the game's rules (it rises while running; at the top they are exhausted until it drops back; it recovers when not running). When P1 runs, the others no longer get faster or show the running picture; each one shows it only when running themselves (the normal one; with the parasite only with HEAD_CRAB). Online every PC shows its own stamina bar in the corner.

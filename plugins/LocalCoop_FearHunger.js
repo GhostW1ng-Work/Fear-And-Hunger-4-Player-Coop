@@ -1958,7 +1958,7 @@
     Game_Interpreter.prototype.command122 = function() {
         const p = this._params;
         if (p[0] === p[1] && p[2] === 0 && p[3] === 0 && p[4] === 1 && $dataSystem.variables[p[0]] === 'TEMPLE_SQ_CRAZED_SCENE' &&
-            towerDoorFight(this)) {
+            (togetherDoor(this) || towerDoorFight(this))) {
             return true;
         }
         return _Game_Interpreter_command122_tower.call(this);
@@ -2819,6 +2819,305 @@
         }
         _Sprite_Picture_updateBitmap_run.apply(this, arguments);
     };
+
+    // ---- liberar a los concursantes (Termina): sus figuras de barro -------------------------------
+    // Cada concursante con forma "moonscorched" tiene una figura de barro ($clay_statue1) cerca de
+    // donde aparece esa forma, desde el principio. Quien la toca lucha (con todo el grupo) contra esa
+    // forma; si gana, el concursante queda libre: ya no se transforma (los interruptores con los que
+    // el juego le transforma no se encienden) y no muere (lo que cambia el combate en interruptores y
+    // variables se deshace al acabar). Si se transforma antes (su interruptor; la tarde del dia 3,
+    // todos) ya no se puede. El que muere sin transformarse cuenta como libre. Con todos libres, la
+    // puerta de la torre se abre para todos, como si todos los demas hubieran muerto.
+    const FORMS = [
+        { key: 'levi', name: 'Levi', dead: 'levi1', troop: 'Weeping_scope', turn: ['sniper_scene1'], at: [39, 29, 7], look: [4, 0] },
+        { key: 'marcoh', name: 'Marcoh', dead: 'Marcoh1', troop: 'Giant', turn: ['Marcoh_gone_crazy', 'giant_upstairs', 'giant_downstairs'], at: [93, 36, 32], look: [4, 1] },
+        { key: 'abella', name: 'Abella', dead: 'Abella1', troop: 'Chaugnar', turn: ['Abella_gone'], at: [24, 65, 42], look: [6, 0] },
+        { key: 'marina', name: 'Marina', dead: 'marina1', troop: 'Cocoon', turn: [], at: [81, 25, 43], look: [6, 1], hide: [81, [276, 277, 278, 279, 280]] },
+        { key: 'olivia', name: 'Olivia', dead: 'Olivia1', troop: 'Mechanical_dance', turn: ['mechanical_dance_appear'], at: [84, 27, 65], look: [6, 2] },
+        { key: 'daan', name: 'Daan', dead: 'Daan1', troop: 'Pocketcat2', turn: ['Pocketdaan_appear', 'pocketdaan_inside', 'pocketdaan_outside'], at: [88, 6, 2], look: [4, 2] },
+        { key: 'osaa', name: "O'saa", dead: 'yellow_mage1', troop: 'Mastermind', turn: ['mastermind_mausoleum_alley'], at: [80, 10, 10], look: [8, 0] },
+        { key: 'karin', name: 'Karin', dead: 'karin1', troop: 'Valkyrie', turn: ['valkyrie_active', 'valkyrie_flight1'], at: [41, 24, 33], look: [8, 1] },
+        { key: 'henryk', name: 'Henryk', dead: 'Henryk1', troop: 'Gentleman1', turn: ['Mayor_appears'], at: [20, 4, 54], look: [8, 2] },
+        { key: 'samarie', name: 'Samarie', dead: 'samarie1', troop: 'Dysmorphia', turn: ['samarie_full_transformation'], at: [48, 27, 17], look: [2, 0] },
+        { key: 'tanaka', name: 'Tanaka', dead: 'Tanaka1', troop: 'Judgement', turn: ['Tanaka_alone', 'Tanaka_final'], at: [84, 56, 65], look: [2, 1] },
+        { key: 'caligura', name: 'Caligura', dead: 'caligura1', troop: 'Monster', turn: ['caligura_monster'], at: [78, 29, 56], look: [2, 2] }
+    ];
+    function formState() {
+        const st = $gameSystem._coopForms = $gameSystem._coopForms || {};
+        st.freed = st.freed || {};
+        st.lost = st.lost || {};
+        return st;
+    }
+    function formByKey(key) {
+        return FORMS.find(f => f.key === key) || null;
+    }
+    function formDead(f) {
+        const id = switchNamed(f.dead);
+        return id > 0 && $gameSwitches.value(id);
+    }
+    // libre: ganado a su forma, o muerto sin haberse transformado
+    function formFreed(f) {
+        const st = formState();
+        return !!st.freed[f.key] || (!st.lost[f.key] && formDead(f));
+    }
+    function formsFreedCount() {
+        return FORMS.filter(formFreed).length;
+    }
+    function formsAllFreed() {
+        return isTermina() && FORMS.every(formFreed);
+    }
+    function formTroopId(f) {
+        const t = ($dataTroops || []).find(x => x && x.name === f.troop);
+        return t ? t.id : 0;
+    }
+    // (los nombres como en el juego, sin traducir)
+    function formName(f) {
+        return f.name;
+    }
+
+    // los interruptores que transforman a cada uno (y DAY3_EVENING: a todos)
+    let formSwitchIds = null;
+    function formSwitches() {
+        if (formSwitchIds) return formSwitchIds;
+        formSwitchIds = {};
+        FORMS.forEach(f => f.turn.forEach(name => {
+            const id = switchNamed(name);
+            if (id > 0) (formSwitchIds[id] = formSwitchIds[id] || []).push(f);
+        }));
+        return formSwitchIds;
+    }
+    const _Game_Switches_setValue_forms = Game_Switches.prototype.setValue;
+    Game_Switches.prototype.setValue = function(switchId, value) {
+        if (value && this === $gameSwitches && $gameSystem && isTermina()) {
+            const st = formState();
+            const hit = formSwitches()[switchId];
+            if (hit) {
+                // (libre: no se transforma)
+                if (hit.every(f => st.freed[f.key])) return;
+                hit.forEach(f => { if (!st.freed[f.key] && !formDead(f)) st.lost[f.key] = true; });
+            }
+            if ($dataSystem.switches[switchId] === 'DAY3_EVENING') {
+                FORMS.forEach(f => { if (!st.freed[f.key] && !formDead(f)) st.lost[f.key] = true; });
+            }
+        }
+        _Game_Switches_setValue_forms.apply(this, arguments);
+    };
+
+    // la figura: un suceso mas en los datos del mapa (al cargarlo; siempre el mismo numero)
+    let formsLoadingMap = 0;
+    const _DataManager_loadMapData_forms = DataManager.loadMapData;
+    DataManager.loadMapData = function(mapId) {
+        formsLoadingMap = mapId;
+        _DataManager_loadMapData_forms.apply(this, arguments);
+    };
+    function formEventData(f, id) {
+        return {
+            id: id, name: 'coop_clay_' + f.key, note: '', x: f.at[1], y: f.at[2], _coopForm: f.key,
+            pages: [{
+                conditions: { actorId: 1, actorValid: false, itemId: 1, itemValid: false, selfSwitchCh: 'A', selfSwitchValid: false,
+                    switch1Id: 1, switch1Valid: false, switch2Id: 1, switch2Valid: false, variableId: 1, variableValid: false, variableValue: 0 },
+                directionFix: true, image: { characterIndex: 0, characterName: '$clay_statue1', direction: f.look[0], pattern: f.look[1], tileId: 0 },
+                list: [{ code: 355, indent: 0, parameters: ['CoopForms.touch(this, "' + f.key + '")'] }, { code: 0, indent: 0, parameters: [] }],
+                moveFrequency: 3, moveRoute: { list: [{ code: 0, parameters: [] }], repeat: true, skippable: false, wait: false },
+                moveSpeed: 3, moveType: 0, priorityType: 1, stepAnime: false, through: false, trigger: 0, walkAnime: false
+            }]
+        };
+    }
+    const _DataManager_onLoad_forms = DataManager.onLoad;
+    DataManager.onLoad = function(object) {
+        _DataManager_onLoad_forms.apply(this, arguments);
+        if (object !== $dataMap || !object || !object.events || !isTermina()) return;
+        FORMS.forEach(f => {
+            if (f.at[0] !== formsLoadingMap) return;
+            object.events.push(formEventData(f, object.events.length));
+        });
+    };
+    const _Game_Event_findProperPageIndex_forms = Game_Event.prototype.findProperPageIndex;
+    Game_Event.prototype.findProperPageIndex = function() {
+        const data = this.event();
+        if (data && data._coopForm) {
+            const f = formByKey(data._coopForm);
+            return f && !formFreed(f) ? 0 : -1;
+        }
+        // (la forma del juego de quien ya es libre no aparece: Marina, su capullo)
+        const mapId = this._mapId;
+        const hide = FORMS.find(f => f.hide && f.hide[0] === mapId && f.hide[1].indexOf(this._eventId) >= 0);
+        if (hide && $gameSystem && formState().freed[hide.key]) return -1;
+        return _Game_Event_findProperPageIndex_forms.call(this);
+    };
+
+    function formSay(list, text) {
+        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
+        wrapText(text, 52).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+    }
+    function withName(text, f) {
+        return coop.tr(text).split('{name}').join(formName(f));
+    }
+    function touchForm(it, key) {
+        const f = formByKey(key);
+        if (!f || formFreed(f)) return;
+        const list = [];
+        const troopId = formTroopId(f);
+        if (formState().lost[key] || !troopId) {
+            formSay(list, withName('A cracked clay figure. It looked like {name} once.', f));
+            formSay(list, withName('It is too late. {name} has already turned.', f));
+        } else {
+            formSay(list, withName('A small clay figure. It looks like {name}...', f));
+            formSay(list, coop.tr('Something moves inside the clay. The moon is looking at you through its eyes.'));
+            list.push(
+                { code: 102, indent: 0, parameters: [[coop.tr('Touch it'), coop.tr('Leave')], 1, 0, 2, 0] },
+                { code: 402, indent: 0, parameters: [0, 'Touch it'] },
+                { code: 355, indent: 1, parameters: ['CoopForms.fight("' + key + '")'] },
+                { code: 301, indent: 1, parameters: [0, troopId, true, false] },
+                { code: 355, indent: 1, parameters: ['CoopForms.after(this, "' + key + '")'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 402, indent: 0, parameters: [1, 'Leave'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 404, indent: 0, parameters: [] }
+            );
+        }
+        list.push({ code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+
+    // el combate contra la forma: lo que cambian sus sucesos se deshace al acabar
+    let formPending = null;
+    function formFight(key) {
+        formPending = key;
+    }
+    const _BattleManager_setup_forms = BattleManager.setup;
+    BattleManager.setup = function() {
+        this._coopForm = formPending;
+        this._coopFormSaved = formPending ? { s: {}, v: {} } : null;
+        formPending = null;
+        _BattleManager_setup_forms.apply(this, arguments);
+    };
+    // (no se deshace: muertes, almas y cuantos quedan)
+    function formKeepIds() {
+        const keep = { s: {}, v: {} };
+        Object.keys(CONTESTANT_SOULS).forEach(n => {
+            keep.s[switchNamed(n)] = true;
+            keep.s[switchNamed(CONTESTANT_SOULS[n])] = true;
+        });
+        keep.v[variableNamed('CHARACTERS_LEFT')] = true;
+        return keep;
+    }
+    function formRemember(kind, from, to) {
+        const saved = BattleManager._coopFormSaved;
+        if (!saved || !$gameParty.inBattle()) return;
+        for (let id = from; id <= to; id++) {
+            if (saved[kind][id] !== undefined) continue;
+            saved[kind][id] = kind === 's' ? $gameSwitches.value(id) : $gameVariables.value(id);
+        }
+    }
+    const _Game_Interpreter_command121_forms = Game_Interpreter.prototype.command121;
+    Game_Interpreter.prototype.command121 = function() {
+        formRemember('s', this._params[0], this._params[1]);
+        return _Game_Interpreter_command121_forms.call(this);
+    };
+    const _Game_Interpreter_command122_forms = Game_Interpreter.prototype.command122;
+    Game_Interpreter.prototype.command122 = function() {
+        formRemember('v', this._params[0], this._params[1]);
+        return _Game_Interpreter_command122_forms.call(this);
+    };
+    const _BattleManager_endBattle_forms = BattleManager.endBattle;
+    BattleManager.endBattle = function(result) {
+        const key = this._coopForm;
+        const saved = this._coopFormSaved;
+        this._coopForm = null;
+        this._coopFormSaved = null;
+        if (key && saved) {
+            const keep = formKeepIds();
+            Object.keys(saved.s).forEach(id => { if (!keep.s[id]) _Game_Switches_setValue_forms.call($gameSwitches, Number(id), saved.s[id]); });
+            Object.keys(saved.v).forEach(id => { if (!keep.v[id]) $gameVariables.setValue(Number(id), saved.v[id]); });
+            if (result === 0) {
+                const f = formByKey(key);
+                formState().freed[key] = true;
+                delete formState().lost[key];
+                $gameMap.requestRefresh();
+                if (f) coop.banner(formName(f) + ' is free', 'Freed contestants: ' + formsFreedCount() + '/' + FORMS.length, '#9fb6ff', 220);
+            }
+        }
+        return _BattleManager_endBattle_forms.apply(this, arguments);
+    };
+    function formAfter(it, key) {
+        const f = formByKey(key);
+        if (!f || !formState().freed[key]) return;
+        const list = [];
+        formSay(list, withName('The clay figure crumbles to dust. {name} is free.', f));
+        if (formsAllFreed()) formSay(list, coop.tr('Every contestant is free. The tower is waiting for all of you.'));
+        list.push({ code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+
+    // la puerta de la torre con todos libres: se abre para todos (sin la escena de los companeros)
+    function togetherDoor(it) {
+        if (!formsAllFreed()) return false;
+        const list = [];
+        formSay(list, coop.tr('The stone slab trembles under your hands.'));
+        formSay(list, coop.tr('No one is left for the festival to claim. Every contestant is free.'));
+        formSay(list, coop.tr('The door of the tower opens for all of you.'));
+        list.push(
+            { code: 121, indent: 0, parameters: [switchNamed('tower_door1'), switchNamed('tower_door1'), 0] },
+            { code: 0, indent: 0, parameters: [] }
+        );
+        it.setupChild(list, it._eventId);
+        return true;
+    }
+    // (solo, sin nadie en el grupo: el juego pide CHARACTERS_LEFT <= 1)
+    const _Game_Interpreter_command111_forms = Game_Interpreter.prototype.command111;
+    Game_Interpreter.prototype.command111 = function() {
+        const p = this._params;
+        if (p[0] === 1 && $dataSystem.variables[p[1]] === 'CHARACTERS_LEFT' && $gameMap.mapId() === TOWER_DOOR.mapId && formsAllFreed()) {
+            this._branch[this._indent] = true;
+            return true;
+        }
+        return _Game_Interpreter_command111_forms.call(this);
+    };
+
+    coop.addAssignAction({
+        visible() { return isTermina() && !!$gameSystem; },
+        name() {
+            const lost = FORMS.filter(f => formState().lost[f.key] && !formFreed(f)).length;
+            return 'Freed contestants: ' + formsFreedCount() + '/' + FORMS.length + (lost ? ', too late for ' + lost : '');
+        },
+        run() {
+            SoundManager.playCursor();
+        }
+    });
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: free all contestants';
+        },
+        run() {
+            const st = formState();
+            FORMS.forEach(f => { st.freed[f.key] = true; delete st.lost[f.key]; });
+            $gameMap.requestRefresh();
+            SoundManager.playShop();
+        }
+    });
+    // (ir a la siguiente figura sin liberar)
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            const f = FORMS.find(x => !formFreed(x));
+            return f ? 'Cheat: teleport to the clay figure of ' + formName(f) : 'Cheat: teleport to the clay figure (all are free)';
+        },
+        run() {
+            const f = FORMS.find(x => !formFreed(x));
+            if (!f || !$dataMapInfos[f.at[0]]) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            $gamePlayer.reserveTransfer(f.at[0], f.at[1], f.at[2] + 1, 8, 0);
+            SoundManager.playShop();
+        }
+    });
+    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, allFreed: formsAllFreed, count: formsFreedCount,
+        touch: touchForm, fight: formFight, after: formAfter, door: togetherDoor, troopId: formTroopId, eventData: formEventData };
 
     window.CoopTower = { runState: runState, runImageOf: runImageOf, updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
     window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, fourthFestival: fourthFestival, fourthFestivalText: FOURTH_FESTIVAL_TEXT, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
