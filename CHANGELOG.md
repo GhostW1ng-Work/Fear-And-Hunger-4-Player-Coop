@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Freeing the contestants: clay figures** (Termina). From the start of the game a clay figure stands near the place of each contestant's moonscorched form (12: the 8 playable ones, Henryk, Samarie, Tanaka, Caligura). Anyone can touch it: the whole party fights that form. Win - the contestant is free: never turns, and does not die (what the battle changed is undone). A contestant who died counts as free; one who turned before being freed (everyone left on the evening of day 3) is lost for good. With all 12 free the tower door opens for all players together - no *Only one may leave*, no moonscorched scene. Co-op menu: *Freed contestants: N/12*; cheats *Free all contestants*, *Teleport to the clay figure*. Details: `docs/FREE_CONTESTANTS.md`.
+- **Fixed (online):** a battle started by a story scene that starts by itself (Per'kele on the Moon tower) and the battle of a clay figure were fought only by the player who started them - the others could only watch. Now every player with a character fights, as on one PC.
 
 ## v1.9.1
 

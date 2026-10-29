@@ -1832,6 +1832,18 @@
             b.inputs[n] = newVirtualInput(Net.raw[n] || 0);
             if (n === Net.player) battleStartAudio(b);
         });
+        // todos juntos, como en un solo PC: el combate de una figura de barro, o el de una escena de
+        // la historia que empieza sola (Per'kele en la torre...: nadie puede acercarse a unirse)
+        if (!pvp && ((b.bm && b.bm._coopForm) || isAutorunRoot($gameMap._interpreter))) {
+            for (let n = 1; n <= coop.maxPlayers; n++) {
+                if (n === starter || b.involved.indexOf(n) >= 0 || Net.left[n] || inSeparateBattle(n)) continue;
+                if (n !== 1 && !coop.player(n)) continue;
+                closeSub(n);
+                b.involved.push(n);
+                b.inputs[n] = newVirtualInput(Net.raw[n] || 0);
+                if (n === Net.player) battleStartAudio(b);
+            }
+        }
         // el evento del mapa que lo empezo se aparta: el mapa queda libre (otro jugador puede
         // empezar su combate con otro enemigo, hablar, abrir cofres...)
         // (no una escena de la historia que empieza sola: con el mapa libre volveria a empezar
