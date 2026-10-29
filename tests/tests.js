@@ -1595,6 +1595,13 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             $gameSwitches.setValue(swDash, false); $gamePlayer._moveSpeed = spd0;
             check('T54 P1 runs: P2 does not get faster and does not show the running picture',
                 p2Speed === spd0 && !!runImg && !/^run/i.test(p2Shown), 'P1 ' + spd0 + ' P2 ' + p2Speed + ' P2 picture ' + p2Shown + ' run picture ' + runImg);
+            var crabId = $dataStates.filter(function(x) { return x && /^head_crab$/i.test(x.name); }).map(function(x) { return x.id; })[0];
+            var normalRun = CoopTower.runImageOf(pB);
+            if (crabId) pB.addState(crabId);
+            var crabRun = CoopTower.runImageOf(pB);
+            if (crabId) pB.removeState(crabId);
+            check('T54d running picture: the normal one; with the parasite on the head (HEAD_CRAB) the one with the parasite',
+                !!normalRun && !/_crab/i.test(normalRun[0]) && (!crabId || /_crab/i.test(crabRun[0])), normalRun + ' / ' + crabRun);
             // P2 corre solo: su barra sube; a 51, agotado; luego baja
             $gamePlayer2.keys().shift = true;
             var origMoving = $gamePlayer2.isMoving;

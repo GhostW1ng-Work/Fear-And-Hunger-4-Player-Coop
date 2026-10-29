@@ -2695,7 +2695,8 @@
         const n = pl.coopIndex();
         return all[n] || (all[n] = { meter: 0, cooldown: false, t: 0 });
     }
-    // la imagen de correr de cada personaje (de sus sucesos de ropa): nombre y la de sin perder brazos
+    // la imagen de correr de cada personaje (de sus sucesos de ropa): runN normal, runN_crab con el
+    // parasito en la cabeza (estado HEAD_CRAB), runN_alt con la otra ropa; y la de sin perder brazos
     let runImages = null;
     function runImageOf(actor) {
         if (!runImages) {
@@ -2707,13 +2708,23 @@
                     const m = /actor\((\d+)\)\.setCharacterImage\('(run[^']*)',\s*(\d+)\)/.exec(c.parameters[0]);
                     if (!m) return;
                     const id = Number(m[1]);
-                    const cur = runImages[id];
-                    if (!cur || Number(m[3]) < cur.index) runImages[id] = { name: m[2], index: Number(m[3]) };
+                    const kind = /_crab$/i.test(m[2]) ? 'crab' : /_alt$/i.test(m[2]) ? 'alt' : 'normal';
+                    const all = runImages[id] = runImages[id] || {};
+                    const cur = all[kind];
+                    if (!cur || Number(m[3]) < cur.index) all[kind] = { name: m[2], index: Number(m[3]) };
                 });
             });
         }
-        const r = runImages[actor.actorId()];
-        return r ? [r.name, r.index + Math.min(2, limbsLost(actor.actorId(), 'arm'))] : null;
+        const all = runImages[actor.actorId()];
+        if (!all) return null;
+        // (como anda ahora: con el parasito, o con la otra ropa)
+        const walk = String((actor._coopWalkImage && actor._coopWalkImage[0]) || actor.characterName());
+        const headCrab = stateIdNamed(/^head_crab$/i);
+        const kind = (headCrab && actor.isStateAffected(headCrab)) || /_crab/i.test(walk) && all.crab ? 'crab' : /_alt/i.test(walk) && all.alt ? 'alt' : 'normal';
+        const r = all[kind] || all.normal || all.crab;
+        if (!r) return null;
+        // (la otra ropa solo tiene una imagen)
+        return [r.name, kind === 'alt' ? r.index : r.index + Math.min(2, limbsLost(actor.actorId(), 'arm'))];
     }
     // (la de andar: la ultima que el juego le puso que no es de correr)
     const _Game_Actor_setCharacterImage_run = Game_Actor.prototype.setCharacterImage;
