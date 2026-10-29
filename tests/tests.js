@@ -1648,6 +1648,67 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             check('T60h everyone free: the tower door opens for all of them (no "only one may leave", no moonscorched scene)',
                 $gameVariables.value(crazedVar) === 0 && /opens for all of you/.test(dtexts) && !/Only one may leave/.test(dtexts) &&
                 dl.some(function(c) { return c.code === 121 && c.parameters[0] === doorSw && c.parameters[2] === 0; }), dtexts.slice(0, 120));
+            // en lo alto de la torre, todos juntos
+            if (typeof __moonTower !== 'undefined') {
+                window.$coopHeadCount = __headCount;
+                $gameSystem._coopForms = { freed: {}, lost: {} };
+                forms.forEach(function(f) { CoopForms.state().freed[f.key] = true; });
+                var orig = __moonTower.events[7].pages[0].list;
+                var tl0 = CoopTop.list(orig);
+                check('T61 at the top with everyone free and 2+ players: the game scene up to Per\'kele\'s first line, then ours',
+                    CoopTop.together() && tl0.length < orig.length && /CoopTop\.scene/.test(tl0[tl0.length - 2].parameters[0]) &&
+                    !tl0.some(function(c) { return c.code === 401 && /finally here/.test(c.parameters[0]); }), tl0.length + ' of ' + orig.length);
+                var sIt = new Game_Interpreter();
+                sIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+                CoopTop.scene(sIt);
+                var sl = sIt._childInterpreter ? sIt._childInterpreter._list : [];
+                var asks2 = sl.filter(function(c) { return c.code === 102; });
+                var stext = sl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
+                check('T61b Per\'kele speaks to all of them, the protagonist answers, then each player chooses: Take his place / Break the circle',
+                    /All of you/.test(stext) && stext.indexOf(pA.name() + ': "') >= 0 && asks2.length === 3 &&
+                    asks2.every(function(c) { return c.parameters[0].join('/') === 'Take his place/Break the circle'; }), asks2.length + ' asks');
+                var runNext = function() {
+                    var r = new Game_Interpreter();
+                    r.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+                    CoopTop.next(r);
+                    return r._childInterpreter ? r._childInterpreter._list : [];
+                };
+                CoopTop.choose(1, 'break'); CoopTop.choose(2, 'break'); CoopTop.choose(3, 'break');
+                var nl = runNext();
+                var perk = $dataTroops.filter(function(t) { return t && t.name === 'Perkele1'; })[0];
+                check('T61c everybody breaks the circle: all fight Per\'kele, then the ending The Broken Circle',
+                    !!perk && nl.some(function(c) { return c.code === 301 && c.parameters[1] === perk.id; }) &&
+                    nl.some(function(c) { return c.code === 355 && /brokenCircle/.test(c.parameters[0]); }));
+                CoopTop.choose(2, 'take');
+                nl = runNext();
+                var side = nl.filter(function(c) { return c.code === 355 && /prepareSides/.test(c.parameters[0]); })[0];
+                check('T61d one takes his place, the others break it: side against side, to the death', !!side && /\[\[1,3\], \[2\]\]/.test(side.parameters[0]),
+                    side ? side.parameters[0] : '-');
+                var fake = { _list: [{ code: 355, indent: 0, parameters: [''] }, { code: 301, indent: 0, parameters: [0, 0, false, false] }], _index: 0 };
+                CoopTop.prepareSides(fake, [[1, 3], [2]]);
+                var sinfo = CoopPvp.pending[fake._list[1].parameters[1]];
+                check('T61e the fight of the sides: two sides (P1+P3 against P2), lethal', !!sinfo && sinfo.lethal && sinfo.sides.length === 2 && sinfo.sides[0].players.join(',') === '1,3',
+                    sinfo ? JSON.stringify(sinfo.sides) : '-');
+                delete CoopPvp.pending[fake._list[1].parameters[1]];
+                CoopTop.choose(1, 'take'); CoopTop.choose(3, 'take');
+                nl = runNext();
+                check('T61f all want his place: only one may - they fight each other', nl.some(function(c) { return c.code === 355 && /prepareSides\(this, \[\[1\], \[2\], \[3\]\]\)/.test(c.parameters[0]); }));
+                // uno solo quiere su sitio (los demas muertos): el final del azufre del juego
+                var keepAlive = $gameSystem._coopTopActors;
+                $gameSystem._coopTopChoices = { 1: 'take' };
+                nl = runNext();
+                check('T61g the one left who wants his place: the game\'s sulfur ending (the "I\'ll join you." scene, battle, then its ending map)',
+                    nl.some(function(c) { return c.code === 301; }) && nl.some(function(c) { return c.code === 201 && c.parameters[1] === 154; }));
+                window.$coopHeadCount = __headCount;
+                var bl = CoopTop.brokenCircleList();
+                var pics = bl.filter(function(c) { return c.code === 231; }).map(function(c) { return c.parameters[1]; });
+                var selects = bl.filter(function(c) { return c.code === 355 && /selectAs\(\d+\)/.test(c.parameters[0]); }).length;
+                check('T61h The Broken Circle: the train with the survivors, the ending of each player, its name, the credits',
+                    pics.indexOf('train_ending') >= 0 && pics.indexOf('book_photo') >= 0 && selects >= 2 &&
+                    bl.some(function(c) { return c.code === 401 && /The Broken Circle/.test(c.parameters[0]); }) && bl.some(function(c) { return c.code === 354; }),
+                    'pictures ' + pics.length + ' endings ' + selects);
+                $gameSystem._coopTopChoices = {}; $gameSystem._coopTopActors = {}; $gameSystem._coopTopShown = null;
+            }
             $gameSystem._coopForms = {};
             // correr: cada uno con su resistencia y su imagen (P1 corre: los demas no)
             var swDash = 1956;

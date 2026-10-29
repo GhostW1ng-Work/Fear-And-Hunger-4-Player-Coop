@@ -13,6 +13,9 @@ ctx = load_ctx()
 # TEST_MAP: mapa de pruebas (19 = vagones del tren en Termina)
 TEST_MAP = int(os.environ.get('TEST_MAP', '19'))
 ctx.eval('var __map = ' + read(GAME + '/data/Map%03d.json' % TEST_MAP) + '; __map.__id = %d;' % TEST_MAP)
+# (Termina: los datos del final, para el final "The Broken Circle"; y la escena de Per'kele)
+if os.path.exists(GAME + '/data/Map161.json'):
+    ctx.eval('var __headCount = ' + read(GAME + '/data/Map161.json') + '; var __moonTower = ' + read(GAME + '/data/Map146.json') + ';')
 ctx.eval('Graphics._width = 816; Graphics._height = 624; Graphics._boxWidth = 816; Graphics._boxHeight = 624;')
 try:
     out = ctx.eval(read(os.path.join(HERE, 'tests.js')), timeout=120000)

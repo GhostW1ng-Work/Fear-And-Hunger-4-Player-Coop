@@ -3116,6 +3116,396 @@
             SoundManager.playShop();
         }
     });
+    // ---- en lo alto de la torre, todos juntos (Termina, todos los concursantes libres) -------------
+    // Moon_tower: en vez de la escena de Per'kele con uno solo, la suya con todos (textos del autor
+    // del co-op: docs/PERKELE_TOGETHER.md). Cada jugador elige: ocupar su sitio o romper el circulo.
+    //  - todos rompen: pelean juntos contra Per'kele -> final "The Broken Circle" (el tren con los que
+    //    sobrevivieron y el final propio de cada jugador);
+    //  - unos y otros: pelean los dos bandos a muerte; si ganan los que rompen, Per'kele;
+    //  - los que quieren su sitio: solo uno puede: pelean entre ellos; el que queda, el final del
+    //    azufre del juego (como al decirle "I'll join you.").
+    // El protagonista lo dibuja un suceso del mapa (elevator_character_...): los de P2-P4 tambien.
+    const TOP = { mapId: 146, eventId: 7 };
+    const TOP_SLOTS = [[7, 14], [9, 14], [10, 14]];
+    const TOP_ELEVATOR = { 1: 'levi', 3: 'marina', 4: 'daan', 5: 'abella', 6: 'osaa', 13: 'marcoh', 14: 'karin', 15: 'olivia' };
+    const TOP_SELECT = { 1: 'MERCENARY SELECT', 3: 'OCCULTIST_SELECT', 4: 'DOCTOR SELECT', 5: 'MECHANIC SELECT', 6: 'YELLOW_MAGE_SELECT',
+        13: 'THUG_SELECT', 14: 'JOURNALIST_SELECT', 15: 'BOTANIST_SELECT' };
+    const PERKELE_NAME = "\\>\\i[144]\\}ER'KELE\\{\\<";
+    const TOP_PERKELE_INTRO = [
+        'Ah, you are finally here.',
+        '...All of you.',
+        'Fourteen souls were promised to my master. Not a single one of them has reached him.',
+        "You broke the clay. One by one, you pulled yourselves out of the moon's grip.",
+        'A festival without a champion is simply held again. And again. That is how it has always been, wherever the Moon God went.',
+        'But never before has anyone climbed these stairs together.'
+    ];
+    const TOP_PERKELE_OFFER = [
+        'So be it. I will make you one last offer.',
+        'One of you may take my place. Serve my master, and the circle keeps turning. The rest may walk away.',
+        'Or you may try to break the circle. Kill me, and the festival loses its purpose. Prehevil will finally be silent.',
+        'Choose. Each of you. My master is listening.'
+    ];
+    // lo que le dice el protagonista (por su personaje)
+    const TOP_HERO_LINES = {
+        1: "We didn't come up here to kneel. Not to you, not to anyone.",
+        3: "I've read about circles like yours. Every one of them could be broken.",
+        4: "We've buried enough people for your master. No more.",
+        5: 'Nobody else is dying for this. Not on my watch.',
+        6: 'My master wanted me to serve as well. You see how that ended.',
+        13: 'You talk a lot for a man standing alone against all of us.',
+        14: "So this is the story. And we're the ending you didn't plan for.",
+        15: "We saved each other. You can't take that from us."
+    };
+    const TOP_HERO_ANY = 'We all made it here. That was never part of your plan.';
+    // lo que dice cada uno al elegir: [ocupar su sitio, romper el circulo]
+    const TOP_CHOICE_LINES = {
+        1: ['Someone has to carry this. Let it be me.', "I've followed orders my whole life. Not this one."],
+        3: ["Power is power. I won't let it go to waste.", "This ends tonight. I'll make sure of it."],
+        4: ["If it means the others live... I'll take it.", "I'm done feeding your master."],
+        5: ['Maybe I can understand it from the inside.', "Let's break this damn thing."],
+        6: ['One more master. At least this one does not talk.', 'No more masters. For anyone.'],
+        13: ["Sorry. I'm not walking away empty-handed.", "Let's finish this together."],
+        14: ["I need to see what's behind all this. All of it.", 'Nobody else gets dragged into this.'],
+        15: ["I... I'm tired of being afraid. I'll take it.", "I won't let anyone else turn into one of those things."]
+    };
+    const TOP_CHOICE_ANY = ['I will take his place.', "I'll break the circle."];
+    const TOP_FIGHT_ALL = 'Then come. All of you. Let us see what your unity is worth.';
+    const TOP_FIGHT_SIDES = 'Then it is decided the old way. Blood against blood.';
+    const TOP_FIGHT_TAKERS = 'Only one may sit beside my master. Settle it.';
+    const TOP_PERKELE_DEATH = [
+        'Impressive... All of you...',
+        'You think this breaks anything...? The moon will rise again... somewhere else...',
+        'And my master... will wait...'
+    ];
+    const TOP_AFTER_TEXT = [
+        "Per'kele is dead.",
+        'The tower is silent. For the first time in centuries, no one is left to keep the festival turning.'
+    ];
+
+    function topPlayers() {
+        const out = [1].concat(pvpCandidates().filter(n => n !== 1));
+        return out.filter(n => playerActor(n) && playerActor(n).isAlive());
+    }
+    function topTogether() {
+        return isTermina() && formsAllFreed() && topPlayers().length >= 2;
+    }
+    function ceNamed(name) {
+        const c = ($dataCommonEvents || []).find(x => x && x.name === name);
+        return c ? c.id : 0;
+    }
+    function troopNamed(name) {
+        const t = ($dataTroops || []).find(x => x && x.name === name);
+        return t ? t.id : 0;
+    }
+    function perkeleSay(list, text) {
+        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] }, { code: 401, indent: 0, parameters: [PERKELE_NAME] });
+        wrapText('"' + coop.tr(text) + '"', 60).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+    }
+    function heroSay(list, actor, text) {
+        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
+        wrapText(actor.name() + ': "' + coop.tr(text) + '"', 52).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+    }
+
+    // la escena del juego: lo de antes del primer "Ah, you are finally here." (el protagonista en su
+    // sitio, el ruido de la pantalla...) y luego la nuestra
+    let topOriginal = null;
+    function topList(orig) {
+        const k = orig.findIndex((c, i) => c.code === 101 && c.indent === 0 && orig[i + 1] && orig[i + 1].code === 401 && /ER'KELE/.test(orig[i + 1].parameters[0]));
+        if (k < 0) return orig;
+        topOriginal = orig;
+        return orig.slice(0, k).concat([
+            { code: 355, indent: 0, parameters: ['CoopTop.scene(this)'] },
+            { code: 0, indent: 0, parameters: [] }
+        ]);
+    }
+    const _Game_Interpreter_setup_top = Game_Interpreter.prototype.setup;
+    Game_Interpreter.prototype.setup = function(list, eventId) {
+        if (eventId === TOP.eventId && $gameMap && $gameMap.mapId() === TOP.mapId && list && topTogether()) {
+            const ev = $gameMap.event(eventId);
+            if (ev && ev.page() && ev.page().list === list) list = topList(list);
+        }
+        return _Game_Interpreter_setup_top.call(this, list, eventId);
+    };
+    // los de P2-P4 tambien se ven (su suceso de la escena, junto al protagonista)
+    const _Game_Event_findProperPageIndex_top = Game_Event.prototype.findProperPageIndex;
+    Game_Event.prototype.findProperPageIndex = function() {
+        if (this._mapId === TOP.mapId && $gameSystem && $gameSystem._coopTopShown) {
+            const name = (this.event() && this.event().name) || '';
+            const m = /^elevator_character_(\w+)$/.exec(name);
+            if (m && $gameSystem._coopTopShown[m[1]]) return 0;
+        }
+        return _Game_Event_findProperPageIndex_top.call(this);
+    };
+    function topShowPlayers() {
+        const shown = $gameSystem._coopTopShown = {};
+        let slot = 0;
+        topPlayers().filter(n => n !== 1).forEach(n => {
+            const key = TOP_ELEVATOR[playerActor(n).actorId()];
+            if (!key || slot >= TOP_SLOTS.length) return;
+            shown[key] = true;
+            const ev = $gameMap.events().find(e => e.event().name === 'elevator_character_' + key);
+            if (!ev) return;
+            ev.refresh();
+            ev.locate(TOP_SLOTS[slot][0], TOP_SLOTS[slot][1]);
+            ev.setDirection(8);
+            slot++;
+        });
+        $gameMap.requestRefresh();
+    }
+
+    function topScene(it) {
+        topShowPlayers();
+        const players = topPlayers();
+        $gameSystem._coopTopChoices = {};
+        $gameSystem._coopTopActors = {};
+        players.forEach(n => { $gameSystem._coopTopActors[n] = playerActor(n).actorId(); });
+        const list = [];
+        TOP_PERKELE_INTRO.forEach(t => perkeleSay(list, t));
+        const hero = playerActor(1);
+        heroSay(list, hero, TOP_HERO_LINES[hero.actorId()] || TOP_HERO_ANY);
+        TOP_PERKELE_OFFER.forEach(t => perkeleSay(list, t));
+        players.forEach(n => {
+            const a = playerActor(n);
+            list.push(
+                { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
+                { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
+                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + a.name() + '. What will you do?')] },
+                { code: 102, indent: 0, parameters: [[coop.tr('Take his place'), coop.tr('Break the circle')], -1, 0, 2, 0] },
+                { code: 402, indent: 0, parameters: [0, 'Take his place'] },
+                { code: 355, indent: 1, parameters: ['CoopTop.choose(' + n + ', "take")'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 402, indent: 0, parameters: [1, 'Break the circle'] },
+                { code: 355, indent: 1, parameters: ['CoopTop.choose(' + n + ', "break")'] },
+                { code: 0, indent: 1, parameters: [] },
+                { code: 404, indent: 0, parameters: [] }
+            );
+        });
+        list.push(
+            { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, 1)'] },
+            { code: 355, indent: 0, parameters: ['CoopTop.resolve(this)'] },
+            { code: 0, indent: 0, parameters: [] }
+        );
+        it.setupChild(list, it._eventId);
+    }
+    function topChoose(n, what) {
+        $gameSystem._coopTopChoices = $gameSystem._coopTopChoices || {};
+        $gameSystem._coopTopChoices[n] = what;
+    }
+    // los que siguen vivos de los que eligieron "what" (por su personaje: P1 puede cambiar de manos)
+    function topAlive(what) {
+        const ch = $gameSystem._coopTopChoices || {};
+        const ids = $gameSystem._coopTopActors || {};
+        return Object.keys(ch).map(Number).filter(n => ch[n] === what).filter(n => {
+            const a = $gameActors.actor(ids[n]);
+            return a && a.isAlive() && $gameParty._actors.indexOf(a.actorId()) >= 0;
+        });
+    }
+    // el jugador que lleva ahora a ese personaje
+    function topPlayerOf(n) {
+        const id = ($gameSystem._coopTopActors || {})[n];
+        for (let m = 1; m <= coop.maxPlayers; m++) {
+            const a = playerActor(m);
+            if (a && a.actorId() === id) return m;
+        }
+        return 0;
+    }
+    function topResolve(it) {
+        const ch = $gameSystem._coopTopChoices || {};
+        const list = [];
+        Object.keys(ch).map(Number).sort((x, y) => x - y).forEach(n => {
+            const a = playerActor(n);
+            if (!a) return;
+            const lines = TOP_CHOICE_LINES[a.actorId()] || TOP_CHOICE_ANY;
+            heroSay(list, a, lines[ch[n] === 'take' ? 0 : 1]);
+        });
+        list.push({ code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }, { code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+    // lo siguiente segun quien queda: pelea de bandos, entre los que quieren su sitio, o Per'kele
+    function topNext(it) {
+        const takers = topAlive('take').map(topPlayerOf).filter(n => n);
+        const breakers = topAlive('break').map(topPlayerOf).filter(n => n);
+        const list = [];
+        if (takers.length && breakers.length) {
+            perkeleSay(list, TOP_FIGHT_SIDES);
+            list.push(
+                { code: 355, indent: 0, parameters: ['CoopTop.prepareSides(this, [[' + breakers.join(',') + '], [' + takers.join(',') + ']])'] },
+                { code: 301, indent: 0, parameters: [0, 0, false, false] },
+                { code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }
+            );
+        } else if (takers.length >= 2) {
+            perkeleSay(list, TOP_FIGHT_TAKERS);
+            list.push(
+                { code: 355, indent: 0, parameters: ['CoopTop.prepareSides(this, [' + takers.map(n => '[' + n + ']').join(', ') + '])'] },
+                { code: 301, indent: 0, parameters: [0, 0, false, false] },
+                { code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }
+            );
+        } else if (takers.length === 1) {
+            // (el que queda es el protagonista: lo que el juego hace al decirle "I'll join you.")
+            topSulfur(list);
+        } else if (breakers.length) {
+            perkeleSay(list, TOP_FIGHT_ALL);
+            const before = ceNamed('BEFORE BATTLE'), after = ceNamed('AFTER BATTLE');
+            if (before) list.push({ code: 117, indent: 0, parameters: [before] });
+            list.push({ code: 301, indent: 0, parameters: [0, troopNamed('Perkele1'), false, false] });
+            if (after) list.push({ code: 117, indent: 0, parameters: [after] });
+            TOP_PERKELE_DEATH.forEach(t => perkeleSay(list, t));
+            list.push({ code: 355, indent: 0, parameters: ['CoopTop.brokenCircle(this)'] });
+        }
+        list.push({ code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+    function topPrepareSides(it, groups) {
+        const battleCmd = it._list[it._index + 1];
+        const sides = groups.map(g => g.filter(n => playerActor(n) && playerActor(n).isAlive())).filter(g => g.length);
+        if (sides.length < 2) {
+            if (battleCmd && battleCmd.code === 301) battleCmd.code = 108;
+            return;
+        }
+        const actors = [].concat.apply([], sides.map(g => g.map(n => playerActor(n).actorId())));
+        const troopId = pvpTroopFor(actors);
+        const info = { lethal: true, story: true, sides: sides.map(g => ({ players: g, actors: g.map(n => playerActor(n).actorId()) })), backstabbed: [], before: {} };
+        actors.forEach(id => { info.before[id] = limbSnapshot($gameActors.actor(id)); });
+        pvpPending[troopId] = info;
+        if (battleCmd && battleCmd.code === 301) battleCmd.parameters[1] = troopId;
+        coop.banner(sides.length === 2 && sides.some(g => g.length > 1) ? 'Side against side' : 'Only one may take his place',
+            sides.map(g => g.map(n => playerActor(n).name()).join(' + ')).join(' vs '), '#ff6655', 220);
+    }
+    // el final del azufre del juego: la rama de "I'll join you." de la escena (Per'kele, el combate
+    // y el paso al final)
+    function topSulfur(list) {
+        const orig = topOriginal || [];
+        const i = orig.findIndex(c => c.code === 402 && /I'll join you/.test(String(c.parameters[1])));
+        if (i < 0) return;
+        const ind = orig[i].indent;
+        for (let j = i + 1; j < orig.length; j++) {
+            const c = orig[j];
+            if (c.indent <= ind) break;
+            list.push(Object.assign({}, c, { indent: c.indent - ind - 1 }));
+        }
+        if (list.length && list[list.length - 1].code === 0) list.pop();
+    }
+
+    // ---- final "The Broken Circle" -------------------------------------------------------------
+    // Como el del juego (head_count, Map161): el tren con los que volvieron (todos los vivos que no se
+    // transformaron, y el protagonista), luego el final propio de cada jugador (el del juego de ese
+    // personaje), el nombre del final y los creditos.
+    // (los datos de head_count, leidos del archivo del juego cuando hacen falta)
+    let headCount = null;
+    function readDataSync(file) {
+        try {
+            const fs = require('fs'), path = require('path');
+            return JSON.parse(fs.readFileSync(path.join(path.dirname(process.mainModule.filename), 'data', file), 'utf8'));
+        } catch (e) {
+            try {
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', 'data/' + file, false);
+                xhr.send();
+                return JSON.parse(xhr.responseText);
+            } catch (e2) {
+                return null;
+            }
+        }
+    }
+    function topHeadCountPages() {
+        if (headCount) return headCount;
+        const m = window.$coopHeadCount || (window.$coopHeadCount = readDataSync('Map161.json'));
+        const ev = m && m.events && m.events[1];
+        if (!ev || !ev.pages[0] || !ev.pages[1]) return null;
+        headCount = { others: ev.pages[0].list, hero: ev.pages[1].list };
+        return headCount;
+    }
+    function topSelectAs(actorId) {
+        const st = $gameSystem._coopTopSelect = $gameSystem._coopTopSelect || {};
+        Object.keys(TOP_SELECT).forEach(id => {
+            const sw = switchNamed(TOP_SELECT[id]);
+            if (sw <= 0) return;
+            if (st[sw] === undefined) st[sw] = $gameSwitches.value(sw);
+            $gameSwitches.setValue(sw, actorId === 0 ? st[sw] : Number(id) === actorId);
+        });
+        if (actorId === 0) $gameSystem._coopTopSelect = {};
+    }
+    function brokenCircleList() {
+        const hc = topHeadCountPages();
+        const list = [
+            { code: 242, indent: 0, parameters: [3] },
+            { code: 221, indent: 0, parameters: [] }
+        ];
+        TOP_AFTER_TEXT.forEach(t => formSay(list, coop.tr(t)));
+        if (!hc) return list;
+        const others = hc.others, hero = hc.hero;
+        const end = l => l.length && l[l.length - 1].code === 0 ? l.length - 1 : l.length;
+        const trainAt = l => l.findIndex(c => c.code === 231 && c.parameters[1] === 'train_ending');
+        const countVar = variableNamed('character_count');
+        // el tren: los demas que volvieron (como el juego), el protagonista, y "N sobrevivieron"
+        const o = trainAt(others), h = trainAt(hero);
+        const heroFrom = hero.findIndex(c => c.code === 122 && c.parameters[0] === countVar);
+        list.push({ code: 222, indent: 0, parameters: [] });
+        if (o > 0) list.push.apply(list, others.slice(0, o));
+        if (heroFrom >= 0 && h > heroFrom) list.push.apply(list, hero.slice(heroFrom + 1, h));
+        if (countVar > 0) list.push({ code: 122, indent: 0, parameters: [countVar, countVar, 1, 0, 1] });
+        if (o > 0) list.push.apply(list, others.slice(o, end(others)));
+        // el final de cada jugador (el del juego de su personaje)
+        const photo = hero.findIndex(c => c.code === 231 && c.parameters[1] === 'book_photo');
+        if (photo >= 0) {
+            topPlayers().forEach(n => {
+                const id = playerActor(n).actorId();
+                if (!TOP_SELECT[id]) return;
+                list.push({ code: 355, indent: 0, parameters: ['CoopTop.selectAs(' + id + ')'] });
+                // (los del tren se van: el juego solo deja al protagonista)
+                for (let pic = 51; pic <= 64; pic++) list.push({ code: 232, indent: 0, parameters: [pic, 0, 0, 0, 0, 0, 100, 100, 0, 0, 30, false] });
+                list.push({ code: 230, indent: 0, parameters: [30] });
+                for (let pic = 51; pic <= 64; pic++) list.push({ code: 235, indent: 0, parameters: [pic] });
+                list.push.apply(list, hero.slice(photo, end(hero)));
+                list.push({ code: 221, indent: 0, parameters: [] });
+                for (let pic = 50; pic <= 70; pic++) list.push({ code: 235, indent: 0, parameters: [pic] });
+                list.push({ code: 222, indent: 0, parameters: [] });
+            });
+            list.push({ code: 355, indent: 0, parameters: ['CoopTop.selectAs(0)'] });
+        }
+        list.push(
+            { code: 231, indent: 0, parameters: [89, 'blackscreen', 0, 0, 0, 0, 100, 100, 255, 0] },
+            { code: 101, indent: 0, parameters: ['', 0, 2, 1] },
+            { code: 401, indent: 0, parameters: [centered(coop.tr('The Broken Circle'), 12, '\\{')] },
+            { code: 401, indent: 0, parameters: [centered(coop.tr('Ending'), 0, '\\}')] },
+            { code: 242, indent: 0, parameters: [6] },
+            { code: 221, indent: 0, parameters: [] },
+            { code: 235, indent: 0, parameters: [89] },
+            { code: 230, indent: 0, parameters: [60] }
+        );
+        const credits = ceNamed('CREDITS');
+        if (credits) list.push({ code: 117, indent: 0, parameters: [credits] });
+        list.push({ code: 354, indent: 0, parameters: [] });
+        return list;
+    }
+    function brokenCircle(it) {
+        brokenCircleNow(it);
+    }
+    function brokenCircleNow(it) {
+        const list = brokenCircleList();
+        list.push({ code: 0, indent: 0, parameters: [] });
+        it.setupChild(list, it._eventId);
+    }
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: play the ending The Broken Circle';
+        },
+        run() {
+            const it = $gameMap._interpreter;
+            if (it.isRunning()) {
+                SoundManager.playBuzzer();
+                return;
+            }
+            it.setup([{ code: 355, indent: 0, parameters: ['CoopTop.brokenCircle(this)'] }, { code: 0, indent: 0, parameters: [] }], 0);
+            SoundManager.playOk();
+        }
+    });
+    window.CoopTop = { together: topTogether, list: topList, scene: topScene, choose: topChoose, resolve: topResolve, next: topNext,
+        prepareSides: topPrepareSides, brokenCircle: brokenCircle, brokenCircleNow: brokenCircleNow, brokenCircleList: brokenCircleList,
+        selectAs: topSelectAs, showPlayers: topShowPlayers, map: TOP };
+
     window.CoopForms = { list: FORMS, state: formState, freed: formFreed, allFreed: formsAllFreed, count: formsFreedCount,
         touch: touchForm, fight: formFight, after: formAfter, door: togetherDoor, troopId: formTroopId, eventData: formEventData };
 
