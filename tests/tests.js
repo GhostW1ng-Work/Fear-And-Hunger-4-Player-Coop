@@ -1528,10 +1528,21 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var child = doorIt._childInterpreter;
             var texts = child ? child._list.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ') : '';
             var asks = child ? child._list.filter(function(c) { return c.code === 102; }) : [];
-            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", and each player is asked: Fight / Commit suicide',
+            check('T50 tower door with players in the party: no moonscorched scene - "only one may leave", and each player chooses what to say (phrases: to fight or to end it)',
                 $gameVariables.value(crazedVar) === 0 && /Only one may leave/.test(texts) && asks.length === 3 &&
-                asks.every(function(c) { return c.parameters[0].join('/') === 'Fight/Commit suicide' && c.parameters[1] === -1; }),
-                'var ' + $gameVariables.value(crazedVar) + ' asks ' + asks.length);
+                asks.every(function(c) { return c.parameters[0].length === 6 && c.parameters[1] === -1; }) &&
+                asks[0].parameters[0].indexOf('"If I have to fight for my life, so be it."') >= 0,
+                'var ' + $gameVariables.value(crazedVar) + ' asks ' + asks.length + ' ' + (asks[0] ? asks[0].parameters[0].join(' / ') : ''));
+            // la frase elegida es la que dice despues
+            var ph = child._list.filter(function(c) { return c.code === 355 && /doorChoice\(1, "end", 4\)/.test(c.parameters[0]); }).length;
+            CoopPvp.doorChoice(1, 'end', 4); CoopPvp.doorChoice(2, 'fight', 1); CoopPvp.doorChoice(3, 'fight', 0);
+            var phIt = new Game_Interpreter();
+            phIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
+            CoopPvp.doorResolve(phIt);
+            var phSaid = (phIt._childInterpreter ? phIt._childInterpreter._list : []).filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' | ');
+            check('T50a then everyone sees what each one chose to say (P1 the 5th phrase: to leave of their own will)',
+                ph === 1 && phSaid.indexOf("I don't want to hurt anyone.") >= 0 && phSaid.indexOf('If I have to fight for my life') >= 0, phSaid.slice(0, 160));
+            $gameSystem._coopDoorPhrases = {};
             // P1 y P3 luchan, P2 acaba con su vida
             CoopPvp.doorChoice(1, 'fight'); CoopPvp.doorChoice(2, 'end'); CoopPvp.doorChoice(3, 'fight');
             var resIt = new Game_Interpreter();
@@ -1665,21 +1676,23 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 var sl = sIt._childInterpreter ? sIt._childInterpreter._list : [];
                 var asks2 = sl.filter(function(c) { return c.code === 102; });
                 var stext = sl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
-                check('T61b Per\'kele speaks to all of them, the protagonist answers, then each player chooses: Take his place / Break the circle',
-                    /All of you/.test(stext) && stext.indexOf(pA.name() + ': "') < 0 && asks2.length === 3 &&
-                    asks2.every(function(c) { return c.parameters[0].join('/') === 'Take his place/Break the circle'; }), asks2.length + ' asks');
+                check('T61b Per\'kele speaks to all of them, tells them of Rher and the cult as in the game (the protagonist asks the game\'s questions), then each player chooses what to say',
+                    /All of you/.test(stext) && /The Moon God Rher is gone/.test(stext) && asks2.length === 4 &&
+                    asks2[0].parameters[0].some(function(t) { return /master/.test(t); }) && !asks2[0].parameters[0].some(function(t) { return /join you/.test(t); }) &&
+                    asks2.slice(1).every(function(c) { return c.parameters[0].length === 6; }), asks2.length + ' asks: ' + (asks2[0] ? asks2[0].parameters[0].join(' / ') : ''));
                 var runNext = function() {
                     var r = new Game_Interpreter();
                     r.setup([{ code: 0, indent: 0, parameters: [] }], 0);
                     CoopTop.next(r);
                     return r._childInterpreter ? r._childInterpreter._list : [];
                 };
-                CoopTop.choose(1, 'take'); CoopTop.choose(2, 'break'); CoopTop.choose(3, 'break');
+                CoopTop.choose(1, 'take', 0); CoopTop.choose(2, 'break', 3); CoopTop.choose(3, 'break', 4);
                 var rIt = new Game_Interpreter();
                 rIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
                 CoopTop.resolve(rIt);
                 var rtext = (rIt._childInterpreter ? rIt._childInterpreter._list : []).filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
-                check('T61b2 then it says who chose what: to serve the Sulfur God (P1), to break the circle (P2, P3)',
+                check('T61b2 then what each one said, and who chose what: to serve the Sulfur God (P1), to break the circle (P2, P3)',
+                    rtext.indexOf("Someone has to.") >= 0 && rtext.indexOf("It ends with you") >= 0 &&
                     rtext.indexOf('Sulfur God: ' + pA.name()) >= 0 && rtext.indexOf('break the circle: ' + pB.name() + ', ' + pC.name()) >= 0, rtext);
                 CoopTop.choose(1, 'break');
                 var nl = runNext();
@@ -1715,7 +1728,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                     pics.indexOf('train_ending') >= 0 && pics.indexOf('book_photo') >= 0 && selects >= 2 &&
                     bl.some(function(c) { return c.code === 401 && /The Broken Circle/.test(c.parameters[0]); }) && bl.some(function(c) { return c.code === 354; }),
                     'pictures ' + pics.length + ' endings ' + selects);
-                $gameSystem._coopTopChoices = {}; $gameSystem._coopTopActors = {}; $gameSystem._coopTopShown = null;
+                $gameSystem._coopTopChoices = {}; $gameSystem._coopTopPhrases = {}; $gameSystem._coopTopActors = {}; $gameSystem._coopTopShown = null;
             }
             $gameSystem._coopForms = {};
             // correr: cada uno con su resistencia y su imagen (P1 corre: los demas no)

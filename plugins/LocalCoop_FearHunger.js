@@ -1737,22 +1737,15 @@
             { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
             { code: 401, indent: 0, parameters: [coop.tr('Only one may leave Termina. Only the last one standing.')] }
         ];
-        // cada uno elige (contesta su jugador): luchar o acabar con su vida
+        // cada uno elige (contesta su jugador) lo que dice: con unas frases lucha, con otras acaba con su vida
         players.forEach(n => {
             const a = playerActor(n);
             list.push(
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
                 { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + (a ? a.name() : '?') + '. What will you do?')] },
-                { code: 102, indent: 0, parameters: [[coop.tr('Fight'), coop.tr('Commit suicide')], -1, 0, 2, 0] },
-                { code: 402, indent: 0, parameters: [0, 'Fight'] },
-                { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "fight")'] },
-                { code: 0, indent: 1, parameters: [] },
-                { code: 402, indent: 0, parameters: [1, 'Commit suicide'] },
-                { code: 355, indent: 1, parameters: ['CoopPvp.doorChoice(' + n + ', "end")'] },
-                { code: 0, indent: 1, parameters: [] },
-                { code: 404, indent: 0, parameters: [] }
+                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + (a ? a.name() : '?') + '. What will you say?')] }
             );
+            pushPhraseChoice(list, doorPhrases(a), 'CoopPvp.doorChoice(' + n + ', "{kind}", {i})');
         });
         list.push(
             { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + starter + ')'] },
@@ -1768,9 +1761,36 @@
         for (let x = $gameMap._interpreter; x; x = x._childInterpreter) x._coopStarter = n;
         if (it) it._coopStarter = n;
     }
-    function doorChoice(n, what) {
+    function doorChoice(n, what, phrase) {
         $gameSystem._coopDoorChoices = $gameSystem._coopDoorChoices || {};
         $gameSystem._coopDoorChoices[n] = what;
+        $gameSystem._coopDoorPhrases = $gameSystem._coopDoorPhrases || {};
+        const a = playerActor(n);
+        const list = a ? doorPhrases(a) : [];
+        $gameSystem._coopDoorPhrases[n] = phrase >= 0 && list[phrase] ? list[phrase].text : '';
+    }
+    // las frases de la puerta: la del autor para su personaje (luchar / acabar) y las de cualquiera
+    function doorPhrases(actor) {
+        const own = actor ? DOOR_LINES[actor.actorId()] : null;
+        const out = [];
+        if (own) out.push({ kind: 'fight', text: own[0] });
+        DOOR_FIGHT_ANY.forEach(t => out.push({ kind: 'fight', text: t }));
+        if (own) out.push({ kind: 'end', text: own[1] });
+        DOOR_END_ANY.forEach(t => out.push({ kind: 'end', text: t }));
+        return out;
+    }
+    // la pregunta con las frases (hasta 6); cada una llama a "script" con su tipo y su numero
+    function pushPhraseChoice(list, phrases, script) {
+        const shown = phrases.slice(0, 6);
+        list.push({ code: 102, indent: 0, parameters: [shown.map(ph => '"' + coop.tr(ph.text) + '"'), -1, 0, 2, 0] });
+        shown.forEach((ph, i) => {
+            list.push(
+                { code: 402, indent: 0, parameters: [i, ph.text] },
+                { code: 355, indent: 1, parameters: [script.replace('{kind}', ph.kind).replace('{i}', String(i))] },
+                { code: 0, indent: 1, parameters: [] }
+            );
+        });
+        list.push({ code: 404, indent: 0, parameters: [] });
     }
 
     // lo que dice cada uno al final (por su personaje)
@@ -1786,6 +1806,9 @@
         15: ["I'm sorry... I have to try.", "I don't want to hurt anyone."]
     };
     const DOOR_LINES_ANY = ['Only one leaves. It will be me.', "I won't fight you. Let it end here."];
+    // las de cualquiera (el autor del co-op: la primera de cada una)
+    const DOOR_FIGHT_ANY = ['If I have to fight for my life, so be it.', 'Only one leaves. It will be me.'];
+    const DOOR_END_ANY = ["I don't want to hurt anyone. I will leave of my own will.", "I won't fight you. Let it end here."];
 
 
 
@@ -1801,8 +1824,9 @@
             const a = playerActor(n);
             if (!a) return;
             const lines = DOOR_LINES[a.actorId()] || DOOR_LINES_ANY;
+            const said = ($gameSystem._coopDoorPhrases || {})[n] || lines[ch[n] === 'fight' ? 0 : 1];
             list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
-            wrapText(coop.tr(a.name() + ': "' + lines[ch[n] === 'fight' ? 0 : 1] + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+            wrapText(coop.tr(a.name() + ': "' + said + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         });
         // los que acaban con su vida (P1 al final si alguien lucha)
         enders.filter(n => n !== 1).forEach(n => {
@@ -2820,8 +2844,8 @@
         _Sprite_Picture_updateBitmap_run.apply(this, arguments);
     };
 
-    // ---- liberar a los concursantes (Termina): sus figuras de barro -------------------------------
-    // Cada concursante con forma "moonscorched" tiene una figura de barro ($clay_statue1) cerca de
+    // ---- liberar a los concursantes (Termina): sus idolos de azufre --------------------------------
+    // Cada concursante con forma "moonscorched" tiene un idolo de azufre (el dibujo $clay_statue1) cerca de
     // donde aparece esa forma, desde el principio. Quien la toca lucha (con todo el grupo) contra esa
     // forma; si gana, el concursante queda libre: ya no se transforma (los interruptores con los que
     // el juego le transforma no se encienden) y no muere (lo que cambia el combate en interruptores y
@@ -2964,8 +2988,8 @@
         if (formState().lost[key] || !troopId) {
             return;
         } else {
-            formSay(list, withName('A small clay figure. It looks like {name}...', f));
-            formSay(list, coop.tr('Something moves inside the clay. The moon is looking at you through its eyes.'));
+            formSay(list, withName('A small figure of sulfur. It looks like {name}...', f));
+            formSay(list, coop.tr('Something moves inside the sulfur. The moon is looking at you through its eyes.'));
             list.push(
                 { code: 102, indent: 0, parameters: [[coop.tr('Touch it'), coop.tr('Leave')], 1, 0, 2, 0] },
                 { code: 402, indent: 0, parameters: [0, 'Touch it'] },
@@ -3046,7 +3070,7 @@
         const f = formByKey(key);
         if (!f || !formState().freed[key]) return;
         const list = [];
-        formSay(list, withName('The clay figure crumbles to dust. {name} is free.', f));
+        formSay(list, withName('The sulfur figure crumbles to yellow dust. {name} is free.', f));
         if (formsAllFreed()) formSay(list, coop.tr('Every contestant is free. The tower is waiting for all of you.'));
         list.push({ code: 0, indent: 0, parameters: [] });
         it.setupChild(list, it._eventId);
@@ -3106,7 +3130,7 @@
         visible() { return isTermina(); },
         name() {
             const f = FORMS.find(x => !formFreed(x));
-            return f ? 'Cheat: teleport to the clay figure of ' + formName(f) : 'Cheat: teleport to the clay figure (all are free)';
+            return f ? 'Cheat: teleport to the sulfur figure of ' + formName(f) : 'Cheat: teleport to the sulfur figure (all are free)';
         },
         run() {
             const f = FORMS.find(x => !formFreed(x));
@@ -3137,18 +3161,24 @@
         'Ah, you are finally here.',
         '...All of you.',
         'Fourteen souls were promised to my master. Not a single one of them has reached him.', // (si murio alguno: TOP_PERKELE_SOME_DEAD)
-        "You broke the clay. One by one, you pulled yourselves out of the moon's grip.",
+        "You broke the sulfur idols. One by one, you pulled yourselves out of the moon's grip.",
         'A festival without a champion is simply held again. And again. That is how it has always been, wherever the Moon God went.',
         'But never before has anyone climbed these stairs together.'
     ];
     const TOP_PERKELE_SOME_DEAD = 'Fourteen souls were promised to my master. Only {dead} of them reached him. The rest you tore away from him.';
     const TOP_PERKELE_ONE_DEAD = 'Fourteen souls were promised to my master. Only one of them reached him. The rest you tore away from him.';
     const TOP_PERKELE_OFFER = [
-        'So be it. I will make you one last offer.',
+        'But you are many, and there is only one seat beside my master. So I will make you one last offer.',
         'One of you may take my place. Serve my master, and the circle keeps turning. The rest may walk away.',
         'Or you may try to break the circle. Kill me, and the festival loses its purpose. Prehevil will finally be silent.',
         'Choose. Each of you. My master is listening.'
     ];
+    // lo que puede decir cada uno al elegir
+    const TOP_JOIN_PHRASES = ["I'll take his place. Someone has to.", 'The Sulfur God can have me.', "I didn't come this far to walk away with nothing."];
+    const TOP_KILL_PHRASES = ["It ends with you, Per'kele.", 'No more festivals. No more harvest.', "I'll break this circle, even if it kills me."];
+    function topPhrases() {
+        return TOP_JOIN_PHRASES.map(t => ({ kind: 'take', text: t })).concat(TOP_KILL_PHRASES.map(t => ({ kind: 'break', text: t })));
+    }
     const TOP_FIGHT_ALL = 'Then come. All of you. Let us see what your unity is worth.';
     const TOP_FIGHT_SIDES = 'Then it is decided the old way. Blood against blood.';
     const TOP_FIGHT_TAKERS = 'Only one may sit beside my master. Settle it.';
@@ -3252,22 +3282,17 @@
             if (i === 2 && dead > 0) t = dead === 1 ? TOP_PERKELE_ONE_DEAD : coop.tr(TOP_PERKELE_SOME_DEAD).split('{dead}').join(String(dead));
             perkeleSay(list, t);
         });
+        list.push({ code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, 1)'] });
+        list.push.apply(list, topExplanation());
         TOP_PERKELE_OFFER.forEach(t => perkeleSay(list, t));
         players.forEach(n => {
             const a = playerActor(n);
             list.push(
                 { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, ' + n + ')'] },
                 { code: 101, indent: 0, parameters: ['', 0, 0, 2] },
-                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + a.name() + '. What will you do?')] },
-                { code: 102, indent: 0, parameters: [[coop.tr('Take his place'), coop.tr('Break the circle')], -1, 0, 2, 0] },
-                { code: 402, indent: 0, parameters: [0, 'Take his place'] },
-                { code: 355, indent: 1, parameters: ['CoopTop.choose(' + n + ', "take")'] },
-                { code: 0, indent: 1, parameters: [] },
-                { code: 402, indent: 0, parameters: [1, 'Break the circle'] },
-                { code: 355, indent: 1, parameters: ['CoopTop.choose(' + n + ', "break")'] },
-                { code: 0, indent: 1, parameters: [] },
-                { code: 404, indent: 0, parameters: [] }
+                { code: 401, indent: 0, parameters: [coop.tr('P' + n + ' - ' + a.name() + '. What will you say?')] }
             );
+            pushPhraseChoice(list, topPhrases(), 'CoopTop.choose(' + n + ', "{kind}", {i})');
         });
         list.push(
             { code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, 1)'] },
@@ -3276,9 +3301,40 @@
         );
         it.setupChild(list, it._eventId);
     }
-    function topChoose(n, what) {
+    function topChoose(n, what, phrase) {
         $gameSystem._coopTopChoices = $gameSystem._coopTopChoices || {};
         $gameSystem._coopTopChoices[n] = what;
+        $gameSystem._coopTopPhrases = $gameSystem._coopTopPhrases || {};
+        const ph = topPhrases()[phrase];
+        $gameSystem._coopTopPhrases[n] = ph ? ph.text : '';
+    }
+    // De la escena del juego: lo que Per'kele cuenta del Lunar Rher, del culto del azufre y de su senor
+    // ("Let me explain..." hasta "Join us or return..."), y las preguntas del protagonista sobre eso
+    // (las del juego); en vez de unirse o matarle aqui, "..." sigue: lo eligen todos despues.
+    function topExplanation() {
+        const orig = topOriginal || [];
+        const start = orig.findIndex(c => c.code === 401 && /The Moon God Rher is gone/.test(c.parameters[0]));
+        const ask = orig.findIndex((c, i) => i > start && c.code === 102 && c.indent === 0 && c.parameters[0].some(t => /I'll join you/.test(t)));
+        if (start < 1 || ask < 0) return [];
+        let from = start;
+        while (from > 0 && orig[from].code !== 101) from--;
+        const out = orig.slice(from, ask);
+        const ch = orig[ask].parameters[0];
+        const branch = k => {
+            const at = orig.findIndex((c, i) => i > ask && c.code === 402 && c.indent === 0 && c.parameters[0] === k);
+            const body = [];
+            for (let j = at + 1; at > 0 && j < orig.length && orig[j].indent > 0; j++) body.push(orig[j]);
+            return body;
+        };
+        const qs = [1, 2].filter(k => ch[k]);
+        const choices = qs.map(k => ch[k]).concat(['"..."']);
+        out.push({ code: 102, indent: 0, parameters: [choices, -1, 0, 2, 0] });
+        qs.forEach((k, i) => {
+            out.push({ code: 402, indent: 0, parameters: [i, ch[k]] });
+            out.push.apply(out, branch(k));
+        });
+        out.push({ code: 402, indent: 0, parameters: [qs.length, '"..."'] }, { code: 0, indent: 1, parameters: [] }, { code: 404, indent: 0, parameters: [] });
+        return out;
     }
     // los que siguen vivos de los que eligieron "what" (por su personaje: P1 puede cambiar de manos)
     function topAlive(what) {
@@ -3304,6 +3360,14 @@
         const names = what => Object.keys(ch).map(Number).sort((x, y) => x - y).filter(n => ch[n] === what && playerActor(n))
             .map(n => playerActor(n).name());
         const list = [];
+        // lo que dijo cada uno
+        Object.keys(ch).map(Number).sort((x, y) => x - y).forEach(n => {
+            const a = playerActor(n);
+            const said = ($gameSystem._coopTopPhrases || {})[n];
+            if (!a || !said) return;
+            list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
+            wrapText(coop.tr(a.name() + ': "' + said + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+        });
         const take = names('take'), brk = names('break');
         list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
         if (take.length) wrapText(coop.tr('To take his place and serve the Sulfur God:') + ' ' + take.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
