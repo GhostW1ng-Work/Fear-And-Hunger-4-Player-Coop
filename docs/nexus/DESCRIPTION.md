@@ -1,0 +1,50 @@
+# Fear & Hunger Co-op: Termina and Fear & Hunger 1 (2-4 players)
+
+Play **Fear & Hunger 2: Termina** or **Fear & Hunger 1** together with your friends - up to 4 players. Every player controls their own character: walks around, talks to people, opens their own menu and takes their own turns in battle.
+
+Based on [rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop) by TheTiranix (local co-op for 2 players, MIT license) - extended to 4 players, online play and everything below, made and tested for Termina and Fear & Hunger 1.
+
+## How you can play
+
+- **On one PC** - keyboard and gamepads. The screen splits when you walk apart (or one shared camera - your choice).
+- **Online** (experimental) - every player on their own PC with their own copy of the game, over the local network or the internet (Radmin VPN / ZeroTier, or a forwarded port).
+
+## Features
+
+- **Join any time** - press a button on the map and pick a character from the party. Online, a guest can also bring the main character of their own save (level, skills, equipment).
+- **Battles together or apart** - fight the same enemy together, or each one their own battle at the same time. Walk up to a friend's battle and join in.
+- **Your own light and stamina** - every player carries their own torch and has their own running stamina.
+- **Death and soul stones** - a fallen player leaves a body; bring them back with a soul stone. A dead player watches the others' battles.
+- **The protagonist can change** - if the protagonist dies, the next player takes over and the story goes on.
+- **PvP** - attack another player: the game's own body-part battles, cut arms, legs and heads, fights to the death, several sides at once. Kill the protagonist - become the protagonist.
+- **Lots of settings and cheats** - rules for death, revives, PvP, camera, and test cheats.
+- **English and Russian** - the mod's texts in both languages.
+
+## New in Termina (spoilers)
+
+- **The tower door with several players:** "Only one may leave". Each player chooses what to say - to fight or to end it. If everybody chooses to end it: a new ending, **The Fourth Festival**.
+- **Sulfur idols:** save the other contestants by defeating their moonscorched forms at their sulfur idols - before they turn. Plan your route: some turn already on day 1.
+- **The top of the tower together:** with every contestant saved or dead, everybody climbs the tower. Per'kele makes all of you an offer - each player decides: join the Sulfur God or kill him. A new ending, **The Broken Circle**: the train with everyone who survived, and the ending of every player's character.
+
+## Installation
+
+1. Unpack the archive into the game folder (where **Game.exe** is) and agree to replace the files. The archive's **www** folder goes on top of the game's **www** folder.
+2. Start the game. On the map press **X** (or **Start** on a gamepad) - player 2 joins. **U** / **Numpad 0** or **Start** on another gamepad - the next one.
+3. Online: Options > Co-op > Network game (see *docs/NETPLAY.md* in the archive).
+
+**Update:** unpack the new version the same way.
+**Remove:** delete LookOutsideOnline.js, LocalCoop_FearHunger.js and LocalCoop_Net.js from *www/js/plugins*. To restore the game's own main.js too: Steam > Verify integrity of game files.
+
+The game's *plugins.js* is not changed: the mod's *www/js/main.js* is the game's own one plus a few lines that load the co-op plugins.
+
+## Requirements and notes
+
+- Fear & Hunger 2: Termina or Fear & Hunger 1 (Steam versions tested).
+- Online, everybody needs the same version of the mod.
+- It's a big mod for games made for one player - bugs happen. Please report them on Discord or GitHub.
+
+## Links
+
+- **Discord** (news, help, bug reports, finding players): https://discord.gg/7JTs84Qt6w
+- **GitHub** (full documentation, installer, source): https://github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop
+- **Support the mod:** Patreon https://patreon.com/FlyingFrogs | Boosty https://boosty.to/flyingfrogs
