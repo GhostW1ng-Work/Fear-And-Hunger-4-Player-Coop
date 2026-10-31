@@ -1656,6 +1656,26 @@
         _BattleManager_endBattle.call(this, result);
     };
 
+    // GALV_LayerGraphics (Termina): las capas de los combates estan en $gameSystem, una sola para
+    // todos. "AFTER BATTLE" de un combate que acaba las borra (Galv.LG.bLayer(1)) y el dibujo de esa
+    // capa en OTRO combate aparte en marcha fallaba: ese combate se cerraba a medias (y el enemigo
+    // volvia a atacar). Sin su capa, ese dibujo no se ve y el combate sigue.
+    if (typeof Sprite_LayerGraphic !== 'undefined') {
+        const _Sprite_LayerGraphic_update = Sprite_LayerGraphic.prototype.update;
+        Sprite_LayerGraphic.prototype.update = function() {
+            if (!this.lValue()) {
+                this.visible = false;
+                this._coopNoLayer = true;
+                return;
+            }
+            if (this._coopNoLayer) {
+                this._coopNoLayer = false;
+                this.visible = true;
+            }
+            _Sprite_LayerGraphic_update.call(this);
+        };
+    }
+
     function closeBattle(b) {
         if (!b || battles.indexOf(b) < 0) return;
         try {

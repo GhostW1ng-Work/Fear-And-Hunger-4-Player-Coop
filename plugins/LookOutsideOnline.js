@@ -297,7 +297,11 @@
     // los enemigos no lo persiguen ni lo tocan
     let externalHidden = null;
     function hiddenFromEvents(n) {
-        return !!externalHidden && externalHidden(n);
+        if (externalHidden && externalHidden(n)) return true;
+        // (el personaje de un jugador muerto no despierta a los enemigos ni toca sucesos)
+        const p = typeof coopPlayer === 'function' ? coopPlayer(n) : null;
+        const a = p && p.actor ? p.actor() : null;
+        return !!a && a.isDead();
     }
 
     function newPlayerKeys() {
@@ -2098,7 +2102,7 @@
     // Igual que Game_Player.startMapEvent: en su propia casilla solo cuentan los eventos por
     // debajo / por encima del personaje, y delante solo los que estan a su mismo nivel
     Game_CoopPlayer.prototype.startMapEventCoop = function(x, y, triggers, normal) {
-        if ($gameMap.isEventRunning()) return;
+        if ($gameMap.isEventRunning() || hiddenFromEvents(this._coopIndex)) return;
         for (const event of $gameMap.eventsXy(x, y)) {
             if (event.isTriggerIn(triggers) && event.isNormalPriority() === normal) {
                 startEventAs(this._coopIndex, event);
