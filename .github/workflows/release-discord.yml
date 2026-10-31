@@ -1,0 +1,21 @@
+# Every published release goes to the Discord channel of the webhook in the secret DISCORD_WEBHOOK
+# (Settings > Secrets and variables > Actions > Repository secrets): the version, the list of
+# changes and the download link. The message is made by tools/release_to_discord.py.
+name: Release to Discord
+
+on:
+  release:
+    types: [published]
+  # (by hand: Actions > Release to Discord > Run workflow - posts the latest release, to try it)
+  workflow_dispatch:
+
+jobs:
+  discord:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Post the release to Discord
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 tools/release_to_discord.py "$GITHUB_EVENT_PATH"
