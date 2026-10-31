@@ -22,6 +22,7 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 - [Death and soul stones](#death-and-soul-stones)
 - [Torches, light and NPCs](#torches-light-and-npcs)
 - [Players against each other (PvP, Termina)](#players-against-each-other-pvp-termina)
+- [Endings (spoilers)](#endings-spoilers)
 - [The Co-op menu](#the-co-op-menu)
 - [Settings](#settings)
 - [Cheats](#cheats)
@@ -143,11 +144,46 @@ Only in Termina, and only if the host turns it on: setting **PvP (Termina)** - *
 - **Not to the death:** whoever reaches 0 HP stays with 1 HP, and the battle ends. Limbs cut off in the fight **come back** after it.
 - **To the death:** the loser dies by the normal rules - a body that can be brought back with a soul stone (unless *Revive* is off); cut limbs stay.
 - **Killing the protagonist (P1):** **the killer becomes the protagonist** (in a fight of several sides: the main player of the side whose hit finished P1, even if a helper or a companion hit) - their character goes first in the party and the story now treats them as the protagonist. **Online** the killer's PC plays P1 from then on and the dead one's PC plays the killer's old number (the host stays the host: rules, saving); this is kept in the save. **On one PC** the screen tells the players to swap places (P1's controls go to the killer). The old protagonist is now a dead companion: their body stays, their player waits (a free character from the Co-op menu, or watching the battles), and a soul stone brings them back - as a companion, not as the protagonist. If the killer's character can't be a protagonist in Termina (only the 7 playable contestants and O'saa can), it is game over.
-- **The tower door (ending B):** if a player touches the stone door while other players are in the party, nobody turns moonscorched: *Only one may leave Termina*. Then **each player chooses what to say** (on their own PC, up to 6 phrases: their character's own line or a common one, to fight or to end it). Everyone sees what each one said; whoever chose to end it dies; those who chose to fight fight each other to the death (everybody else watches). If only one chose to fight, they are the one left - and the protagonist, if they weren't (if P1 chose *Commit suicide*, P1 dies at the end and the one left takes over). If everybody chose to end it: the ending **The Fourth Festival** (bells, the tower, a slow text; then the title screen). The one left touches the door again. (Companions of the game in the party still go mad as in the game.)
-- **All the contestants freed (Termina):** sulfur idols of the 12 contestants who have a moonscorched form stand where that form is met; beating the form at the idol saves the contestant (they never turn). With every contestant saved or dead, the tower door opens for all players together, and at the top Per'kele speaks to all of them; each player chooses to join the Sulfur God or to kill him (new ending **The Broken Circle**). Details: `docs/FREE_CONTESTANTS.en.md`, `docs/PERKELE_TOGETHER.en.md`.
+- **The tower door and the endings with several players:** see [Endings (spoilers)](#endings-spoilers).
 - **Running away:** the *Run* skill ends the fight for both; everybody goes back to the map as they are (HP, states).
 - No experience or money for these fights.
 - Online it works with both *Together* and *Separate* battles; in a separate battle the attacked player joins the attacker's battle.
+
+---
+
+## Endings (spoilers)
+
+Termina only. With one protagonist left, the game's own endings work as in the game.
+
+<details>
+<summary>Show the endings and how to get them (spoilers)</summary>
+
+### The tower door with several players: "Only one may leave"
+
+When a player touches the stone door of the tower (Temple site) with other players in the party (and not every contestant is freed - see below), nobody turns moonscorched: *Only one may leave Termina*. **Each player picks what to say** on their own PC (up to 6 phrases: their character's own line or a common one) - some phrases mean *fight*, others mean *end it*. Everybody then sees what each one said.
+
+- **Some fight:** those who chose to end it die; the ones who fight fight each other to the death (the others watch). The one left is the protagonist (if P1 chose to end it, P1 dies at the end and the one left takes over) and goes on alone - touching the door again leads to the game's own ending B, as in the game.
+- **Everybody chose to end it - ending "The Fourth Festival":** bells, the tower, a slowly rising text, then the title screen. Lines: `docs/DOOR_LINES.md`, the ending's text: `docs/ENDING_FOURTH_FESTIVAL.md`.
+
+### Everyone together: free the contestants
+
+1. **Sulfur idols.** The 12 contestants who have a moonscorched form (the 8 playable ones, Henryk, Samarie, Tanaka, Caligura) each have a small figure of sulfur where that form is met. Touch it and beat the form (the whole party fights) - the contestant is **saved**: they never turn and stay alive.
+2. **Before they turn.** A contestant who turns before being saved can't be saved any more (their figure disappears). Henryk turns already at dusk of day 1, Levi and Caligura from the evening of day 2, everybody else by the evening of day 3 - sleeping moves time on. Plan the route.
+3. **Dead counts too.** A contestant who died - as a person, or killed after turning (their monster) - counts. A turned contestant who is still alive has to be killed.
+4. **The tower door opens for all of you** when every one of the 12 is saved or dead: no *Only one may leave*, everybody goes in together. Co-op menu shows *Freed contestants: N/12*.
+
+### The top of the tower: Per'kele
+
+With 2+ players at the top Per'kele speaks to all of them (his talk about the Moon God and the Cult of Sulfur is the game's own, with the protagonist's questions). Then **each player picks a phrase**: join the Sulfur God, or kill Per'kele.
+
+- **Everybody against him - ending "The Broken Circle":** all fight Per'kele together; then the game's train with everybody who survived, the game's own ending of each player's character in turn, the credits.
+- **Some against, some with him:** side against side, to the death. If the ones against him win - they fight Per'kele -> The Broken Circle. If the ones with him win - as below.
+- **Several with him:** only one seat - they fight each other to the death.
+- **One left with him:** the game's own sulfur ending (as after *I'll join you.*).
+
+Details and every line: `docs/FREE_CONTESTANTS.en.md`, `docs/PERKELE_TOGETHER.en.md`. To check quickly: the cheats *Play the ending The Fourth Festival*, *Play the ending The Broken Circle*, *Free all contestants*, *Teleport to the tower door* (see [Cheats](#cheats)).
+
+</details>
 
 ---
 
