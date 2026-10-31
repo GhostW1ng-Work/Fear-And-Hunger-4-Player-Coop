@@ -1637,6 +1637,21 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var figPage = Game_Event.prototype.findProperPageIndex.call(fakeFig);
             check('T60f his figure after that: gone (no scene, no battle)', tl2.length === 0 && figPage === -1, 'list ' + tl2.length + ' page ' + figPage);
             $gameSwitches._data[sniper] = wasSn; $gameSwitches._data[crazy] = wasCr; $gameSwitches._data[marcohDead] = wasMd;
+            // ya transformado sin que el mod lo viera (Mayor_appears encendido antes, durmiendo...): no esta
+            var mayorSw = $dataSystem.switches.indexOf('Mayor_appears'), henDead = $dataSystem.switches.indexOf('Henryk1');
+            var wasMy = $gameSwitches._data[mayorSw], wasHd = $gameSwitches._data[henDead];
+            $gameSystem._coopForms = { freed: {}, lost: {} };
+            $gameSwitches._data[henDead] = false;
+            $gameSwitches._data[mayorSw] = true;
+            var henFig = { event: function() { return { _coopForm: 'henryk' }; }, _mapId: 1, _eventId: 1 };
+            var henTurned = CoopForms.turned(CoopForms.list.filter(function(f) { return f.key === 'henryk'; })[0]);
+            check('T60f2 Henryk already turned (the Mayor) before the mod saw it: his figure is gone too',
+                henTurned && Game_Event.prototype.findProperPageIndex.call(henFig) === -1);
+            $gameSwitches._data[mayorSw] = false; $gameSwitches._data[henDead] = true;
+            check('T60f3 a contestant who died (and did not turn): free - no figure',
+                CoopForms.freed(CoopForms.list.filter(function(f) { return f.key === 'henryk'; })[0]) && Game_Event.prototype.findProperPageIndex.call(henFig) === -1);
+            $gameSwitches._data[mayorSw] = wasMy; $gameSwitches._data[henDead] = wasHd;
+            $gameSystem._coopForms = { freed: { levi: true }, lost: { marcoh: true } };
             // dia 3, tarde: los que no son libres se transforman
             $gameSystem._coopForms = { freed: { levi: true }, lost: {} };
             var d3 = $dataSystem.switches.indexOf('DAY3_EVENING');

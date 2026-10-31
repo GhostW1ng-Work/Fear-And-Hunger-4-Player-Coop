@@ -2853,18 +2853,18 @@
     // todos) ya no se puede. El que muere sin transformarse cuenta como libre. Con todos libres, la
     // puerta de la torre se abre para todos, como si todos los demas hubieran muerto.
     const FORMS = [
-        { key: 'levi', name: 'Levi', dead: 'levi1', troop: 'Weeping_scope', turn: ['sniper_scene1'], at: [39, 29, 7], look: [4, 0] },
+        { key: 'levi', name: 'Levi', dead: 'levi1', troop: 'Weeping_scope', turn: ['sniper_scene1'], at: [77, 23, 37], look: [4, 0] },
         { key: 'marcoh', name: 'Marcoh', dead: 'Marcoh1', troop: 'Giant', turn: ['Marcoh_gone_crazy', 'giant_upstairs', 'giant_downstairs'], at: [93, 36, 32], look: [6, 1] },
-        { key: 'abella', name: 'Abella', dead: 'Abella1', troop: 'Chaugnar', turn: ['Abella_gone'], at: [24, 65, 42], look: [6, 2] },
+        { key: 'abella', name: 'Abella', dead: 'Abella1', troop: 'Chaugnar', turn: ['Abella_gone'], at: [24, 55, 40], look: [6, 2] },
         { key: 'marina', name: 'Marina', dead: 'marina1', troop: 'Cocoon', turn: [], at: [81, 25, 43], look: [4, 1], hide: [81, [276, 277, 278, 279, 280]] },
         { key: 'olivia', name: 'Olivia', dead: 'Olivia1', troop: 'Mechanical_dance', turn: ['mechanical_dance_appear'], at: [84, 27, 65], look: [6, 0] },
-        { key: 'daan', name: 'Daan', dead: 'Daan1', troop: 'Pocketcat2', turn: ['Pocketdaan_appear', 'pocketdaan_inside', 'pocketdaan_outside'], at: [88, 6, 2], look: [4, 2] },
+        { key: 'daan', name: 'Daan', dead: 'Daan1', troop: 'Pocketcat2', turn: ['Pocketdaan_appear', 'pocketdaan_inside', 'pocketdaan_outside'], at: [84, 7, 21], look: [4, 2] },
         { key: 'osaa', name: "O'saa", dead: 'yellow_mage1', troop: 'Mastermind', turn: ['mastermind_mausoleum_alley'], at: [80, 10, 10], look: [8, 2] },
-        { key: 'karin', name: 'Karin', dead: 'karin1', troop: 'Valkyrie', turn: ['valkyrie_active', 'valkyrie_flight1'], at: [41, 24, 33], look: [8, 1] },
+        { key: 'karin', name: 'Karin', dead: 'karin1', troop: 'Valkyrie', turn: ['valkyrie_active', 'valkyrie_flight1'], at: [112, 29, 23], look: [8, 1] },
         { key: 'henryk', name: 'Henryk', dead: 'Henryk1', troop: 'Gentleman1', turn: ['Mayor_appears'], at: [20, 4, 54], look: [8, 0] },
-        { key: 'samarie', name: 'Samarie', dead: 'samarie1', troop: 'Dysmorphia', turn: ['samarie_full_transformation'], at: [48, 27, 17], look: [2, 0] },
-        { key: 'tanaka', name: 'Tanaka', dead: 'Tanaka1', troop: 'Judgement', turn: ['Tanaka_alone', 'Tanaka_final'], at: [84, 56, 65], look: [2, 1] },
-        { key: 'caligura', name: 'Caligura', dead: 'caligura1', troop: 'Monster', turn: ['caligura_monster'], at: [78, 29, 56], look: [2, 2] }
+        { key: 'samarie', name: 'Samarie', dead: 'samarie1', troop: 'Dysmorphia', turn: ['samarie_full_transformation'], at: [48, 16, 22], look: [2, 0] },
+        { key: 'tanaka', name: 'Tanaka', dead: 'Tanaka1', troop: 'Judgement', turn: ['Tanaka_alone', 'Tanaka_final'], at: [13, 18, 20], look: [2, 1] },
+        { key: 'caligura', name: 'Caligura', dead: 'caligura1', troop: 'Monster', turn: ['caligura_monster'], at: [78, 17, 51], look: [2, 2] }
     ];
     function formState() {
         const st = $gameSystem._coopForms = $gameSystem._coopForms || {};
@@ -2883,6 +2883,15 @@
     function formFreed(f) {
         const st = formState();
         return !!st.freed[f.key] || (!st.lost[f.key] && formDead(f));
+    }
+    // ya transformado: lo vio el mod, o su interruptor (o la tarde del dia 3) esta encendido aunque
+    // el mod no lo viera (una partida de antes, durmiendo...)
+    function formTurned(f) {
+        const st = formState();
+        if (st.lost[f.key]) return true;
+        if (st.freed[f.key] || formDead(f)) return false;
+        const on = name => { const id = switchNamed(name); return id > 0 && $gameSwitches.value(id); };
+        return f.turn.some(on) || on('DAY3_EVENING');
     }
     function formsFreedCount() {
         return FORMS.filter(formFreed).length;
@@ -2964,7 +2973,7 @@
         if (data && data._coopForm) {
             const f = formByKey(data._coopForm);
             // (libre, o ya transformado: no esta)
-            return f && !formFreed(f) && !formState().lost[f.key] ? 0 : -1;
+            return f && !formFreed(f) && !formTurned(f) ? 0 : -1;
         }
         // (la forma del juego de quien ya es libre no aparece: Marina, su capullo)
         const mapId = this._mapId;
@@ -2985,7 +2994,7 @@
         if (!f || formFreed(f)) return;
         const list = [];
         const troopId = formTroopId(f);
-        if (formState().lost[key] || !troopId) {
+        if (formTurned(f) || !troopId) {
             return;
         } else {
             formSay(list, withName('A small figure of sulfur. It looks like {name}...', f));
@@ -3104,7 +3113,7 @@
     coop.addAssignAction({
         visible() { return isTermina() && !!$gameSystem; },
         name() {
-            const lost = FORMS.filter(f => formState().lost[f.key] && !formFreed(f)).length;
+            const lost = FORMS.filter(f => formTurned(f) && !formFreed(f)).length;
             return 'Freed contestants: ' + formsFreedCount() + '/' + FORMS.length + (lost ? ', too late for ' + lost : '');
         },
         run() {
@@ -3558,7 +3567,7 @@
         prepareSides: topPrepareSides, brokenCircle: brokenCircle, brokenCircleNow: brokenCircleNow, brokenCircleList: brokenCircleList,
         selectAs: topSelectAs, showPlayers: topShowPlayers, map: TOP };
 
-    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, allFreed: formsAllFreed, count: formsFreedCount,
+    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, turned: formTurned, allFreed: formsAllFreed, count: formsFreedCount,
         touch: touchForm, fight: formFight, after: formAfter, door: togetherDoor, troopId: formTroopId, eventData: formEventData };
 
     window.CoopTower = { runState: runState, runImageOf: runImageOf, updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
