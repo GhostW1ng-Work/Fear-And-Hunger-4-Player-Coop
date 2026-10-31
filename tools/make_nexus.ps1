@@ -30,7 +30,17 @@ foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'DOOR_LINES.md', 'ENDING_FOURTH_
 
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
-# (the files at the top of the archive, not inside a folder: Nexus / mod managers expect that)
-Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip
+# (the files at the top of the archive, not inside a folder: Nexus / mod managers expect that;
+# paths with "/" - Compress-Archive of Windows PowerShell writes "\", which some tools read badly)
+Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+$archive = [IO.Compression.ZipFile]::Open($zip, 'Create')
+try {
+    Get-ChildItem $stage -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($stage.Length + 1).Replace('\', '/')
+        [IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $_.FullName, $rel, 'Optimal') | Out-Null
+    }
+} finally {
+    $archive.Dispose()
+}
 Remove-Item $stage -Recurse -Force
 Write-Host "Nexus: $zip"
