@@ -2,7 +2,7 @@
   Builds the archive for Nexus Mods: dist\Termina-Local-Coop-v<version>-nexus.zip
   Usage: powershell -ExecutionPolicy Bypass -File tools\make_nexus.ps1
   No installer scripts (.bat / .ps1): only the plugins, laid out like the game folder (www\js\plugins),
-  the co-op view page, the docs and a manual install guide (INSTALL.txt).
+  a main.js that adds them (plugins.js untouched), the co-op view page, the docs and INSTALL.txt.
 #>
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
@@ -20,6 +20,8 @@ foreach ($f in @('LookOutsideOnline.js', 'LocalCoop_FearHunger.js', 'LocalCoop_N
     Copy-Item (Join-Path $root ('plugins\' + $f)) $plugins
 }
 Copy-Item (Join-Path $root 'extras\coop_view.html') (Join-Path $stage 'www')
+# (the game's main.js + the co-op plugins: unpacking is the whole install, plugins.js untouched)
+Copy-Item (Join-Path $root 'extras\main.js') (Join-Path $stage 'www\js')
 Copy-Item (Join-Path $root 'docs\INSTALL_MANUAL.txt') (Join-Path $stage 'INSTALL.txt')
 foreach ($f in @('README.md', 'README.ru.md', 'LICENSE', 'CHANGELOG.md')) {
     Copy-Item (Join-Path $root $f) $stage

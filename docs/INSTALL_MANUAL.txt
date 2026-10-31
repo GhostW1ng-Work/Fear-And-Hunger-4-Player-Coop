@@ -1,75 +1,53 @@
-Fear & Hunger Co-op (Termina and Fear & Hunger 1) - manual install
-==================================================================
+Fear & Hunger Co-op (Termina and Fear & Hunger 1) - install
+=============================================================
 (Русская инструкция - ниже.)
 
-1. Copy the "www" folder from this archive into the game folder (where Game.exe is),
-   and agree to merge the folders. The plugins go to www\js\plugins\.
+INSTALL: unpack the archive into the game folder (where Game.exe is) and agree to
+replace the files. That's all - start the game.
 
-2. Open www\js\plugins.js of the game in Notepad. At the very end it looks like this:
+  The archive has a "www" folder: it goes on top of the game's "www" folder.
+  Steam: right click the game > Manage > Browse local files.
 
-       ...
-       {"name":"SomePlugin","status":true,"description":"","parameters":{}}
-       ];
+PLAY: on the map press X (or Start on a gamepad) - player 2 joins; U / Numpad 0 or
+Start on another gamepad - the next one. The rest is in README.md; online play:
+docs\NETPLAY.md.
 
-   Before the last "];" add a comma after the last entry and these three lines:
+UPDATE: unpack the new version the same way, replacing the files.
 
-       {"name":"LookOutsideOnline","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_FearHunger","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_Net","status":true,"description":"Local Co-op","parameters":{}}
+REMOVE: delete these files from www\js\plugins: LookOutsideOnline.js,
+LocalCoop_FearHunger.js, LocalCoop_Net.js (the game starts as usual without them).
+To put back the game's own www\js\main.js too: Steam > the game > Properties >
+Installed files > Verify integrity of game files.
 
-   So the end becomes:
+How it works: the mod's www\js\main.js is the game's own one plus a few lines that add
+the co-op plugins after the game's plugins. The game's plugins.js is not changed.
 
-       {"name":"SomePlugin","status":true,"description":"","parameters":{}},
-       {"name":"LookOutsideOnline","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_FearHunger","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_Net","status":true,"description":"Local Co-op","parameters":{}}
-       ];
-
-   Keep this order. Save the file. (Make a copy of plugins.js first, just in case.)
-
-3. Start the game. On the map press X (or Start on a gamepad) - player 2 joins.
-   The rest is in README.md; online play: docs\NETPLAY.md.
-
-Updating: copy the new "www" folder over the old one - plugins.js stays as it is.
-Removing: delete the three lines from plugins.js (or put your copy back).
-
-An automatic installer (install.bat) is in the GitHub release:
+The same mod with an automatic installer is in the GitHub releases:
 https://github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases
 
 
-Кооператив для Fear & Hunger (Termina и Fear & Hunger 1) - установка вручную
-===========================================================================
+Кооператив для Fear & Hunger (Termina и Fear & Hunger 1) - установка
+=====================================================================
 
-1. Скопируйте папку "www" из архива в папку игры (где лежит Game.exe) и согласитесь
-   объединить папки. Плагины лягут в www\js\plugins\.
+УСТАНОВКА: распакуйте архив в папку игры (где лежит Game.exe) и согласитесь заменить
+файлы. Всё - запускайте игру.
 
-2. Откройте www\js\plugins.js игры в Блокноте. В самом конце он выглядит так:
+  В архиве папка "www": она ложится поверх папки "www" игры.
+  Steam: правой кнопкой по игре > Управление > Просмотреть локальные файлы.
 
-       ...
-       {"name":"SomePlugin","status":true,"description":"","parameters":{}}
-       ];
+ИГРА: на карте нажмите X (или Start на геймпаде) - войдёт второй игрок; U / Numpad 0
+или Start на другом геймпаде - следующий. Остальное - в README.ru.md; игра по сети -
+docs\NETPLAY.ru.md.
 
-   Перед последним "];" поставьте запятую после последней записи и добавьте три строки:
+ОБНОВЛЕНИЕ: распакуйте новую версию так же, с заменой файлов.
 
-       {"name":"LookOutsideOnline","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_FearHunger","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_Net","status":true,"description":"Local Co-op","parameters":{}}
+УДАЛЕНИЕ: удалите из www\js\plugins файлы LookOutsideOnline.js,
+LocalCoop_FearHunger.js, LocalCoop_Net.js (без них игра запускается как обычно).
+Чтобы вернуть и родной www\js\main.js игры: Steam > игра > Свойства >
+Установленные файлы > Проверить целостность файлов игры.
 
-   Конец станет таким:
+Как это работает: www\js\main.js мода - это родной файл игры плюс несколько строк,
+которые подключают плагины кооператива после плагинов игры. plugins.js игры не меняется.
 
-       {"name":"SomePlugin","status":true,"description":"","parameters":{}},
-       {"name":"LookOutsideOnline","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_FearHunger","status":true,"description":"Local Co-op","parameters":{}},
-       {"name":"LocalCoop_Net","status":true,"description":"Local Co-op","parameters":{}}
-       ];
-
-   Порядок важен. Сохраните файл. (На всякий случай сначала сделайте копию plugins.js.)
-
-3. Запустите игру. На карте нажмите X (или Start на геймпаде) - войдёт второй игрок.
-   Остальное - в README.ru.md; игра по сети - docs\NETPLAY.ru.md.
-
-Обновление: скопируйте новую папку "www" поверх старой - plugins.js менять не нужно.
-Удаление: уберите эти три строки из plugins.js (или верните свою копию).
-
-Автоматический установщик (install.bat) - в релизе на GitHub:
+Тот же мод с автоматическим установщиком - в релизах на GitHub:
 https://github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases
