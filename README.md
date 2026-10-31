@@ -11,6 +11,8 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 
 [Русская версия](README.ru.md)
 
+**Community and support:** [Discord](https://discord.gg/7JTs84Qt6w) - news, help, bug reports, finding players · support the mod: [Boosty](https://boosty.to/flyingfrogs) · [Patreon](https://patreon.com/FlyingFrogs)
+
 ---
 
 ## Contents

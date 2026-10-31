@@ -11,6 +11,8 @@
 
 [English version](README.md)
 
+**Сообщество и поддержка:** [Discord](https://discord.gg/7JTs84Qt6w) — новости, помощь, баги, поиск игроков · поддержать мод: [Boosty](https://boosty.to/flyingfrogs) · [Patreon](https://patreon.com/FlyingFrogs)
+
 ---
 
 ## Содержание
