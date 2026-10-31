@@ -3286,6 +3286,7 @@
         return TOP_JOIN_PHRASES.map(t => ({ kind: 'take', text: t })).concat(TOP_KILL_PHRASES.map(t => ({ kind: 'break', text: t })));
     }
     const TOP_FIGHT_ALL = 'Then attack. Let us see what your unity is worth.';
+    const TOP_FIGHT_AFTER_SIDES = 'So the sensible ones won. Then come, let us see what you are worth.';
     const TOP_FIGHT_SIDES = 'I see there are still some sensible ones among you.';
     const TOP_FIGHT_TAKERS = 'All that is left is to decide which of you is the most worthy.';
     const TOP_PERKELE_DEATH = [
@@ -3375,6 +3376,7 @@
         topShowPlayers();
         const players = topPlayers();
         $gameSystem._coopTopChoices = {};
+        $gameSystem._coopTopFought = false;
         $gameSystem._coopTopActors = {};
         players.forEach(n => { $gameSystem._coopTopActors[n] = playerActor(n).actorId(); });
         const list = [];
@@ -3455,8 +3457,6 @@
     // todos han elegido: se dice quien eligio cada cosa
     function topResolve(it) {
         const ch = $gameSystem._coopTopChoices || {};
-        const names = what => Object.keys(ch).map(Number).sort((x, y) => x - y).filter(n => ch[n] === what && playerActor(n))
-            .map(n => playerActor(n).name());
         const list = [];
         // lo que dijo cada uno
         Object.keys(ch).map(Number).sort((x, y) => x - y).forEach(n => {
@@ -3466,10 +3466,6 @@
             list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
             wrapText(coop.tr(a.name() + ': "' + said + '"'), 48).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         });
-        const take = names('take'), brk = names('break');
-        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
-        if (take.length) wrapText(coop.tr('To serve the Sulfur God:') + ' ' + take.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
-        if (brk.length) wrapText(coop.tr('To break the circle:') + ' ' + brk.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         list.push({ code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }, { code: 0, indent: 0, parameters: [] });
         it.setupChild(list, it._eventId);
     }
@@ -3480,6 +3476,7 @@
         const list = [];
         if (takers.length && breakers.length) {
             perkeleSay(list, TOP_FIGHT_SIDES);
+            $gameSystem._coopTopFought = true;
             list.push(
                 { code: 355, indent: 0, parameters: ['CoopTop.prepareSides(this, [[' + breakers.join(',') + '], [' + takers.join(',') + ']])'] },
                 { code: 301, indent: 0, parameters: [0, 0, false, false] },
@@ -3496,7 +3493,8 @@
             // (el que queda es el protagonista: lo que el juego hace al decirle "I'll join you.")
             topSulfur(list);
         } else if (breakers.length) {
-            perkeleSay(list, TOP_FIGHT_ALL);
+            // (despues de la pelea de los bandos, otra cosa: ya no van todos juntos)
+            perkeleSay(list, $gameSystem._coopTopFought ? TOP_FIGHT_AFTER_SIDES : TOP_FIGHT_ALL);
             const before = ceNamed('BEFORE BATTLE'), after = ceNamed('AFTER BATTLE');
             if (before) list.push({ code: 117, indent: 0, parameters: [before] });
             list.push({ code: 301, indent: 0, parameters: [0, troopNamed('Perkele1'), false, false] });

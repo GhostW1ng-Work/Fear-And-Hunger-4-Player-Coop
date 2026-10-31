@@ -1710,15 +1710,21 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 rIt.setup([{ code: 0, indent: 0, parameters: [] }], 0);
                 CoopTop.resolve(rIt);
                 var rtext = (rIt._childInterpreter ? rIt._childInterpreter._list : []).filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
-                check('T61b2 then what each one said, and who chose what: to serve the Sulfur God (P1), to break the circle (P2, P3)',
-                    rtext.indexOf("I will join you.") >= 0 && rtext.indexOf("It ends with you") >= 0 &&
-                    rtext.indexOf('Sulfur God: ' + pA.name()) >= 0 && rtext.indexOf('break the circle: ' + pB.name() + ', ' + pC.name()) >= 0, rtext);
+                check('T61b2 then what each one said (no list of who chose what)',
+                    rtext.indexOf("I will join you.") >= 0 && rtext.indexOf("It ends with you") >= 0 && rtext.indexOf('Sulfur God:') < 0, rtext);
                 CoopTop.choose(1, 'break');
+                $gameSystem._coopTopFought = false;
                 var nl = runNext();
                 var perk = $dataTroops.filter(function(t) { return t && t.name === 'Perkele1'; })[0];
                 check('T61c everybody breaks the circle: all fight Per\'kele, then the ending The Broken Circle',
                     !!perk && nl.some(function(c) { return c.code === 301 && c.parameters[1] === perk.id; }) &&
                     nl.some(function(c) { return c.code === 355 && /brokenCircle/.test(c.parameters[0]); }));
+                // tras la pelea de los bandos, los que quedan contra Per'kele: otra frase (no "todos juntos")
+                $gameSystem._coopTopFought = true;
+                var afterTxt = runNext().filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
+                check('T61c2 after the fight of the sides, the winners against Perkele: his line after the fight, not the "all of you" one',
+                    /sensible ones won/.test(afterTxt) && !/your unity/.test(afterTxt), afterTxt);
+                $gameSystem._coopTopFought = false;
                 CoopTop.choose(2, 'take');
                 nl = runNext();
                 var side = nl.filter(function(c) { return c.code === 355 && /prepareSides/.test(c.parameters[0]); })[0];
