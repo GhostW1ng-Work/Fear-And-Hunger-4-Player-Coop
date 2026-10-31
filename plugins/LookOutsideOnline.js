@@ -492,7 +492,6 @@
         'The Broken Circle': 'Разорванный круг',
         'Side against side': 'Сторона против стороны', 'Only one may take his place': 'Его место может занять только один',
         'Cheat: play the ending The Broken Circle': 'Чит: показать концовку The Broken Circle',
-        'Cheat: teleport to the sulfur figure (all are free)': 'Чит: телепорт к фигурке из серы (все свободны)',
         ' and ': ' и ', 'The Fourth Festival': 'Четвёртый фестиваль', 'Ending': 'Концовка',
         'The winner of the third festival never climbed the tower.': 'Победитель третьего фестиваля так и не поднялся на башню.',
         'The fate of all the contestants will remain unknown.': 'Судьба всех участников останется неизвестной.',
@@ -509,6 +508,9 @@
         [/^(.+) is free$/, '$1 — свободен(на)'], [/^Freed contestants: (\d+)\/(\d+)$/, 'Освобождено участников: $1/$2'],
         [/^Freed contestants: (\d+)\/(\d+), too late for (\d+)$/, 'Освобождено участников: $1/$2, поздно для: $3'],
         [/^Cheat: teleport to the sulfur figure of (.+)$/, 'Чит: телепорт к фигурке из серы ($1)'],
+        [/^Cheat: teleport to the sulfur figure: < (.+) >$/, 'Чит: телепорт к фигурке из серы: < $1 >'],
+        [/^Cheat: teleport to the sulfur figure: < (.+) > \(free\)$/, 'Чит: телепорт к фигурке из серы: < $1 > (свободен)'],
+        [/^Cheat: teleport to the sulfur figure: < (.+) > \(turned\)$/, 'Чит: телепорт к фигурке из серы: < $1 > (превратился)'],
         [/^P(\d+) attacks P(\d+)!$/, 'P$1 нападает на P$2!'], [/^P(\d+) attacks everyone!$/, 'P$1 нападает на всех!'],
         [/^(.+) vs (.+) - from behind: (.+) loses the first turn$/, '$1 против $2 — сзади: $3 пропускает первый ход'],
         [/^(.+) - to the death$/, '$1 — насмерть'], [/^(.+) ends their own life$/, '$1 обрывает свою жизнь'], [/^(.+) ends their own life\.$/, '$1 обрывает свою жизнь.'],
@@ -4188,12 +4190,23 @@
         this.changeOwner(1);
     };
 
+    // (una fila con change(paso): izquierda/derecha cambian lo que hace, p.ej. a quien ir)
+    function changeAction(win, step) {
+        const action = win.actionAt(win.index());
+        if (!action) {
+            win.changeOwner(step);
+        } else if (action.change) {
+            action.change(step);
+            SoundManager.playCursor();
+            win.redrawItem(win.index());
+        }
+    }
     Window_CoopAssign.prototype.cursorRight = function() {
-        if (!this.actionAt(this.index())) this.changeOwner(1);
+        changeAction(this, 1);
     };
 
     Window_CoopAssign.prototype.cursorLeft = function() {
-        if (!this.actionAt(this.index())) this.changeOwner(-1);
+        changeAction(this, -1);
     };
 
     function Scene_CoopAssign() {

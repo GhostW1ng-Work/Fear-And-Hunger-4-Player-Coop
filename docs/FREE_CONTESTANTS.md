@@ -40,6 +40,6 @@ August и Pav формы не имеют и не считаются.
 
 Меню Co-op, при включённых читах:
 - **Cheat: free all contestants** — освободить всех;
-- **Cheat: teleport to the sulfur figure of …** — к следующей неосвобождённой фигурке.
+- **Cheat: teleport to the sulfur figure: < имя >** — **влево/вправо** выбрать участника (любого из 12; рядом видно *free* — свободен/мёртв, *turned* — превратился), **OK** — перенестись к его фигурке (все игроки переходят вместе с P1).
 
 Где в коде: `plugins/LocalCoop_FearHunger.js`, `FORMS` (участники, бои, места, вид фигурки); русские тексты — `plugins/LookOutsideOnline.js`, `I18N_RU_EXACT`.
