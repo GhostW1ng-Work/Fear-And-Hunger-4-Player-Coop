@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.9.4
 
 - **Fixed (online, separate battles):** when P1 lost their battle and another player took over as the protagonist while fighting their own battle, that battle was cut short as a lost one (it was still counted under their old player number) - the enemy attacked again. Now the battles going on keep their players through the change of numbers.
 - **Fixed (online, separate battles):** when one battle ended, its *AFTER BATTLE* scene removed the game's battle layers (GALV_LayerGraphics), and another battle still going on crashed and was closed half-way - the enemy attacked again. Now that battle goes on (the removed layer is just not drawn).
