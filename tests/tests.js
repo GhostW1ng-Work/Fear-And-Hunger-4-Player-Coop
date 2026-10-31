@@ -1650,6 +1650,10 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             $gameSwitches._data[mayorSw] = false; $gameSwitches._data[henDead] = true;
             check('T60f3 a contestant who died (and did not turn): free - no figure',
                 CoopForms.freed(CoopForms.list.filter(function(f) { return f.key === 'henryk'; })[0]) && Game_Event.prototype.findProperPageIndex.call(henFig) === -1);
+            // le mataron ya transformado: no salvado, pero cuenta para la torre
+            $gameSystem._coopForms = { freed: {}, lost: { henryk: true } };
+            var henF = CoopForms.list.filter(function(f) { return f.key === 'henryk'; })[0];
+            check('T60f4 killed after turning (the Mayor killed): not saved, but counts for the tower', CoopForms.freed(henF) === true);
             $gameSwitches._data[mayorSw] = wasMy; $gameSwitches._data[henDead] = wasHd;
             $gameSystem._coopForms = { freed: { levi: true }, lost: { marcoh: true } };
             // dia 3, tarde: los que no son libres se transforman
@@ -1738,6 +1742,8 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 window.$coopHeadCount = __headCount;
                 var bl = CoopTop.brokenCircleList();
                 var pics = bl.filter(function(c) { return c.code === 231; }).map(function(c) { return c.parameters[1]; });
+                check('T61i the train: a freed Marina gets on even after the evening of day 3 (the game asks for it not to be)',
+                    bl.some(function(c) { return c.code === 111 && c.parameters[0] === 12 && /turnedKey\("marina"\)/.test(c.parameters[1]); }));
                 var selects = bl.filter(function(c) { return c.code === 355 && /selectAs\(\d+\)/.test(c.parameters[0]); }).length;
                 check('T61h The Broken Circle: the train with the survivors, the ending of each player, its name, the credits',
                     pics.indexOf('train_ending') >= 0 && pics.indexOf('book_photo') >= 0 && selects >= 2 &&

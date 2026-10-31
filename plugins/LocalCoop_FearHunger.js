@@ -2872,6 +2872,10 @@
         st.lost = st.lost || {};
         return st;
     }
+    function formTurnedKey(key) {
+        const f = FORMS.find(x => x.key === key);
+        return !!f && formTurned(f);
+    }
     function formByKey(key) {
         return FORMS.find(f => f.key === key) || null;
     }
@@ -2879,10 +2883,9 @@
         const id = switchNamed(f.dead);
         return id > 0 && $gameSwitches.value(id);
     }
-    // libre: ganado a su forma, o muerto sin haberse transformado
+    // ya no cuenta para la torre: ganado a su forma, o muerto (tambien si le mataron transformado)
     function formFreed(f) {
-        const st = formState();
-        return !!st.freed[f.key] || (!st.lost[f.key] && formDead(f));
+        return !!formState().freed[f.key] || formDead(f);
     }
     // ya transformado: lo vio el mod, o su interruptor (o la tarde del dia 3) esta encendido aunque
     // el mod no lo viera (una partida de antes, durmiendo...)
@@ -3502,7 +3505,11 @@
         const o = trainAt(others), h = trainAt(hero);
         const heroFrom = hero.findIndex(c => c.code === 122 && c.parameters[0] === countVar);
         list.push({ code: 222, indent: 0, parameters: [] });
-        if (o > 0) list.push.apply(list, others.slice(0, o));
+        // (el juego sube a Marina solo si aun no es la tarde del dia 3: libre, sube igual)
+        const day3 = switchNamed('DAY3_EVENING'), marinaDead = switchNamed('marina1');
+        const fixMarina = l => l.map((c, i) => c.code === 111 && c.parameters[0] === 0 && c.parameters[1] === day3 && i > 0 &&
+            l[i - 1].code === 111 && l[i - 1].parameters[1] === marinaDead ? Object.assign({}, c, { parameters: [12, '!CoopForms.turnedKey("marina")'] }) : c);
+        if (o > 0) list.push.apply(list, fixMarina(others.slice(0, o)));
         if (heroFrom >= 0 && h > heroFrom) list.push.apply(list, hero.slice(heroFrom + 1, h));
         if (countVar > 0) list.push({ code: 122, indent: 0, parameters: [countVar, countVar, 1, 0, 1] });
         if (o > 0) list.push.apply(list, others.slice(o, end(others)));
@@ -3567,7 +3574,7 @@
         prepareSides: topPrepareSides, brokenCircle: brokenCircle, brokenCircleNow: brokenCircleNow, brokenCircleList: brokenCircleList,
         selectAs: topSelectAs, showPlayers: topShowPlayers, map: TOP };
 
-    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, turned: formTurned, allFreed: formsAllFreed, count: formsFreedCount,
+    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, turned: formTurned, turnedKey: formTurnedKey, allFreed: formsAllFreed, count: formsFreedCount,
         touch: touchForm, fight: formFight, after: formAfter, door: togetherDoor, troopId: formTroopId, eventData: formEventData };
 
     window.CoopTower = { runState: runState, runImageOf: runImageOf, updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
