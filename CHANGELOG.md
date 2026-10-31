@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (online, separate battles):** when P1 lost their battle and another player took over as the protagonist while fighting their own battle, that battle was cut short as a lost one (it was still counted under their old player number) - the enemy attacked again. Now the battles going on keep their players through the change of numbers.
+- **Fixed (online, separate battles):** when the last one died in a battle, the map announced the game over by itself while the battle was still showing its defeat message - the screen froze on that message. Now the battle decides the game over, and it goes to everyone.
+
 ## v1.9.3
 
 - **The top of the tower:** when the ones against Per'kele win the fight of the sides, he now says the author's line: *I will have to perform one more ritual, then. Farewell, foolish little creature.* (Russian: *Придётся проводить ещё один ритуал. Прощай, глупое маленькое существо.*)

@@ -741,7 +741,14 @@ check('internet: same world at the end', same, frames)
 
 # --- whoever kills the protagonist becomes P1: the PCs swap who they play (same frame on all) ---
 same, frames = aligned_worlds(lnet, [lh, lg])
+# (a separate battle of P2 going on: after the swap it is P1's - the same player goes on fighting)
+fake = "CoopNet.battles().push({ __fake: true, involved: [2], joins: [], inputs: { 2: 'p2keys' } })"
+lh.ev(fake); lg.ev(fake)
 mine = [lh.ev('CoopNet.swapSeats(1, 2)'), lg.ev('CoopNet.swapSeats(1, 2)')]
+fb = lh.ev("(function(){ var b = CoopNet.battles().filter(function(x){ return x.__fake; })[0]; return b.involved.join(',') + ' ' + b.inputs[1]; })()")
+check("seats swapped during a separate battle of P2: that battle is now P1's (same player, same keys)", fb == '1 p2keys', fb)
+drop = "(function(){ var a = CoopNet.battles(); for (var i = a.length - 1; i >= 0; i--) if (a[i].__fake) a.splice(i, 1); })()"
+lh.ev(drop); lg.ev(drop)
 check('seats swapped: the guest PC plays P1 now, the host PC P2 (the host is still the host)',
       mine == [2, 1] and lh.ev('CoopNet.role') == 'host' and lh.ev('CoopNet.seat') == 1 and lg.ev('CoopNet.seat') == 2, mine)
 pos = lambda p: p.ev('[$gamePlayer.x, $gamePlayer.y, $gamePlayer2 ? $gamePlayer2.x : -1, $gamePlayer2 ? $gamePlayer2.y : -1].join(",")')

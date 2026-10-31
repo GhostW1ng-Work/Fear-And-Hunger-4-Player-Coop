@@ -497,6 +497,21 @@
             Net.applied[n] = 0;
             Net.mask[n] = (Net.lastAll && Net.lastAll[seatOf(n)]) || 0; // (lo que su PC tiene pulsado: cuenta al soltarlo)
         });
+        // los combates aparte siguen con sus jugadores: cambian sus numeros (si no, el de P2 que pasa
+        // a ser P1 se quedaba en un combate "de P2", del otro, y se daba por perdido)
+        const swapN = n => (n === x ? y : (n === y ? x : n));
+        battles.forEach(b => {
+            b.involved = b.involved.map(swapN);
+            b.joins = b.joins.map(swapN);
+            const inputs = {};
+            Object.keys(b.inputs).forEach(k => { inputs[swapN(Number(k))] = b.inputs[k]; });
+            b.inputs = inputs;
+            if (b.pvpSides) {
+                const sides = {};
+                Object.keys(b.pvpSides).forEach(k => { sides[swapN(Number(k))] = b.pvpSides[k]; });
+                b.pvpSides = sides;
+            }
+        });
         cameraHadChar = !coop.player(Net.player);
         coop.setCamera(Net.player === 1 ? 'p1' : 'p' + Net.player);
         battleLog('seats: P' + x + ' <-> P' + y + ' (this PC: P' + before + ' -> P' + Net.player + ')');
@@ -1101,6 +1116,15 @@
         _Scene_Map_update.call(this);
     };
 
+    // Con un combate aparte en marcha, el fin de la partida lo decide ese combate al perderlo (y va
+    // para todos). Si no, el mapa pasaba solo a "fin" (todos muertos) y el combate se quedaba
+    // dibujado a medias en la pantalla: parecia colgado.
+    const _Scene_Map_checkGameover = Scene_Map.prototype.checkGameover;
+    Scene_Map.prototype.checkGameover = function() {
+        if (Net.active && !inSub && battles.length > 0) return;
+        _Scene_Map_checkGameover.call(this);
+    };
+
     // en un combate (o fin de partida) los menus se cierran
     function closesMenus(sceneClass) {
         return sceneClass === Scene_Battle || sceneClass === Scene_Gameover || sceneClass === Scene_Title;
@@ -1121,6 +1145,8 @@
     // el juego sigue igual por detras
     const _SceneManager_renderScene = SceneManager.renderScene;
     SceneManager.renderScene = function() {
+        // (fin de partida o titulo: ya no hay combates aparte que ver)
+        if (Net.active && battles.length > 0 && (this._scene instanceof Scene_Gameover || this._scene instanceof Scene_Title)) closeAllBattles();
         // quien lucha ve su combate (tambien mientras los demas cargan otro mapa: sin "Loading")
         const mine = Net.active ? battleOf(Net.player) : null;
         if (mine && mine.started) {
