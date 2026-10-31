@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.9.3
+
+- **The top of the tower:** when the ones against Per'kele win the fight of the sides, he now says the author's line: *I will have to perform one more ritual, then. Farewell, foolish little creature.* (Russian: *Придётся проводить ещё один ритуал. Прощай, глупое маленькое существо.*)
+- **README:** the endings with several players have their own section, under a spoiler, with how to get each of them (*The Fourth Festival*, *The Broken Circle*, the fights at the door and at the top).
+
 ## v1.9.2
 
 - **The tower door: what to say.** Instead of *Fight* / *Commit suicide* each player picks a phrase: their character's own line to fight or to end it, or a common one (*If I have to fight for my life, so be it.* / *I don't want to hurt anyone. I will leave of my own will.*...). Everyone then sees what each one said; the phrase decides who fights and who dies.

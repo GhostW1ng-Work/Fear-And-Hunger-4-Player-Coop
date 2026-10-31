@@ -52,7 +52,7 @@
 | все против него | Тогда нападайте. Посмотрим, чего стоит ваше единство. | Then attack. Let us see what your unity is worth. |
 | одни против, другие с ним | Вижу, в ваших рядах ещё остались здравомыслящие. | I see there are still some sensible ones among you. |
 | с ним несколько | Вам осталось лишь решить, кто из вас самый достойный. | All that is left is to decide which of you is the most worthy. |
-| после боя сторон победили те, кто против *(черновик)* | Придется проводить ещё один ритуал. Прощай, глупое маленькое существо. | So the sensible ones won. Then come, let us see what you are worth. |
+| после боя сторон победили те, кто против | Придётся проводить ещё один ритуал. Прощай, глупое маленькое существо. | I will have to perform one more ritual, then. Farewell, foolish little creature. |
 
 ## Смерть Перкеле
 

@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.9.2 Fear & Hunger 1 y 2 (Termina) - luz para P2-P4 (TerraxLighting / vision), disparo de P2-P4 (armas de fuego en Termina, arco en Fear & Hunger 1) y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
+ * @plugindesc v1.9.3 Fear & Hunger 1 y 2 (Termina) - luz para P2-P4 (TerraxLighting / vision), disparo de P2-P4 (armas de fuego en Termina, arco en Fear & Hunger 1) y sprint. NO instalar en Look Outside. Requiere LookOutsideOnline.js (cargado antes).
  * @author TheTiranix
  *
  * @param ShootRetryFrames
@@ -3286,7 +3286,7 @@
         return TOP_JOIN_PHRASES.map(t => ({ kind: 'take', text: t })).concat(TOP_KILL_PHRASES.map(t => ({ kind: 'break', text: t })));
     }
     const TOP_FIGHT_ALL = 'Then attack. Let us see what your unity is worth.';
-    const TOP_FIGHT_AFTER_SIDES = 'So the sensible ones won. Then come, let us see what you are worth.';
+    const TOP_FIGHT_AFTER_SIDES = 'I will have to perform one more ritual, then. Farewell, foolish little creature.';
     const TOP_FIGHT_SIDES = 'I see there are still some sensible ones among you.';
     const TOP_FIGHT_TAKERS = 'All that is left is to decide which of you is the most worthy.';
     const TOP_PERKELE_DEATH = [

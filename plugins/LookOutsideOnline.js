@@ -1,6 +1,6 @@
 /*:
  * @target MV MZ
- * @plugindesc v1.9.2 Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
+ * @plugindesc v1.9.3 Co-op local de hasta 4 jugadores (teclado + mandos): pantalla dividida, luz para cada jugador, turnos de batalla por jugador, selector de personaje. Pensado para Look Outside, Fear & Hunger y otros juegos de RPG Maker.
  * @author TheTiranix
  *
  * @param MaxPlayers
@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.9.2';
+    const COOP_VERSION = '1.9.3';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
@@ -484,7 +484,7 @@
         'Then attack. Let us see what your unity is worth.': 'Тогда нападайте. Посмотрим, чего стоит ваше единство.',
         'I see there are still some sensible ones among you.': 'Вижу, в ваших рядах ещё остались здравомыслящие.',
         'All that is left is to decide which of you is the most worthy.': 'Вам осталось лишь решить, кто из вас самый достойный.',
-        'So the sensible ones won. Then come, let us see what you are worth.': 'Значит, победили здравомыслящие. Что ж, нападайте — посмотрим, чего вы стоите.',
+        'I will have to perform one more ritual, then. Farewell, foolish little creature.': 'Придётся проводить ещё один ритуал. Прощай, глупое маленькое существо.',
         'Impressive...': 'Впечатляет...',
         'But my death changes nothing. The festival will return.': 'Но моя смерть ничего не изменит. Фестиваль вернётся.',
         'I will join you.': 'Я присоединюсь к вам.',

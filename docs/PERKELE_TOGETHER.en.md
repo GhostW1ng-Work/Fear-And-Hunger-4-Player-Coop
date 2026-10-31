@@ -51,7 +51,7 @@ Then the game's own words: *All the souls you sent to our master. Now boiling in
 |---|---|
 | everybody against him | Then attack. Let us see what your unity is worth. |
 | some against, some with him | I see there are still some sensible ones among you. |
-| after the fight of the sides, the ones against him won | So the sensible ones won. Then come, let us see what you are worth. |
+| after the fight of the sides, the ones against him won | I will have to perform one more ritual, then. Farewell, foolish little creature. |
 | several with him | All that is left is to decide which of you is the most worthy. |
 
 ## Per'kele's death

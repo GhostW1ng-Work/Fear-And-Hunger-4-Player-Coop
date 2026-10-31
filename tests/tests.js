@@ -1723,7 +1723,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 $gameSystem._coopTopFought = true;
                 var afterTxt = runNext().filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
                 check('T61c2 after the fight of the sides, the winners against Perkele: his line after the fight, not the "all of you" one',
-                    /sensible ones won/.test(afterTxt) && !/your unity/.test(afterTxt), afterTxt);
+                    /one more ritual/.test(afterTxt) && !/your unity/.test(afterTxt), afterTxt);
                 $gameSystem._coopTopFought = false;
                 CoopTop.choose(2, 'take');
                 nl = runNext();
