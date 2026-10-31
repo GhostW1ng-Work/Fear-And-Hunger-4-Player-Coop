@@ -475,7 +475,7 @@
         'The stone slab trembles under your hands.': 'Каменная плита дрожит под вашими руками.',
         'No one is left for the festival to claim. Every contestant is free.': 'Фестивалю больше некого забрать. Все участники свободны.',
         'The door of the tower opens for all of you.': 'Дверь башни открывается для всех вас.',
-        'Cheat: free all contestants': 'Чит: освободить всех участников',
+        'Cheat: free all contestants': 'Чит: освободить всех участников', 'Dead': 'Мёртв(а)',
         // en lo alto de la torre, todos juntos (el texto del autor del co-op: docs/PERKELE_TOGETHER.md)
         'Ah, you are finally here. For the first time in the history of the festival, the winner is not alone.': 'А, вот вы наконец и здесь. Впервые в истории фестиваля победитель оказывается не один.',
         'By the rules of the festival, there can be only one winner.': 'По правилам фестиваля победитель должен быть только один.',
@@ -509,6 +509,9 @@
         [/^Freed contestants: (\d+)\/(\d+), too late for (\d+)$/, 'Освобождено участников: $1/$2, поздно для: $3'],
         [/^Cheat: teleport to the sulfur figure of (.+)$/, 'Чит: телепорт к фигурке из серы ($1)'],
         [/^Cheat: teleport to the sulfur figure: < (.+) >$/, 'Чит: телепорт к фигурке из серы: < $1 >'],
+        [/^Cheat: teleport to the character: < (.+) >$/, 'Чит: телепорт к персонажу: < $1 >'],
+        [/^(.+) is in the party$/, '$1 в отряде'], [/^(.+) is not on any map now$/, '$1 сейчас нет ни на одной карте'],
+        [/^Place (\d+) of (\d+) - OK again for the next$/, 'Место $1 из $2 — ещё раз OK — следующее'],
         [/^Cheat: teleport to the sulfur figure: < (.+) > \(free\)$/, 'Чит: телепорт к фигурке из серы: < $1 > (свободен)'],
         [/^Cheat: teleport to the sulfur figure: < (.+) > \(turned\)$/, 'Чит: телепорт к фигурке из серы: < $1 > (превратился)'],
         [/^P(\d+) attacks P(\d+)!$/, 'P$1 нападает на P$2!'], [/^P(\d+) attacks everyone!$/, 'P$1 нападает на всех!'],

@@ -3160,6 +3160,103 @@
             SoundManager.playShop();
         }
     });
+    // ---- truco: ir al propio concursante (vivo: donde esta ahora, o su forma si se transformo) ------
+    // Se buscan en todos los mapas los sucesos cuya pagina activa ahora (con los interruptores y
+    // variables de la partida) lleva su dibujo; con varios sitios, cada OK lleva al siguiente.
+    // [su dibujo de persona, el de su forma] (la forma solo si ya se transformo; la persona si no)
+    const FORM_SPRITES = {
+        levi: [/^%mercenary$/, /^\$weeping_scope/], marina: [/^%occultist$|^occultist2$|^\$characters9$/, /^\$cocoon/], daan: [/^%doctor$|^\$characters3$/, /^\$pocketcat2/],
+        abella: [/^%mechanic$/, /^\$big_boy/], osaa: [/^%yellow_mage$/, /^\$mastermind/], marcoh: [/^%thug$/, /^\$giant1/],
+        karin: [/^%journalist$|^\$characters2$/, /^\$valkyrie1$/], olivia: [/^%botanist$/, /^\$mechanical_dance/], henryk: [/^%chef2?$|^\$characters4$/, /^\$gentleman/],
+        samarie: [/^%apprentice$|^\$characters7$/, /^\$dys1/], tanaka: [/^%salaryman$|^\$salaryman2$/, /^\$tanaka_final|^\$judgement/],
+        caligura: [/^%mobster$|^\$mobster1$/, /^\$wide_extra5/]
+    };
+    // (los decorados de las escenas: atados en el tren y en el club, los que esperan al borde, la
+    // escena del templo con todas las formas...)
+    const SCENE_EVENT = /scene|tied|gfx|grabbed|found|_text|dead|killed|body|execution|inject|suicide/i;
+    const SCENE_MAPS = [59, 110];
+    let mapCache = null;
+    function allMapsData() {
+        if (mapCache) return mapCache;
+        mapCache = [];
+        ($dataMapInfos || []).forEach(info => {
+            if (!info) return;
+            const file = 'Map' + String(info.id).padStart(3, '0') + '.json';
+            const m = readDataSync(file);
+            if (m && m.events) mapCache.push({ id: info.id, data: m });
+        });
+        return mapCache;
+    }
+    function dataPageActive(mapId, ev, pg) {
+        const c = pg.conditions;
+        if (c.switch1Valid && !$gameSwitches.value(c.switch1Id)) return false;
+        if (c.switch2Valid && !$gameSwitches.value(c.switch2Id)) return false;
+        if (c.variableValid && $gameVariables.value(c.variableId) < c.variableValue) return false;
+        if (c.selfSwitchValid && !$gameSelfSwitches.value([mapId, ev.id, c.selfSwitchCh])) return false;
+        if (c.itemValid && !$gameParty.hasItem($dataItems[c.itemId])) return false;
+        if (c.actorValid && $gameParty.members().indexOf($gameActors.actor(c.actorId)) < 0) return false;
+        return true;
+    }
+    function whereIs(key) {
+        const f = formByKey(key);
+        const sprites = FORM_SPRITES[key];
+        const out = [];
+        if (!f || !sprites) return out;
+        const rx = sprites[formTurned(f) ? 1 : 0];
+        allMapsData().forEach(m => {
+            m.data.events.forEach(ev => {
+                if (!ev) return;
+                let page = null;
+                for (let i = ev.pages.length - 1; i >= 0; i--) {
+                    if (dataPageActive(m.id, ev, ev.pages[i])) {
+                        page = ev.pages[i];
+                        break;
+                    }
+                }
+                if (!page || !rx.test(page.image.characterName)) return;
+                if (ev.x <= 1 || ev.y <= 1 || page.trigger >= 3 || SCENE_EVENT.test(ev.name || '') || SCENE_MAPS.indexOf(m.id) >= 0) return;
+                out.push({ mapId: m.id, x: ev.x, y: ev.y, name: m.data.displayName || $dataMapInfos[m.id].name });
+            });
+        });
+        // (su forma sin dibujo propio en el mapa, como el Mayor de Henryk: donde esta su figura)
+        if (out.length === 0 && formTurned(f) && $dataMapInfos[f.at[0]]) {
+            out.push({ mapId: f.at[0], x: f.at[1], y: f.at[2], name: $dataMapInfos[f.at[0]].name });
+        }
+        return out;
+    }
+    let teleportLive = 0, teleportLiveStep = 0;
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isTermina(); },
+        name() {
+            return 'Cheat: teleport to the character: < ' + formName(FORMS[teleportLive]) + ' >';
+        },
+        change(step) {
+            teleportLive = (teleportLive + step + FORMS.length) % FORMS.length;
+            teleportLiveStep = 0;
+        },
+        run() {
+            const f = FORMS[teleportLive];
+            const inParty = $gameParty.members().find(a => a.name() === f.name);
+            if (inParty) {
+                SoundManager.playBuzzer();
+                coop.banner(f.name + ' is in the party', '', '#ffaa44', 150);
+                return;
+            }
+            const spots = whereIs(f.key);
+            if (spots.length === 0) {
+                SoundManager.playBuzzer();
+                coop.banner(f.name + ' is not on any map now', formDead(f) ? 'Dead' : '', '#ffaa44', 150);
+                return;
+            }
+            const at = spots[teleportLiveStep % spots.length];
+            teleportLiveStep++;
+            $gamePlayer.reserveTransfer(at.mapId, at.x, at.y + 1, 8, 0);
+            SoundManager.playShop();
+            coop.banner(f.name + ': ' + at.name, 'Place ' + ((teleportLiveStep - 1) % spots.length + 1) + ' of ' + spots.length + ' - OK again for the next', '#9fb6ff', 200);
+        }
+    });
+
     // ---- en lo alto de la torre, todos juntos (Termina, todos los concursantes libres) -------------
     // Moon_tower: en vez de la escena de Per'kele con uno solo, la suya con todos (textos del autor
     // del co-op: docs/PERKELE_TOGETHER.md). Cada jugador elige: ocupar su sitio o romper el circulo.
@@ -3580,7 +3677,7 @@
         prepareSides: topPrepareSides, brokenCircle: brokenCircle, brokenCircleNow: brokenCircleNow, brokenCircleList: brokenCircleList,
         selectAs: topSelectAs, showPlayers: topShowPlayers, map: TOP };
 
-    window.CoopForms = { list: FORMS, state: formState, freed: formFreed, turned: formTurned, turnedKey: formTurnedKey, allFreed: formsAllFreed, count: formsFreedCount,
+    window.CoopForms = { whereIs: whereIs, list: FORMS, state: formState, freed: formFreed, turned: formTurned, turnedKey: formTurnedKey, allFreed: formsAllFreed, count: formsFreedCount,
         touch: touchForm, fight: formFight, after: formAfter, door: togetherDoor, troopId: formTroopId, eventData: formEventData };
 
     window.CoopTower = { runState: runState, runImageOf: runImageOf, updateBranches: updatePlayerBranches, contestants: contestants, left: contestantsLeft, door: TOWER_DOOR, kill: () => killContestantsAction.run() };
