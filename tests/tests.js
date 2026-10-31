@@ -1357,6 +1357,25 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             check('T44j to the death: the cut limbs stay (none here) and P1 alive: no game over', !BattleManager._coopPvpGameOver);
         }
         endPvp();
+        // a muerte: sin brazos ni piernas (el juego lo da por muerto) = como la cabeza
+        defA.removeState(defA.deathStateId());
+        defA.setHp(defA.mhp);
+        startPvp(true);
+        var limbParts = $gameTroop.members().filter(function(e) { return e._coopOwner === defA.actorId() && (e._coopPart === 'arm' || e._coopPart === 'leg'); });
+        if (limbParts.length) {
+            limbParts.forEach(function(e, i) {
+                defA.clearResult();
+                e.addState(e.deathStateId());
+                if (i < limbParts.length - 1 && defA.isDead()) limbParts.died = 'early';
+            });
+            check('T44j2 to the death: arms and legs all cut off = the character dies (no "finish them off"), the battle ends',
+                defA.isDead() && !limbParts.died && BattleManager.isAborting(), 'dead ' + defA.isDead() + ' early ' + limbParts.died + ' phase ' + BattleManager._phase);
+            BattleManager.endBattle(1);
+        }
+        endPvp();
+        var dLimbs = CoopRevive.limbSwitches(defA.actorId());
+        dLimbs.arm.concat(dLimbs.leg).forEach(function(id) { $gameSwitches.setValue(id, false); });
+        defA.clearStates();
         // a muerte y cae el protagonista (P1): fin de partida
         defA.removeState(defA.deathStateId());
         defA.setHp(defA.mhp);

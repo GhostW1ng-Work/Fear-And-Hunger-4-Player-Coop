@@ -2196,8 +2196,19 @@
         this._coopCut = true;
         const a = $gameActors.actor(this._coopOwner);
         if (!a) return;
-        if (this._coopPart === 'torso' || this._coopPart === 'head') {
-            // sin torso o sin cabeza no queda nada de ese doble: cae su personaje
+        // sin torso o sin cabeza no queda nada de ese doble; sin brazos ni piernas tampoco (el juego
+        // lo da por muerto o "no se puede mover"): cae su personaje
+        const limbs = partsOf(a.actorId(), 'arm').concat(partsOf(a.actorId(), 'leg'));
+        const noLimbs = !coop.cheat('cheatLimbs') && (this._coopPart === 'arm' || this._coopPart === 'leg') && limbs.length > 0 && limbs.every(e => e.isDead());
+        if (noLimbs) {
+            const st = this._coopPart === 'arm' ? stateIdNamed(/^arm cut$/i) : stateIdNamed(/^leg cut$/i);
+            if (st && !coop.cheat('cheatLimbs')) {
+                a.addState(st);
+                const gfx = battleGfxEventId();
+                if (gfx) $gameTemp.reserveCommonEvent(gfx);
+            }
+        }
+        if (this._coopPart === 'torso' || this._coopPart === 'head' || noLimbs) {
             const hitter = currentHitter();
             if (hitter && hitter.actorId() !== a.actorId() && !info.killedBy[a.actorId()]) info.killedBy[a.actorId()] = hitter.actorId();
             if (info.lethal) {
@@ -2329,6 +2340,12 @@
         const prof = gameProfile();
         return (prof && prof.select[actorId]) || (isTermina() && PROTAGONIST_SELECT_EXTRA[actorId]) || 0;
     }
+    // "disabled" (el protagonista sin brazos ni piernas: "You are unable to move..." y fin) es del
+    // protagonista que habia: con el nuevo se vuelve a mirar (el juego lo enciende otra vez si hace falta)
+    function resetHeroDisabled() {
+        const id = switchNamed('disabled');
+        if (id > 0) $gameSwitches.setValue(id, false);
+    }
     function takeOverProtagonist(victim, killer, reason) {
         if (!victim || !killer || killer.isDead() || !isTermina()) return false;
         const net = window.CoopNet;
@@ -2342,6 +2359,7 @@
         // la historia: quien es el protagonista
         $gameSwitches.setValue(oldSw, false);
         $gameSwitches.setValue(newSw, true);
+        resetHeroDisabled();
         // el grupo: el que mato va el primero, el muerto ocupa su puesto
         const actors = $gameParty._actors;
         const iv = actors.indexOf(victim.actorId());
@@ -2415,6 +2433,7 @@
         if (ih < 0 || ic < 0) return false;
         $gameSwitches.setValue(oldSw, false);
         $gameSwitches.setValue(newSw, true);
+        resetHeroDisabled();
         actors[ih] = comp.actorId();
         actors[ic] = hero.actorId();
         $gamePlayer.refresh();
