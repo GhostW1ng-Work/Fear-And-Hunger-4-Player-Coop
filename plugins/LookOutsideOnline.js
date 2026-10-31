@@ -1981,6 +1981,9 @@
 
     // P2/P3 no se mueven durante dialogos, eventos ni menus de seleccion
     Game_CoopPlayer.prototype.canMoveCoop = function() {
+        // (muerto: se queda donde cayo hasta que el juego lo saque del grupo y deje su cuerpo)
+        const actor = this.actor();
+        if (actor && actor.isDead()) return false;
         return !$gameMap.isEventRunning() && !messageBusy() && !CoopState.selecting && !busyElsewhere(this.coopIndex());
     };
 

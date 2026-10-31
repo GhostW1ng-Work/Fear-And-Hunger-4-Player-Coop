@@ -1307,7 +1307,9 @@
         if (!Net.active || battleOf(Net.player)) return null;
         const story = battles.find(b => b.started && b.troop && b.troop._coopPvp && b.troop._coopPvp.story);
         if (story) return story;
-        if (Net.player === 1 || coop.player(Net.player)) return null;
+        // (con personaje vivo no mira: el suyo muerto cuenta como sin personaje)
+        const own = Net.player === 1 ? $gameParty.leader() : (coop.player(Net.player) ? coop.player(Net.player).actor() : null);
+        if (Net.player === 1 || (own && own.isAlive())) return null;
         return battles.find(b => b.started && b.involved.indexOf(1) >= 0) || battles.find(b => b.started) || null;
     }
 

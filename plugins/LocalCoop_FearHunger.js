@@ -660,6 +660,14 @@
             $gameMap.events().filter(e => e && e.isSpawnEvent && e._spawnEventId === fx.spawn &&
                 Math.abs(e.x - c.x) + Math.abs(e.y - c.y) <= 1).forEach(e => Galv.SPAWN.unspawn(e));
         }
+        // sin brazos ni piernas el juego le da por muerto (deathCheck: "..._arm2" y "..._leg2"): la
+        // piedra le devuelve el cuerpo entero (si no, el juego le mataba otra vez al momento, sin fin)
+        const limbs = limbSwitches(actorId);
+        const lostAll = kind => limbs[kind].some(id => /2$/.test($dataSystem.switches[id] || '') && $gameSwitches.value(id));
+        if (lostAll('arm') && lostAll('leg')) {
+            limbs.arm.concat(limbs.leg).forEach(id => $gameSwitches.setValue(id, false));
+            actor.states().filter(st => LIMB_STATE_NAMES.test(st.name)).forEach(st => actor.removeState(st.id));
+        }
         // vuelve con parte de la vida y la mente
         const part = (Number(coop.setting('reviveHp')) || 30) / 100;
         actor.removeState(actor.deathStateId());
@@ -3682,7 +3690,7 @@
     window.CoopPvp = { prepare: prepare, prepareAll: prepareAll, fourthFestival: fourthFestival, fourthFestivalText: FOURTH_FESTIVAL_TEXT, doorOwner: doorOwner, doorChoice: doorChoice, doorResolve: doorResolve,
         doorEnd: doorEnd, prepareDoorFight: prepareDoorFight, doorEndProtagonist: doorEndProtagonist, addFighter: addFighter, joinEventList: joinEventList, shownOwners: shownOwners, eventList: pvpEventList, candidates: pvpCandidates, troopFor: pvpTroopFor, pending: pvpPending, tryPvp: tryPvp, info: pvpInfo, armFactor: armFactor, heroDied: () => heroDiedTakeOver(), sideOf: a => sideIndexOf(a), rivals: rivalOwners, heir: protagonistHeir, takeOver: takeOverProtagonist, selectSwitchOf: selectSwitchOf, limbSwitches: limbSwitches, snapshot: limbSnapshot };
 
-    window.CoopRevive = { revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
+    window.CoopRevive = { limbSwitches: limbSwitches, revive: revive, corpses: corpses, soulStone: soulStone, deathEffectsOf: deathEffectsOf, bodySwitchesOf: bodySwitchesOf, gameBodyEvent: gameBodyEvent, torches: torches,
         npcSwitchesByActor: npcSwitchesByActor,
         lightTest: { watchPlayerLight: watchPlayerLight, beginMask: beginMask, endMask: endMask } };
 

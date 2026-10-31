@@ -885,8 +885,14 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         $gameMap._interpreter.clear();
         var leader = $gameParty.leader();
         leader.setMp(leader.mmp);
+        // (murio sin brazos ni piernas: "..._arm2" y "..._leg2" del juego)
+        var limbIds = (window.CoopTower && CoopRevive.limbSwitches) ? CoopRevive.limbSwitches(mine) : null;
+        var limbAll = limbIds ? limbIds.arm.concat(limbIds.leg) : [];
+        limbAll.forEach(function(id) { $gameSwitches.setValue(id, true); });
         CoopRevive.revive(mine, 1);
         for (k = 0; k < 10; k++) frame();
+        if (limbAll.length) check('T33e2 died without arms and legs: the stone brings the whole body back (the game does not kill them again at once)',
+            limbAll.every(function(id) { return !$gameSwitches.value(id); }), limbAll.map(function(id) { return $dataSystem.switches[id] + '=' + $gameSwitches.value(id); }).join(' '));
         check('T33e back in the party with 30% HP and mind, the stone is gone',
             $gameParty._actors.indexOf(mine) >= 0 && dead.isAlive() && dead.hp === Math.max(1, Math.round(dead.mhp * 0.3)) && !$gameParty.hasItem(stone),
             dead.hp + '/' + dead.mhp + ' stones=' + $gameParty.numItems(stone));
