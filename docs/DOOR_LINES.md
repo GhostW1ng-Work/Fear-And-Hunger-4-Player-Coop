@@ -19,6 +19,6 @@
 Остальной текст сцены:
 
 - *The stone slab does not move. Something ancient is watching you all...* — Каменная плита не сдвигается. Что-то древнее наблюдает за вами всеми...
-- *Only one may leave Termina. Only the last one standing.* — Покинуть Термину может только один. Только последний выживший.
+- *Only one may leave Termina.* — Покинуть Термину может только один.
 - *P2 - Abella. What will you say?* — P2 — Абелла. Что ты скажешь? (варианты — фразы из таблицы)
 - *Abella ends their own life.* — Абелла обрывает свою жизнь.

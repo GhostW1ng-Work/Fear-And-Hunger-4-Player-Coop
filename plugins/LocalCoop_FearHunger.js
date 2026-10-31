@@ -3158,39 +3158,26 @@
         13: 'THUG_SELECT', 14: 'JOURNALIST_SELECT', 15: 'BOTANIST_SELECT' };
     const PERKELE_NAME = "\\>\\i[144]\\}ER'KELE\\{\\<";
     const TOP_PERKELE_INTRO = [
-        'Ah, you are finally here.',
-        '...All of you.',
-        'Fourteen souls were promised to my master. Not a single one of them has reached him.', // (si murio alguno: TOP_PERKELE_SOME_DEAD)
-        "You broke the sulfur idols. One by one, you pulled yourselves out of the moon's grip.",
-        'A festival without a champion is simply held again. And again. That is how it has always been, wherever the Moon God went.',
-        'But never before has anyone climbed these stairs together.'
+        'Ah, you are finally here. For the first time in the history of the festival, the winner is not alone.'
     ];
-    const TOP_PERKELE_SOME_DEAD = 'Fourteen souls were promised to my master. Only {dead} of them reached him. The rest you tore away from him.';
-    const TOP_PERKELE_ONE_DEAD = 'Fourteen souls were promised to my master. Only one of them reached him. The rest you tore away from him.';
     const TOP_PERKELE_OFFER = [
-        'But you are many, and there is only one seat beside my master. So I will make you one last offer.',
-        'One of you may take my place. Serve my master, and the circle keeps turning. The rest may walk away.',
-        'Or you may try to break the circle. Kill me, and the festival loses its purpose. Prehevil will finally be silent.',
-        'Choose. Each of you. My master is listening.'
+        'By the rules of the festival, there can be only one winner.',
+        'The most worthy one. The one who will keep walking the path of Chaos.'
     ];
     // lo que puede decir cada uno al elegir
-    const TOP_JOIN_PHRASES = ["I'll take his place. Someone has to.", 'The Sulfur God can have me.', "I didn't come this far to walk away with nothing."];
-    const TOP_KILL_PHRASES = ["It ends with you, Per'kele.", 'No more festivals. No more harvest.', "I'll break this circle, even if it kills me."];
+    const TOP_JOIN_PHRASES = ['I will join you.', 'The Sulfur God can have me.', "I didn't come this far to walk away with nothing."];
+    const TOP_KILL_PHRASES = ["It ends with you, Per'kele.", 'No more festivals.', "I'll break this circle, even if it kills me."];
     function topPhrases() {
         return TOP_JOIN_PHRASES.map(t => ({ kind: 'take', text: t })).concat(TOP_KILL_PHRASES.map(t => ({ kind: 'break', text: t })));
     }
-    const TOP_FIGHT_ALL = 'Then come. All of you. Let us see what your unity is worth.';
-    const TOP_FIGHT_SIDES = 'Then it is decided the old way. Blood against blood.';
-    const TOP_FIGHT_TAKERS = 'Only one may sit beside my master. Settle it.';
+    const TOP_FIGHT_ALL = 'Then attack. Let us see what your unity is worth.';
+    const TOP_FIGHT_SIDES = 'I see there are still some sensible ones among you.';
+    const TOP_FIGHT_TAKERS = 'All that is left is to decide which of you is the most worthy.';
     const TOP_PERKELE_DEATH = [
-        'Impressive... All of you...',
-        'You think this breaks anything...? The moon will rise again... somewhere else...',
-        'And my master... will wait...'
+        'Impressive...',
+        'But my death changes nothing. The festival will return.'
     ];
-    const TOP_AFTER_TEXT = [
-        "Per'kele is dead.",
-        'The tower is silent. For the first time in centuries, no one is left to keep the festival turning.'
-    ];
+    const TOP_AFTER_TEXT = [];
 
     function topPlayers() {
         const out = [1].concat(pvpCandidates().filter(n => n !== 1));
@@ -3276,15 +3263,11 @@
         $gameSystem._coopTopActors = {};
         players.forEach(n => { $gameSystem._coopTopActors[n] = playerActor(n).actorId(); });
         const list = [];
-        // (cuantos concursantes murieron: sus almas si llegaron a su senor)
-        const dead = contestants().filter(c => $gameSwitches.value(c.deadSwitch)).length;
-        TOP_PERKELE_INTRO.forEach((t, i) => {
-            if (i === 2 && dead > 0) t = dead === 1 ? TOP_PERKELE_ONE_DEAD : coop.tr(TOP_PERKELE_SOME_DEAD).split('{dead}').join(String(dead));
-            perkeleSay(list, t);
-        });
+        TOP_PERKELE_INTRO.forEach(t => perkeleSay(list, t));
         list.push({ code: 355, indent: 0, parameters: ['CoopPvp.doorOwner(this, 1)'] });
         list.push.apply(list, topExplanation());
         TOP_PERKELE_OFFER.forEach(t => perkeleSay(list, t));
+        list.push.apply(list, topSulfurCage().list);
         players.forEach(n => {
             const a = playerActor(n);
             list.push(
@@ -3370,7 +3353,7 @@
         });
         const take = names('take'), brk = names('break');
         list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] });
-        if (take.length) wrapText(coop.tr('To take his place and serve the Sulfur God:') + ' ' + take.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
+        if (take.length) wrapText(coop.tr('To serve the Sulfur God:') + ' ' + take.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         if (brk.length) wrapText(coop.tr('To break the circle:') + ' ' + brk.join(', '), 56).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
         list.push({ code: 355, indent: 0, parameters: ['CoopTop.next(this)'] }, { code: 0, indent: 0, parameters: [] });
         it.setupChild(list, it._eventId);
@@ -3425,16 +3408,31 @@
         coop.banner(sides.length === 2 && sides.some(g => g.length > 1) ? 'Side against side' : 'Only one may take his place',
             sides.map(g => g.map(n => playerActor(n).name()).join(' + ')).join(' vs '), '#ff6655', 220);
     }
+    // De la rama "I'll join you." del juego: lo que Per'kele cuenta de las almas en la jaula de azufre
+    // y de los pozos ("All the souls you sent..." hasta "...the Cult of Sulfur."), para la oferta
+    function topSulfurCage() {
+        const orig = topOriginal || [];
+        let from = orig.findIndex(c => c.code === 401 && /All the souls you sent/.test(c.parameters[0]));
+        if (from < 0) return { from: -1, to: -1, list: [] };
+        while (from > 0 && orig[from].code !== 101) from--;
+        const v = variableNamed('going_for_sulfur_ending');
+        let to = orig.findIndex((c, i) => i > from && c.code === 122 && c.parameters[0] === v);
+        if (to < 0) to = from;
+        const ind = orig[from].indent;
+        return { from: from, to: to, list: orig.slice(from, to).map(c => Object.assign({}, c, { indent: c.indent - ind })) };
+    }
     // el final del azufre del juego: la rama de "I'll join you." de la escena (Per'kele, el combate
-    // y el paso al final)
+    // y el paso al final; lo de la jaula ya lo dijo en la oferta)
     function topSulfur(list) {
         const orig = topOriginal || [];
         const i = orig.findIndex(c => c.code === 402 && /I'll join you/.test(String(c.parameters[1])));
         if (i < 0) return;
         const ind = orig[i].indent;
+        const cage = topSulfurCage();
         for (let j = i + 1; j < orig.length; j++) {
             const c = orig[j];
             if (c.indent <= ind) break;
+            if (j >= cage.from && j < cage.to) continue;
             list.push(Object.assign({}, c, { indent: c.indent - ind - 1 }));
         }
         if (list.length && list[list.length - 1].code === 0) list.pop();

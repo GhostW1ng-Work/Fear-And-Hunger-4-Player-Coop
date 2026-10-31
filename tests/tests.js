@@ -1677,7 +1677,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 var asks2 = sl.filter(function(c) { return c.code === 102; });
                 var stext = sl.filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
                 check('T61b Per\'kele speaks to all of them, tells them of Rher and the cult as in the game (the protagonist asks the game\'s questions), then each player chooses what to say',
-                    /All of you/.test(stext) && /The Moon God Rher is gone/.test(stext) && asks2.length === 4 &&
+                    /winner is not alone/.test(stext) && /The Moon God Rher is gone/.test(stext) && /sulfuric/.test(stext) && /only one winner/.test(stext) && asks2.length === 4 &&
                     asks2[0].parameters[0].some(function(t) { return /master/.test(t); }) && !asks2[0].parameters[0].some(function(t) { return /join you/.test(t); }) &&
                     asks2.slice(1).every(function(c) { return c.parameters[0].length === 6; }), asks2.length + ' asks: ' + (asks2[0] ? asks2[0].parameters[0].join(' / ') : ''));
                 var runNext = function() {
@@ -1692,7 +1692,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 CoopTop.resolve(rIt);
                 var rtext = (rIt._childInterpreter ? rIt._childInterpreter._list : []).filter(function(c) { return c.code === 401; }).map(function(c) { return c.parameters[0]; }).join(' ');
                 check('T61b2 then what each one said, and who chose what: to serve the Sulfur God (P1), to break the circle (P2, P3)',
-                    rtext.indexOf("Someone has to.") >= 0 && rtext.indexOf("It ends with you") >= 0 &&
+                    rtext.indexOf("I will join you.") >= 0 && rtext.indexOf("It ends with you") >= 0 &&
                     rtext.indexOf('Sulfur God: ' + pA.name()) >= 0 && rtext.indexOf('break the circle: ' + pB.name() + ', ' + pC.name()) >= 0, rtext);
                 CoopTop.choose(1, 'break');
                 var nl = runNext();
