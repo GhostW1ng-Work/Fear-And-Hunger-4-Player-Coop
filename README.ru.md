@@ -11,6 +11,8 @@
 
 [English version](README.md)
 
+**Termina на русском:** вместе с модом идёт русский перевод Termina от [savannstm](https://github.com/savannstm/fh2-termina-translation). Опции > Co-op settings > **Language** переключает и мод, и всю игру между английским и русским (игра перезапустится); файлы самой игры не меняются.
+
 **Сообщество и поддержка:** [Discord](https://discord.gg/7JTs84Qt6w) — новости, помощь, баги, поиск игроков · поддержать мод: [Boosty](https://boosty.to/flyingfrogs) · [Patreon](https://patreon.com/FlyingFrogs)
 
 ---

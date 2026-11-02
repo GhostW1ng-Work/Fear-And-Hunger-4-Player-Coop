@@ -479,7 +479,11 @@
         'The stone slab trembles under your hands.': 'Каменная плита дрожит под вашими руками.',
         'No one is left for the festival to claim. Every contestant is free.': 'Фестивалю больше некого забрать. Все участники свободны.',
         'The door of the tower opens for all of you.': 'Дверь башни открывается для всех вас.',
-        'Cheat: free all contestants': 'Чит: освободить всех участников', 'Dead': 'Мёртв(а)',
+        'Cheat: free all contestants': 'Чит: освободить всех участников',
+        'The game restarts in this language...': 'Игра перезапускается на этом языке...', 'Game language: ': 'Язык игры: ',
+        'After a restart of the game (save first)': 'После перезапуска игры (сначала сохранитесь)',
+        "Language of the co-op mod (its menus, messages and scenes) - and of the whole game, if the Russian translation is installed (after a restart). Online: the host's.":
+            'Язык мода (меню, сообщения, сцены) — и всей игры, если установлен русский перевод (после перезапуска). По сети — как у хоста.', 'Dead': 'Мёртв(а)',
         // en lo alto de la torre, todos juntos (el texto del autor del co-op: docs/PERKELE_TOGETHER.md)
         'Ah, you are finally here. For the first time in the history of the festival, the winner is not alone.': 'А, вот вы наконец и здесь. Впервые в истории фестиваля победитель оказывается не один.',
         'By the rules of the festival, there can be only one winner.': 'По правилам фестиваля победитель должен быть только один.',
@@ -528,7 +532,8 @@
         [/^(.+) is the protagonist now$/, 'Теперь главный герой — $1'], [/^(.+) killed (.+)$/, '$1 убил(а): $2'],
         [/^P(\d+), take P1's controls - (.+)'s player takes P(\d+)'s$/, 'P$1, возьмите управление P1; игрок за $2 — управление P$3'],
         [/^(.+) died - (.+) takes over$/, '$1 погиб(ла) — героем становится $2'], [/^(.+) takes over$/, 'Героем становится $1'],
-        [/^Network error: (.*)$/, 'Ошибка сети: $1'], [/^(.+) fighting$/, 'Дерутся: $1'], [/^(.+) fighting here$/, 'Здесь дерутся: $1'], [/^Slot (\d+)$/, 'Слот $1'],
+        [/^Network error: (.*)$/, 'Ошибка сети: $1'],
+        [/^Different game language: host (.+), you (.+)$/, 'Разный язык игры: у хоста $1, у вас $2'], [/^(.+) fighting$/, 'Дерутся: $1'], [/^(.+) fighting here$/, 'Здесь дерутся: $1'], [/^Slot (\d+)$/, 'Слот $1'],
         [/^Slot (\d+)  -  Shift\+F7 to load it$/, 'Слот $1  —  Shift+F7 — загрузить'],
         [/^P(\d+) disconnected$/, 'P$1 отключился'], [/^P(\d+) plays their character until the battle ends$/, 'P$1 ведёт его персонажа до конца боя'],
         [/^Their character follows the party until they come back$/, 'Его персонаж идёт с отрядом, пока он не вернётся'],
@@ -2408,6 +2413,12 @@
         // el texto en el idioma del mod (ver IDIOMA DEL MOD)
         tr(text) { return tr(text); },
         language() { return coopLanguage(); },
+        // el idioma del juego (y del mod): como al cambiar "Language" en los ajustes
+        setGameLanguage(value) {
+            coopSettings.language = value;
+            applyCoopSettings('language');
+            setGameLanguage(value);
+        },
         i18nTable() { return I18N_RU_EXACT; }, // (para pruebas: que quepa)
         // un truco encendido (y los trucos permitidos)
         cheat(key) { return coopSettings.cheats !== false && !!coopSettings[key]; },
@@ -4299,7 +4310,7 @@
         { key: 'cheatOneShot', name: '  Cheat: one-hit kills', values: [false, true], labels: ['Off', 'On'],
             help: 'Needs Cheats On. Any damage the party deals kills the enemy (or the enemy part) at once.' },
         { key: 'language', name: 'Language', values: ['en', 'ru'], labels: ['English', 'Русский'],
-            help: "Language of the co-op mod (its menus, messages and scenes). Online: the host's." },
+            help: "Language of the co-op mod (its menus, messages and scenes) - and of the whole game, if the Russian translation is installed (after a restart). Online: the host's." },
         { key: 'updateCheck', name: 'Check for updates', values: [true, false], labels: ['On', 'Off'],
             help: 'Once when the game starts: tells you if a newer version of the co-op mod is on GitHub.' }
     ];
@@ -4376,12 +4387,39 @@
     ConfigManager.applyData = function(config) {
         _ConfigManager_applyData.call(this, config);
         const saved = config && config.coopSettings;
-        if (!saved) return;
-        for (const row of SETTINGS_ROWS) {
-            if (row.values.indexOf(saved[row.key]) >= 0) coopSettings[row.key] = saved[row.key];
+        if (saved) {
+            for (const row of SETTINGS_ROWS) {
+                if (row.values.indexOf(saved[row.key]) >= 0) coopSettings[row.key] = saved[row.key];
+            }
         }
+        // (con la traduccion del juego: el idioma del mod es el del juego que se cargo)
+        if (window.$coopHasRu) coopSettings.language = window.$coopGameLang;
         applyCoopSettings();
     };
+
+    // ---- EL JUEGO EN RUSO ---------------------------------------------------------------
+    // La traduccion de savannstm va en www/lang/ru; main.js la usa si www/coop_lang.txt dice "ru".
+    // Cambiar "Language" la elige para la proxima vez: en el titulo el juego se reinicia ya; en la
+    // partida, al reiniciarlo (que guarde antes).
+    function setGameLanguage(value) {
+        if (!window.$coopHasRu) return;
+        try {
+            const fs = require('fs'), path = require('path');
+            fs.writeFileSync(path.join(path.dirname(process.mainModule.filename), 'coop_lang.txt'), value);
+        } catch (e) {
+            return;
+        }
+        if (value === window.$coopGameLang) return;
+        const atTitle = SceneManager._stack.some(s => s === Scene_Title) || SceneManager._scene instanceof Scene_Title;
+        const online = window.CoopNet && window.CoopNet.active;
+        if (atTitle && !online) {
+            ConfigManager.save();
+            CoopUI.banner(value === 'ru' ? 'Русский' : 'English', tr('The game restarts in this language...'), '#bbbbbb', 120);
+            setTimeout(() => location.reload(), 700);
+        } else {
+            CoopUI.banner(tr('Game language: ') + (value === 'ru' ? 'Русский' : 'English'), tr('After a restart of the game (save first)'), '#bbbbbb', 300);
+        }
+    }
 
     // ---- NUEVA VERSION DEL MOD -------------------------------------------------------
     // Una vez al arrancar se mira en GitHub cual es la ultima version publicada; si es mas
@@ -4523,6 +4561,7 @@
         const i = Math.max(0, row.values.indexOf(coopSettings[row.key]));
         coopSettings[row.key] = row.values[(i + step + row.values.length) % row.values.length];
         applyCoopSettings(row.key);
+        if (row.key === 'language') setGameLanguage(coopSettings.language);
         SoundManager.playCursor();
         this.redrawItem(this.index());
     };

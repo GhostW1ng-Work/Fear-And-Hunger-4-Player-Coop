@@ -25,6 +25,10 @@ foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'TEST_CHECKLIST.md', 'DOOR_LINES
     Copy-Item (Join-Path $root ('docs\' + $f)) (Join-Path $stage 'docs')
 }
 
+# (the Russian translation of Termina: the installer puts it into www\lang\ru)
+. (Join-Path $PSScriptRoot 'ru_pack.ps1')
+Add-RussianTranslation (Join-Path $stage 'lang\ru') (Join-Path $stage 'docs')
+
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $stage -DestinationPath $zip

@@ -30,6 +30,9 @@ foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'DOOR_LINES.md', 'ENDING_FOURTH_
     Copy-Item (Join-Path $root ('docs\' + $f)) (Join-Path $stage 'docs')
 }
 
+. (Join-Path $PSScriptRoot 'ru_pack.ps1')
+Add-RussianTranslation (Join-Path $stage 'www\lang\ru') (Join-Path $stage 'docs')
+
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue
 # (the files at the top of the archive, not inside a folder: Nexus / mod managers expect that;

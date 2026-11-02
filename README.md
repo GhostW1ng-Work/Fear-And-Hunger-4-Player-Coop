@@ -11,6 +11,8 @@ Based on [TheTiranix/rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker
 
 [Русская версия](README.ru.md)
 
+**Termina in Russian:** the mod comes with the Russian translation of Termina by [savannstm](https://github.com/savannstm/fh2-termina-translation). Options > Co-op settings > **Language** switches the mod and the whole game between English and Russian (the game restarts); the game's own files are not changed.
+
 **Community and support:** [Discord](https://discord.gg/7JTs84Qt6w) - news, help, bug reports, finding players · support the mod: [Boosty](https://boosty.to/flyingfrogs) · [Patreon](https://patreon.com/FlyingFrogs)
 
 ---

@@ -2274,7 +2274,7 @@
 
     function helloMessage() {
         const hero = savedHero(Net.config.bring);
-        return { t: 'hello', mod: coop.version, game: gameVersion(), plugins: activePlugins(), pw: Net.config.password || '',
+        return { t: 'hello', mod: coop.version, game: gameVersion(), lang: window.$coopGameLang || 'en', plugins: activePlugins(), pw: Net.config.password || '',
             bring: hero ? { actorId: hero.actorId, name: hero.name, level: hero.level, json: hero.json } : null };
     }
 
@@ -2283,6 +2283,10 @@
         if (Net.config.password && msg.pw !== Net.config.password) return 'Wrong password';
         if (msg.mod !== coop.version) return 'Different mod version: host ' + coop.version + ', you ' + msg.mod;
         if (msg.game !== gameVersion()) return 'Different game version (update both copies of the game)';
+        // (el juego traducido: otros textos y otros plugins - los mensajes no durarian lo mismo)
+        const lang = window.$coopGameLang || 'en', theirLang = msg.lang || 'en';
+        const langName = l => (l === 'ru' ? 'Русский' : 'English');
+        if (theirLang !== lang) return 'Different game language: host ' + langName(lang) + ', you ' + langName(theirLang);
         const mine = activePlugins();
         const theirs = Array.isArray(msg.plugins) ? msg.plugins : [];
         const missing = mine.filter(n => theirs.indexOf(n) < 0);

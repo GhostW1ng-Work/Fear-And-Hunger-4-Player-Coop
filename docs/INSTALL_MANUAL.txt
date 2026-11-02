@@ -12,10 +12,15 @@ PLAY: on the map press X (or Start on a gamepad) - player 2 joins; U / Numpad 0 
 Start on another gamepad - the next one. The rest is in README.md; online play:
 docs\NETPLAY.md.
 
+RUSSIAN (Termina): the archive has the Russian translation of the game by savannstm
+(www\lang\ru). Options > Co-op settings > Language: Русский - the game restarts in Russian.
+English again: the same setting. On a Russian PC the game starts in Russian at first.
+
 UPDATE: unpack the new version the same way, replacing the files.
 
 REMOVE: delete these files from www\js\plugins: LookOutsideOnline.js,
 LocalCoop_FearHunger.js, LocalCoop_Net.js (the game starts as usual without them).
+The Russian translation: delete the folder www\lang.
 To put back the game's own www\js\main.js too: Steam > the game > Properties >
 Installed files > Verify integrity of game files.
 
@@ -39,10 +44,15 @@ https://github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases
 или Start на другом геймпаде - следующий. Остальное - в README.ru.md; игра по сети -
 docs\NETPLAY.ru.md.
 
+РУССКИЙ ЯЗЫК (Termina): в архиве - русский перевод игры от savannstm (www\lang\ru).
+Опции > Co-op settings > Language: Русский - игра перезапустится на русском. Обратно на
+английский - та же настройка. На русской Windows игра сразу запускается на русском.
+
 ОБНОВЛЕНИЕ: распакуйте новую версию так же, с заменой файлов.
 
 УДАЛЕНИЕ: удалите из www\js\plugins файлы LookOutsideOnline.js,
 LocalCoop_FearHunger.js, LocalCoop_Net.js (без них игра запускается как обычно).
+Русский перевод: удалите папку www\lang.
 Чтобы вернуть и родной www\js\main.js игры: Steam > игра > Свойства >
 Установленные файлы > Проверить целостность файлов игры.
 

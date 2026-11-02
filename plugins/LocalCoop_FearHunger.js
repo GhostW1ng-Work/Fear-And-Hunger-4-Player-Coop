@@ -418,13 +418,24 @@
             help: 'Whoever uses the soul stone on a body loses this much of their max mind.' }
     ], true);
 
+    // El juego traducido (www/lang/ru) tiene en ruso los nombres de objetos, enemigos, personajes...:
+    // lo que el mod busca por su nombre lo busca por el nombre en ingles (www/data, que no cambia).
+    const englishDb = {};
+    function englishName(kind, obj) {
+        if (!obj) return '';
+        if (window.$coopGameLang !== 'ru') return obj.name || '';
+        if (englishDb[kind] === undefined) englishDb[kind] = readDataSync(kind + '.json');
+        const en = englishDb[kind] && englishDb[kind][obj.id];
+        return (en && en.name) || obj.name || '';
+    }
+
     const SOUL_STONE_ID = 116; // los dos juegos: la piedra con un alma dentro
 
     function soulStone() {
         if (typeof $dataItems === 'undefined' || !$dataItems) return null;
         const it = $dataItems[SOUL_STONE_ID];
-        if (it && /soul/i.test(it.name) && !/not_use/i.test(it.name)) return it;
-        return $dataItems.find(i => i && /^(lesser soul|soul stone)$/i.test(i.name)) || null;
+        if (it && /soul/i.test(englishName('Items', it)) && !/not_use/i.test(englishName('Items', it))) return it;
+        return $dataItems.find(i => i && /^(lesser soul|soul stone)$/i.test(englishName('Items', i))) || null;
     }
 
     // (si el unico otro jugador murio ya no hay co-op en marcha, pero su cuerpo sigue ahi)
@@ -717,7 +728,7 @@
     const _Game_Interpreter_command111 = Game_Interpreter.prototype.command111;
     Game_Interpreter.prototype.command111 = function() {
         const p = this._params;
-        if (p[0] === 8 && coop.cheat('cheatUnlock') && $dataItems[p[1]] && KEY_ITEM.test($dataItems[p[1]].name) &&
+        if (p[0] === 8 && coop.cheat('cheatUnlock') && $dataItems[p[1]] && KEY_ITEM.test(englishName('Items', $dataItems[p[1]])) &&
             !$gameParty.hasItem($dataItems[p[1]])) {
             this._branch[this._indent] = true;
             return true;
@@ -925,7 +936,7 @@
         run() {
             let any = false;
             FIRE_ITEMS.forEach(f => {
-                const it = ($dataItems || []).find(i => i && i.name === f[0]);
+                const it = ($dataItems || []).find(i => i && englishName('Items', i) === f[0]);
                 if (it) {
                     $gameParty.gainItem(it, f[1]);
                     any = true;
@@ -1472,12 +1483,12 @@
     // las de un aldeano)
     function bodyPartsOf(actorId) {
         const actor = $gameActors.actor(actorId);
-        const name = (actor ? actor.name() : '').toLowerCase();
+        const name = (actor ? englishName('Actors', actor.actor()) : '').toLowerCase();
         const isMine = m => {
             const en = $dataEnemies[m.enemyId];
-            return en && !m.hidden && en.name.toLowerCase().indexOf(name + ' [') === 0;
+            return en && !m.hidden && englishName('Enemies', en).toLowerCase().indexOf(name + ' [') === 0;
         };
-        let source = name && $dataTroops.find(t => t && t.members.some(m => isMine(m) && /\[torso\]/i.test($dataEnemies[m.enemyId].name)));
+        let source = name && $dataTroops.find(t => t && t.members.some(m => isMine(m) && /\[torso\]/i.test(englishName('Enemies', $dataEnemies[m.enemyId]))));
         if (source) return source.members.filter(isMine);
         source = $dataTroops.find(t => t && /^villager1$/i.test(t.name)) || $dataTroops.find(t => t && t.members.length > 0);
         return source.members.filter(m => !m.hidden);
@@ -2008,7 +2019,7 @@
         BattleManager._coopPvpGameOver = false;
         const data = $dataTroops[troopId];
         this.members().forEach((e, i) => {
-            const nm = e.enemy().name.toLowerCase();
+            const nm = englishName('Enemies', e.enemy()).toLowerCase();
             e._coopOwner = (data.members[i] && data.members[i].coopOwner) || info.fighters[0];
             e._coopPart = /\[torso\]/.test(nm) ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
         });
@@ -2016,7 +2027,7 @@
     };
 
     function partKind(enemy) {
-        const nm = enemy.enemy().name.toLowerCase();
+        const nm = englishName('Enemies', enemy.enemy()).toLowerCase();
         return /\[torso\]/.test(nm) ? 'torso' : /\[head\]/.test(nm) ? 'head' : /arm/.test(nm) ? 'arm' : /leg/.test(nm) ? 'leg' : 'other';
     }
 
@@ -2934,8 +2945,12 @@
         return t ? t.id : 0;
     }
     // (los nombres como en el juego, sin traducir)
+    function formActor(f) {
+        return ($dataActors || []).find(a => a && englishName('Actors', a) === f.name) || null;
+    }
     function formName(f) {
-        return f.name;
+        const a = formActor(f);
+        return (a && a.name) || f.name;
     }
 
     // los interruptores que transforman a cada uno (y DAY3_EVENING: a todos)
@@ -3264,23 +3279,24 @@
         },
         run() {
             const f = FORMS[teleportLive];
-            const inParty = $gameParty.members().find(a => a.name() === f.name);
+            const fa = formActor(f);
+            const inParty = $gameParty.members().find(a => (fa ? a.actorId() === fa.id : a.name() === f.name));
             if (inParty) {
                 SoundManager.playBuzzer();
-                coop.banner(f.name + ' is in the party', '', '#ffaa44', 150);
+                coop.banner(formName(f) + ' is in the party', '', '#ffaa44', 150);
                 return;
             }
             const spots = whereIs(f.key);
             if (spots.length === 0) {
                 SoundManager.playBuzzer();
-                coop.banner(f.name + ' is not on any map now', formDead(f) ? 'Dead' : '', '#ffaa44', 150);
+                coop.banner(formName(f) + ' is not on any map now', formDead(f) ? 'Dead' : '', '#ffaa44', 150);
                 return;
             }
             const at = spots[teleportLiveStep % spots.length];
             teleportLiveStep++;
             $gamePlayer.reserveTransfer(at.mapId, at.x, at.y + 1, 8, 0);
             SoundManager.playShop();
-            coop.banner(f.name + ': ' + at.name, 'Place ' + ((teleportLiveStep - 1) % spots.length + 1) + ' of ' + spots.length + ' - OK again for the next', '#9fb6ff', 200);
+            coop.banner(formName(f) + ': ' + at.name, 'Place ' + ((teleportLiveStep - 1) % spots.length + 1) + ' of ' + spots.length + ' - OK again for the next', '#9fb6ff', 200);
         }
     });
 
@@ -3338,17 +3354,29 @@
         return t ? t.id : 0;
     }
     function perkeleSay(list, text) {
-        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] }, { code: 401, indent: 0, parameters: [PERKELE_NAME] });
+        list.push({ code: 101, indent: 0, parameters: ['', 0, 0, 2] }, { code: 401, indent: 0, parameters: [topNameLine || PERKELE_NAME] });
         wrapText('"' + coop.tr(text) + '"', 60).forEach(t => list.push({ code: 401, indent: 0, parameters: [t] }));
     }
 
     // la escena del juego: lo de antes del primer "Ah, you are finally here." (el protagonista en su
     // sitio, el ruido de la pantalla...) y luego la nuestra
-    let topOriginal = null;
+    let topOriginal = null, topEnglish = null, topNameLine = null;
+    // la misma lista de la escena en ingles (www/data): el juego traducido tiene las mismas ordenes en
+    // el mismo sitio, solo cambian los textos - los sitios se buscan en la inglesa
+    function topEnglishTwin(orig) {
+        if (window.$coopGameLang !== 'ru') return orig;
+        const m = readDataSync('Map146.json');
+        const ev = m && m.events && m.events[TOP.eventId];
+        const twin = ev && ev.pages.map(p => p.list).find(l => l.length === orig.length && l.every((c, i) => c.code === orig[i].code));
+        return twin || orig;
+    }
     function topList(orig) {
-        const k = orig.findIndex((c, i) => c.code === 101 && c.indent === 0 && orig[i + 1] && orig[i + 1].code === 401 && /ER'KELE/.test(orig[i + 1].parameters[0]));
+        const en = topEnglishTwin(orig);
+        const k = en.findIndex((c, i) => c.code === 101 && c.indent === 0 && en[i + 1] && en[i + 1].code === 401 && /ER'KELE/.test(en[i + 1].parameters[0]));
         if (k < 0) return orig;
         topOriginal = orig;
+        topEnglish = en;
+        topNameLine = orig[k + 1].parameters[0]; // (su nombre como lo escribe el juego)
         return orig.slice(0, k).concat([
             { code: 355, indent: 0, parameters: ['CoopTop.scene(this)'] },
             { code: 0, indent: 0, parameters: [] }
@@ -3440,8 +3468,9 @@
     // (las del juego); en vez de unirse o matarle aqui, "..." sigue: lo eligen todos despues.
     function topExplanation() {
         const orig = topOriginal || [];
-        const start = orig.findIndex(c => c.code === 401 && /The Moon God Rher is gone/.test(c.parameters[0]));
-        const ask = orig.findIndex((c, i) => i > start && c.code === 102 && c.indent === 0 && c.parameters[0].some(t => /I'll join you/.test(t)));
+        const en = topEnglish || orig;
+        const start = en.findIndex(c => c.code === 401 && /The Moon God Rher is gone/.test(c.parameters[0]));
+        const ask = en.findIndex((c, i) => i > start && c.code === 102 && c.indent === 0 && c.parameters[0].some(t => /I'll join you/.test(t)));
         if (start < 1 || ask < 0) return [];
         let from = start;
         while (from > 0 && orig[from].code !== 101) from--;
@@ -3552,7 +3581,8 @@
     // y de los pozos ("All the souls you sent..." hasta "...the Cult of Sulfur."), para la oferta
     function topSulfurCage() {
         const orig = topOriginal || [];
-        let from = orig.findIndex(c => c.code === 401 && /All the souls you sent/.test(c.parameters[0]));
+        const en = topEnglish || orig;
+        let from = en.findIndex(c => c.code === 401 && /All the souls you sent/.test(c.parameters[0]));
         if (from < 0) return { from: -1, to: -1, list: [] };
         while (from > 0 && orig[from].code !== 101) from--;
         const v = variableNamed('going_for_sulfur_ending');
@@ -3565,7 +3595,8 @@
     // y el paso al final; lo de la jaula ya lo dijo en la oferta)
     function topSulfur(list) {
         const orig = topOriginal || [];
-        const i = orig.findIndex(c => c.code === 402 && /I'll join you/.test(String(c.parameters[1])));
+        const en = topEnglish || orig;
+        const i = en.findIndex(c => c.code === 402 && /I'll join you/.test(String(c.parameters[1])));
         if (i < 0) return;
         const ind = orig[i].indent;
         const cage = topSulfurCage();
@@ -3584,10 +3615,14 @@
     // personaje), el nombre del final y los creditos.
     // (los datos de head_count, leidos del archivo del juego cuando hacen falta)
     let headCount = null;
-    function readDataSync(file) {
+    // (current: el del idioma del juego - lang/ru/data con el juego traducido; si no, el ingles)
+    function readDataSync(file, current) {
         try {
             const fs = require('fs'), path = require('path');
-            return JSON.parse(fs.readFileSync(path.join(path.dirname(process.mainModule.filename), 'data', file), 'utf8'));
+            const www = path.dirname(process.mainModule.filename);
+            const ru = path.join(www, 'lang', 'ru', 'data', file);
+            const src = current && window.$coopGameLang === 'ru' && fs.existsSync(ru) ? ru : path.join(www, 'data', file);
+            return JSON.parse(fs.readFileSync(src, 'utf8').replace(/^\uFEFF/, ''));
         } catch (e) {
             try {
                 const xhr = new XMLHttpRequest();
@@ -3601,7 +3636,7 @@
     }
     function topHeadCountPages() {
         if (headCount) return headCount;
-        const m = window.$coopHeadCount || (window.$coopHeadCount = readDataSync('Map161.json'));
+        const m = window.$coopHeadCount || (window.$coopHeadCount = readDataSync('Map161.json', true));
         const ev = m && m.events && m.events[1];
         if (!ev || !ev.pages[0] || !ev.pages[1]) return null;
         headCount = { others: ev.pages[0].list, hero: ev.pages[1].list };

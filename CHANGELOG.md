@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Termina in Russian:** the mod comes with the Russian translation of the game by savannstm (https://github.com/savannstm/fh2-termina-translation). Options > Co-op settings > *Language* now switches the whole game too, not only the mod: the game restarts in that language (from the title at once; during a game - after the next start). The game's own files are not changed: the translation lives in `www/lang/ru` and the mod's `main.js` uses it instead of the game's files. On a Russian PC the game starts in Russian at first. Online, all players need the same game language (the host says so).
+- The mod's names and lookups work with the translated game too (soul stones, torches, keys, PvP body parts, the names of the contestants, the scene at the top of the tower).
+
 ## v1.9.4
 
 - **Fixed (online, separate battles):** when P1 lost their battle and another player took over as the protagonist while fighting their own battle, that battle was cut short as a lost one (it was still counted under their old player number) - the enemy attacked again. Now the battles going on keep their players through the change of numbers.

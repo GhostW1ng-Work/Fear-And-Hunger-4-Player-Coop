@@ -232,6 +232,11 @@ if ($Uninstall) {
     }
     Remove-Item $viewPage -ErrorAction SilentlyContinue
     Remove-Item $netConfig -ErrorAction SilentlyContinue
+    # (el juego en ruso y main.js del mod: se vuelve al main.js del juego)
+    $mainJs = Join-Path $jsDir 'main.js'
+    if (Test-Path "$mainJs.coop.bak") { Copy-Item "$mainJs.coop.bak" $mainJs -Force; Remove-Item "$mainJs.coop.bak" }
+    Remove-Item (Join-Path (Split-Path $jsDir -Parent) 'lang') -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Item (Join-Path (Split-Path $jsDir -Parent) 'coop_lang.txt') -ErrorAction SilentlyContinue
     [IO.File]::WriteAllText($pluginsJs, $text)
     Write-Host 'Desinstalado.'
     return
@@ -261,6 +266,19 @@ foreach ($n in $names) {
     }
 }
 Copy-Item (Join-Path $PSScriptRoot 'extras\coop_view.html') $viewPage -Force
+# main.js del mod: el del juego + el juego en ruso si se elige (Opciones > Co-op > Language)
+$mainJs = Join-Path $jsDir 'main.js'
+if (-not (Test-Path "$mainJs.coop.bak")) { Copy-Item $mainJs "$mainJs.coop.bak" }
+Copy-Item (Join-Path $PSScriptRoot 'extras\main.js') $mainJs -Force
+# la traduccion al ruso (de savannstm) - solo es de Termina
+$ruSrc = Join-Path $PSScriptRoot 'lang\ru'
+if ((Test-Path $ruSrc) -and $title -match 'termina') {
+    $ruDst = Join-Path (Split-Path $jsDir -Parent) 'lang\ru'
+    Remove-Item $ruDst -Recurse -Force -ErrorAction SilentlyContinue
+    New-Item -ItemType Directory -Force (Split-Path $ruDst -Parent) | Out-Null
+    Copy-Item $ruSrc $ruDst -Recurse -Force
+    Write-Host 'Russian translation: Options > Co-op settings > Language (the game restarts)'
+}
 if ($Net -eq 'host' -or $Net -eq 'join') {
     $cfg = if ($Net -eq 'host') { "{ ""role"": ""host"", ""port"": $NetPort }" } else { "{ ""role"": ""join"", ""host"": ""$NetHost"", ""port"": $NetPort }" }
     [IO.File]::WriteAllText($netConfig, $cfg)
