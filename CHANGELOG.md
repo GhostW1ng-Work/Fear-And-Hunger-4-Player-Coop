@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (Fear & Hunger 1): the marriage of flesh with a player's character.** The game removes the partner and adds *Marriage*, but the mod kept the partner of P2-P4 (*Keep players' characters*): the character was there twice. Now what the game takes for good leaves the party for the player too - the marriage, a sacrifice in a ritual circle, a trade (the girl / the demon kid to Pocketcat, the lady of the moon), hunger, infection, miasma, and the scenes of the endings (Level 9 with the girl, the fortress, the void...). The player takes the next free character (or waits for one; their join key chooses at once). Other story exits (Cahara leaving, Enki in the library, the capture) stay as before.
+- The banners "Player N is waiting for..." and the new one are in Russian too.
+
 ## v1.9.5
 
 - **The games in Russian:** the mod comes with the Russian translations of both games - Termina by savannstm (https://github.com/savannstm/fh2-termina-translation), Fear & Hunger 1 by khoohatt (its version 1.0). Options > Co-op settings > *Language* now switches the whole game too, not only the mod: the game restarts in that language (from the title at once; during a game - after the next start). The game's own files are not changed: the translations live in `www/lang/ru-termina` and `www/lang/ru-fh1`, and the mod's `main.js` uses the one made for the game it runs in instead of the game's files (Fear & Hunger 1: also the engine file it changed). On a Russian PC the game starts in Russian at first. Online, all players need the same game language (the host says so).

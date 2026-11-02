@@ -424,6 +424,51 @@
         return coop.englishName ? coop.englishName(kind, obj) : ((obj && obj.name) || '');
     }
 
+    // ---- Fear & Hunger 1: lo que la historia le quita a un jugador a proposito -----------------------
+    // Con "Keep players' characters" el mod no deja que un evento saque del grupo al personaje de
+    // P2-P4. Pero hay sitios donde el juego se lo lleva para siempre o lo necesita fuera del grupo para
+    // su escena: si no se lo lleva, el personaje queda dos veces (p.ej. la boda: "Marriage" y el
+    // companero a la vez) o la escena se rompe (la nina en el nivel 9). Ahi se va; su jugador toma al
+    // siguiente personaje libre (ver coopFollowPartySlots).
+    //  - eventos comunes: circulos rituales (sacrificios, la boda), hambre, infeccion, miasma, el dios
+    //    de las profundidades, el bebe demonio, los gules / esqueletos que se van;
+    //  - un evento que llama a la boda o a un circulo ritual (quita al companero antes de la boda);
+    //  - las escenas: los mapas de los finales (nivel 9 y 10, el siguiente plano, el vacio, la
+    //    fortaleza), la escena de la nina en Mahabre, el trono de Le'garde, Ragnvaldr y Le'garde;
+    //  - los intercambios y despedidas: la nina / el nino demonio a Pocketcat, la dama de la luna, la
+    //    espada del nino, D'arce (muere / se queda con Le'garde), los puestos del nivel 7.
+    // Las demas salidas (Cahara que se va, Enki leyendo, la captura...) siguen como antes.
+    const TAKEN_CE = /^(RITUAL CIRCLE\d*|TransferSTATSto\w+|HUNGER_of_\w+|Infection_SYSTEM|deathCheck|AFTER BATTLE|Miasma_effect\w*|GOD_OF_THE_DEPTHS|Demon Baby_GROWING|\w+_Disable_skill)$/i;
+    const TAKEN_CALL = /^(RITUAL CIRCLE\d*|TransferSTATSto\w+)$/i;
+    const TAKEN_MAP = /^(Level 9|Level 10|Next_plane|The_Void|Fortress|Mahabre_inside1|Golden_temple_inside2?|Ancient_Passageway)$/i;
+    const TAKEN_SWITCH = /^(GiveGirl|GiveKidDemon|lady_of_moon_gone|demon_kid_sword|D'arce_DEAD|DARCE_with_legarde|CAHARA_SPOT2|KNIGHT_SPOT2|OUTLANDER_SPOT2)$/i;
+    let ceByList = null;
+    function commonEventName(id) {
+        const ce = typeof $dataCommonEvents !== 'undefined' && $dataCommonEvents ? $dataCommonEvents[id] : null;
+        return (ce && ce.name) || '';
+    }
+    function storyTakesActor(interp, actorId) {
+        if (gameProfile() !== GAME_PROFILES.fearhunger1) return false;
+        const list = interp && interp._list;
+        if (!list) return false;
+        if (!ceByList) {
+            ceByList = new Map();
+            ($dataCommonEvents || []).forEach(ce => { if (ce && ce.list) ceByList.set(ce.list, ce.name || ''); });
+        }
+        if (ceByList.has(list)) return TAKEN_CE.test(ceByList.get(list));
+        const info = typeof $dataMapInfos !== 'undefined' && $dataMapInfos ? $dataMapInfos[$gameMap.mapId()] : null;
+        if (info && TAKEN_MAP.test(info.name || '')) return true;
+        const sw = ($dataSystem && $dataSystem.switches) || [];
+        return list.some(c => {
+            if (c.code === 117) return TAKEN_CALL.test(commonEventName(c.parameters[0]));
+            if (c.code === 121 && c.parameters[2] === 0) {
+                for (let i = c.parameters[0]; i <= c.parameters[1]; i++) if (TAKEN_SWITCH.test(sw[i] || '')) return true;
+            }
+            return false;
+        });
+    }
+    coop.storyTakesActor = storyTakesActor;
+
     const SOUL_STONE_ID = 116; // los dos juegos: la piedra con un alma dentro
 
     function soulStone() {

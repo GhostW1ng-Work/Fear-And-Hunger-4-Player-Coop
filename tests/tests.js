@@ -815,6 +815,78 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     $gameParty.addActor(mine);
     for (k = 0; k < 10; k++) frame();
     check('T32c P3 comes back with its own character', !!$gamePlayer3 && $gamePlayer3._coopActorId === mine, $gamePlayer3 && $gamePlayer3._coopActorId);
+    // Fear & Hunger 1: lo que la historia se lleva para siempre (la boda, un sacrificio, un intercambio,
+    // una escena de un final) si se va; P3 toma al siguiente libre
+    if (CoopLocal.storyTakesActor && /^fear & hunger$/i.test($dataSystem.gameTitle)) {
+        var ceId = function(re) { var c = $dataCommonEvents.filter(function(ce) { return ce && re.test(ce.name); })[0]; return c ? c.id : 0; };
+        var takes = function(list) { var it = new Game_Interpreter(); it.setup(list, 0); return CoopLocal.storyTakesActor(it, mine); };
+        check('T32f FH1: the marriage, sacrifices, hunger take the character; capture / reordering do not',
+            takes($dataCommonEvents[ceId(/^TransferSTATStoMARRIAGE$/)].list) && takes($dataCommonEvents[ceId(/^RITUAL CIRCLE$/)].list) &&
+            takes($dataCommonEvents[ceId(/^HUNGER_of_GIRL$/)].list) && !takes($dataCommonEvents[ceId(/^REMOVEmembers$/)].list) &&
+            !takes($dataCommonEvents[ceId(/^PartyREARRANGE$/)].list));
+        var giveGirl = $dataSystem.switches.indexOf('GiveGirl');
+        check('T32g FH1: trading the girl takes her, a plain story event does not',
+            takes([{ code: 121, indent: 0, parameters: [giveGirl, giveGirl, 0] }, { code: 0, indent: 0, parameters: [] }]) &&
+            !takes([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 0, indent: 0, parameters: [] }]));
+        var level9 = $dataMapInfos.filter(function(m) { return m && m.name === 'Level 9'; })[0];
+        var keepMap = $gameMap._mapId;
+        $gameMap._mapId = level9 ? level9.id : -1;
+        check('T32h FH1: the scenes of the endings (Level 9: the girl) take the character', !!level9 && takes([{ code: 0, indent: 0, parameters: [] }]));
+        $gameMap._mapId = keepMap;
+        // la boda con el personaje de P3: se va (no queda dos veces) y P3 toma al libre
+        $gameParty.addActor(spare);
+        for (k = 0; k < 5; k++) frame();
+        runEvent([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 115, indent: 0, parameters: [] },
+            { code: 117, indent: 0, parameters: [ceId(/^TransferSTATStoMARRIAGE$/)] }, { code: 0, indent: 0, parameters: [] }]);
+        for (k = 0; k < 15; k++) frame();
+        check('T32i FH1 marriage with P3\'s character: it leaves the party, P3 takes the free character',
+            $gameParty._actors.indexOf(mine) < 0 && !!$gamePlayer3 && $gamePlayer3._coopActorId !== mine && $gameParty._actors.indexOf($gamePlayer3._coopActorId) > 0,
+            'party=' + $gameParty._actors + ' p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'none'));
+        // la boda de verdad (el circulo del nivel 1, Cahara + el personaje de P3 como D'arce)
+        try {
+            var map1 = __map.__id === 1 ? __map : { events: [] };
+            var circle = map1.events.filter(function(e) { return e && e.name === 'circle1'; })
+                .map(function(e) { return e.pages.filter(function(pg) { return pg.conditions.switch1Valid && $dataSystem.switches[pg.conditions.switch1Id] === 'LOVE_captain_knight'; })[0]; })
+                .filter(function(pg) { return pg; })[0];
+            if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+            $gameParty._actors = [3, 6, 1]; // el caballero (protagonista) y Le'garde de P3
+            for (k = 0; k < 5; k++) frame();
+            SceneManager._scene.spawnPlayer(3, 6, true);
+            for (k = 0; k < 5; k++) frame();
+            [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, sw === 242); });
+            var p3had = $gamePlayer3 && $gamePlayer3._coopActorId;
+            var keep303 = Game_Interpreter.prototype.command303;
+            Game_Interpreter.prototype.command303 = function() { return true; }; // (la ventana del nombre)
+            var it2 = $gameMap._interpreter; // (como un evento del mapa: el grupo se reparte al terminar)
+            it2.setup(circle.list, 0);
+            try {
+                for (var f = 0; f < 4000 && it2.isRunning(); f++) { if ($gameMessage.isBusy()) $gameMessage.clear(); frame(); }
+            } finally {
+                Game_Interpreter.prototype.command303 = keep303;
+                SceneManager._nextScene = null;
+                $gameScreen.clear();
+            }
+            for (k = 0; k < 60; k++) frame();
+            check('T32k FH1 real marriage (circle1): the knight + the captain of P3 become Marriage, the captain is not there twice',
+                p3had === 6 && $gameParty._actors.indexOf(6) < 0 && $gameParty._actors.indexOf(3) < 0 && $gameParty._actors.indexOf(9) >= 0 && !it2.isRunning(),
+                'party=' + $gameParty._actors + ' p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'waiting') + ' running=' + it2.isRunning());
+            check('T32l after the marriage P3 takes the free character', !!$gamePlayer3 && $gameParty._actors.indexOf($gamePlayer3._coopActorId) > 0,
+                'p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'waiting') + ' parked=' + JSON.stringify(CoopLocal.parked(3)) + ' party=' + $gameParty._actors + ' scene=' + SceneManager._scene.constructor.name + ' msg=' + $gameMessage.isBusy() + ' idle=' + !$gameMap.isEventRunning());
+        } catch (e) {
+            check('T32k FH1 real marriage', false, e.message);
+        }
+        [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, false); });
+        $gameParty._actors = [1, 3, mine];
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        for (k = 0; k < 5; k++) frame();
+        // (vuelta al de antes para lo que sigue)
+        $gameParty.addActor(mine);
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        for (k = 0; k < 5; k++) frame();
+        SceneManager._scene.spawnPlayer(3, mine, true);
+        for (k = 0; k < 5; k++) frame();
+        check('T32j setup back: P3 plays its character again', !!$gamePlayer3 && $gamePlayer3._coopActorId === mine);
+    }
     $gameParty.removeActor(spare);
     for (k = 0; k < 5; k++) frame();
     // parte en solitario de Termina: ahi si se va (y vuelve con "temporary_party_back")

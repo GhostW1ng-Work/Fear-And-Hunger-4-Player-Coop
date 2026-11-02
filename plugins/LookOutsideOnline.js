@@ -281,7 +281,8 @@
         restore: null,      // jugadores a volver a unir tras cargar partida (ver AUTO_REJOIN)
         starting: 0,        // jugador que esta activando un evento en este momento
         menuOwner: 0,       // jugador que abrio el menu (solo responden sus teclas)
-        parked: {},         // jugador -> { actorId }: sin personaje por ahora, vuelve solo
+        parked: {},         // jugador -> { actorId, any }: sin personaje por ahora, vuelve solo
+        storyTook: {},      // jugador -> actorId: la historia se lo llevo para siempre (boda, sacrificio...)
         lastActor: {},      // jugador -> ultimo personaje que llevo (al volver lo prefiere)
         takes: [],          // jugadores a los que el anfitrion quito el personaje (se aplica en el mapa)
         away: {},           // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
@@ -554,7 +555,9 @@
         [/^Cheats on$/, 'Читы включены'], [/^Cheats off$/, 'Читы выключены'], [/^Online game open  -  your IP: (.+)$/, 'Сетевая игра открыта  —  ваш IP: $1'],
         [/^Player (\d+) is away$/, 'Игрок $1 отошёл'], [/^(.+) plays (.+)  -  any button to come back$/, '$1 ведёт: $2  —  любая кнопка, чтобы вернуться'],
         [/^Player (\d+) is back$/, 'Игрок $1 вернулся'], [/^Player (\d+)$/, 'Игрок $1'], [/^Split view: (.+)$/, 'Масштаб экрана: $1'],
-        [/^Player (\d+) is waiting for (.+)$/, 'Игрок $1 ждёт: $2'], [/^Player (\d+) is now (.+)$/, 'Игрок $1 теперь: $2'], [/^(.+) stays with Player (\d+)$/, '$1 остаётся у игрока $2'],
+        [/^Player (\d+) is waiting for (.+)$/, 'Игрок $1 ждёт: $2'], [/^(.+) left the party for good$/, '$1 навсегда покидает отряд'],
+        [/^Player (\d+) takes the next free character  -  (.+) to choose now$/, 'Игрок $1 возьмёт следующего свободного персонажа  —  $2: выбрать сейчас'],
+        [/^Comes back with them  -  (.+) to play someone else now$/, 'Вернётся вместе с ним  —  $1: играть за другого сейчас'], [/^Player (\d+) is now (.+)$/, 'Игрок $1 теперь: $2'], [/^(.+) stays with Player (\d+)$/, '$1 остаётся у игрока $2'],
         [/^Make room and press (.+) again$/, 'Освободите место и снова нажмите $1'], [/^(.+)  -  Press G to change camera$/, '$1  —  G — сменить камеру'],
         [/^Co-op restored: (.+)$/, 'Кооператив восстановлен: $1'], [/^P1 took (.+) from Player (\d+)$/, 'P1 забрал $1 у игрока $2'],
         [/^Co-op mod v(.+) is available$/, 'Доступна версия мода v$1'], [/^You have v(.+?)  -  (.+)$/, 'У вас v$1  —  $2'],
@@ -2440,6 +2443,8 @@
         language() { return coopLanguage(); },
         // el nombre en ingles de un objeto de la base de datos (kind: 'Items', 'States', 'Enemies'...)
         englishName(kind, obj) { return englishName(kind, obj); },
+        // un jugador en espera: { actorId, any } (o null)
+        parked(n) { return CoopState.parked[n] || null; },
         // el idioma del juego (y del mod): como al cambiar "Language" en los ajustes
         setGameLanguage(value) {
             coopSettings.language = value;
@@ -3594,11 +3599,19 @@
             if (assign[n]) continue;
             const id = coopPlayer(n)._coopActorId;
             const actor = $gameActors.actor(id);
-            CoopState.parked[n] = { actorId: id };
+            // (la historia se lo llevo para siempre: toma al primer personaje libre; si no lo hay, espera)
+            const took = CoopState.storyTook[n] === id;
+            CoopState.parked[n] = { actorId: id, any: took };
             this.coopRemovePlayer(n, true);
-            CoopUI.banner('Player ' + n + ' is waiting for ' + (actor ? actor.name() : 'their character'),
-                'Comes back with them  -  ' + JOIN_KEY_NAME[n] + ' to play someone else now', colorOf(n), 220);
+            if (took) {
+                CoopUI.banner((actor ? actor.name() : 'The character') + ' left the party for good',
+                    'Player ' + n + ' takes the next free character  -  ' + JOIN_KEY_NAME[n] + ' to choose now', colorOf(n), 240);
+            } else {
+                CoopUI.banner('Player ' + n + ' is waiting for ' + (actor ? actor.name() : 'their character'),
+                    'Comes back with them  -  ' + JOIN_KEY_NAME[n] + ' to play someone else now', colorOf(n), 220);
+            }
         }
+        CoopState.storyTook = {};
         // 4) orden del grupo: lider, personajes de P2..P4, y el resto como estaba
         const order = [leaderId];
         for (const n of players) {
@@ -3645,7 +3658,12 @@
         const actorId = this._params[0];
         const n = this._params[1] === 1 && coopOn() && coopSettings.keepCharacters ? playerOfActor(actorId) : 0;
         const dead = $gameActors.actor(actorId) && $gameActors.actor(actorId).isDead(); // (el juego quita a los muertos)
-        if (n && !dead && !isSoloPartList(this._list) && $gameParty._actors.indexOf(actorId) >= 0) {
+        const inParty = $gameParty._actors.indexOf(actorId) >= 0;
+        // (lo que el juego le quita a proposito: la boda, un sacrificio, un intercambio, una escena del
+        // final... - el plugin del juego lo dice: CoopLocal.storyTakesActor)
+        const takes = n && !dead && inParty && typeof CoopView.storyTakesActor === 'function' && CoopView.storyTakesActor(this, actorId);
+        if (takes) CoopState.storyTook[n] = actorId;
+        if (n && !dead && !takes && !isSoloPartList(this._list) && inParty) {
             const actor = $gameActors.actor(actorId);
             CoopUI.banner((actor ? actor.name() : 'The character') + ' stays with Player ' + n, 'The story removed them from the party', colorOf(n), 160);
             return true;
@@ -3667,7 +3685,7 @@
             const used = [actors[0]].concat(extraPlayers().map(p => p._coopActorId));
             const free = actors.filter(a => used.indexOf(a) < 0);
             // sin personaje guardado (partidas viejas): el primero libre, como antes
-            const id = parked.actorId ? (free.indexOf(parked.actorId) >= 0 ? parked.actorId : 0) : free[0];
+            const id = parked.actorId ? (free.indexOf(parked.actorId) >= 0 ? parked.actorId : (parked.any ? free[0] : 0)) : free[0];
             if (!id) continue;
             delete CoopState.parked[n];
             this.spawnPlayer(n, id, true);
