@@ -460,6 +460,7 @@
     function storyTakesActor(interp, actorId) {
         const list = interp && interp._list;
         if (!list || !gameProfile()) return false;
+        if (list.__coopTakes) return true; // (el sacrificio de un personaje de jugador que dijo que si)
         if (gameProfile() === GAME_PROFILES.termina) return TAKEN_CE_TERMINA.test(commonEventOfList(list) || '');
         if (gameProfile() !== GAME_PROFILES.fearhunger1) return false;
         const ceName = commonEventOfList(list);
@@ -523,7 +524,7 @@
         coop.setAskPlayer(who.n);
     }
     // 'yes' = seguir, 'wait' = esperando la respuesta, 'no' = no lo quiere
-    function consentGate(interp, cmds, kind) {
+    function consentGate(interp, cmds, kind, whoGiven) {
         const pend = interp._coopConsent;
         if (pend && pend.list === interp._list && pend.index === interp._index) {
             if (pend.answer === null) return 'wait';
@@ -531,7 +532,7 @@
             if (pend.answer === 'no') coop.banner('Player ' + pend.n + ' said no', $gameActors.actor(pend.id).name(), '#ffaa44', 150);
             return pend.answer;
         }
-        const who = consentFor(interp, cmds);
+        const who = whoGiven || consentFor(interp, cmds);
         if (!who) return 'yes';
         if ($gameMessage.isBusy()) return 'wait';
         const ask = { list: interp._list, index: interp._index, n: who.n, id: who.id, answer: null };
@@ -548,12 +549,109 @@
         }
         return out;
     }
+    // ---- el circulo ofrece a un personaje que se niega (Cahara, D'arce, Enki, Ragnvaldr, Le'garde;
+    // en Termina los concursantes): en el juego solo dice que no. Si lo lleva un jugador, decide el
+    // jugador: "No" = se niega como en el juego; "Si" = el sacrificio de verdad, con lo que hace el
+    // propio circulo con los demas (la escena, la afinidad con el dios), y su jugador toma a otro.
+    // Respuesta "Si" de "¿Sacrificar a X?" sin quitar a nadie, dentro de "Si: X esta en el grupo".
+    function refusedSacrifice(interp, body) {
+        if (!SACRIFICE_CE.test(commonEventOfList(interp._list) || '')) return 0;
+        if (body.some(c => c.code === 129) || !body.some(c => c.code === 113)) return 0;
+        const list = interp._list;
+        let i = interp._index - 1;
+        while (i >= 0 && list[i].code !== 102) i--;
+        if (i < 0) return 0;
+        for (let j = i - 1; j >= 0; j--) {
+            const c = list[j];
+            if (c.indent < list[i].indent && c.code === 111) {
+                return c.parameters[0] === 4 && c.parameters[2] === 0 ? c.parameters[1] : 0;
+            }
+        }
+        return 0;
+    }
+    // el sacrificio de otro en el mismo circulo (el primero que quita a alguien y sube la afinidad),
+    // sin lo que es solo de esa victima (su texto del principio, sus interruptores, su voz)
+    function sacrificeFor(list, actorId) {
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].code !== 402 || list[i].parameters[0] !== 0) continue;
+            const ind = list[i].indent, body = [];
+            for (let j = i + 1; j < list.length; j++) {
+                const c = list[j];
+                if (c.indent <= ind && (c.code === 402 || c.code === 403 || c.code === 404)) break;
+                body.push(c);
+            }
+            const rm = body.find(c => c.code === 129 && c.parameters[1] === 1);
+            if (!rm || !body.some(c => c.code === 122) || body.some(c => c.code === 102)) continue; // (una respuesta "Si" de dentro)
+            const victim = rm.parameters[0];
+            const first = body.findIndex(c => c.code === 121);
+            const sw = ($dataSystem && $dataSystem.switches) || [];
+            const out = [];
+            body.forEach((c, k) => {
+                if (k < first && (c.code === 101 || c.code === 401)) return;
+                if (c.code === 113 || (c.code === 0 && c.indent <= ind + 1)) return;
+                // (los interruptores de esa victima: "Sacrifice_circle_girl", "JANNKILLED"... - los del
+                // circulo, "ya se sacrifico aqui", se quedan)
+                if (c.code === 121 && /girl|kid|demon|baby|ghoul|skeleton|killed|dead|eaten/i.test(sw[c.parameters[0]] || '')) return;
+                if (c.code === 250 && !/slash|terror|attack|blood/i.test((c.parameters[0] && c.parameters[0].name) || '')) return;
+                const copy = JSON.parse(JSON.stringify(c));
+                copy.indent = Math.max(0, c.indent - ind - 1);
+                if (copy.code === 129 && copy.parameters[0] === victim) copy.parameters = [actorId, 1, false];
+                if (copy.code === 401) copy.parameters = [String(copy.parameters[0]).split('\\N[' + victim + ']').join('\\N[' + actorId + ']')];
+                out.push(copy);
+            });
+            if (!out.some(c => c.code === 129)) out.push({ code: 129, indent: 0, parameters: [actorId, 1, false] });
+            out.push({ code: 0, indent: 0, parameters: [] });
+            out.__coopTakes = true;
+            return out;
+        }
+        const plain = [{ code: 129, indent: 0, parameters: [actorId, 1, false] }, { code: 0, indent: 0, parameters: [] }];
+        plain.__coopTakes = true;
+        return plain;
+    }
+
+    // El circulo solo ofrece al personaje "SELECT" (el de quien lo usa: el mod lo pone para el jugador
+    // que empezo el evento), y ese se niega. Con varios jugadores, quien usa el circulo tambien ve a
+    // los personajes de los otros jugadores ("Si: X SELECT" vale para ellos) - y al elegir a uno se
+    // le pregunta a su jugador (ver command402).
+    const _Game_Interpreter_command111_sacrifice = Game_Interpreter.prototype.command111;
+    Game_Interpreter.prototype.command111 = function() {
+        const p = this._params, prof = gameProfile();
+        if (prof && p[0] === 0 && this._list && SACRIFICE_CE.test(commonEventOfList(this._list) || '')) {
+            const starter = this._coopStarter || 1;
+            const actorId = Number(Object.keys(prof.select).find(id => prof.select[id] === p[1] && Number(id) !== 9 && Number(id) !== 11)) || 0;
+            const n = actorId ? playerOfActorId(actorId) : 0;
+            const actor = n ? $gameActors.actor(actorId) : null;
+            if (n && n !== starter && actor && !actor.isDead() && $gameParty._actors.indexOf(actorId) >= 0 && !$gameSwitches.value(p[1])) {
+                this._branch[this._indent] = true;
+                return true;
+            }
+        }
+        return _Game_Interpreter_command111_sacrifice.call(this);
+    };
+
     // la respuesta elegida de una eleccion
     const _Game_Interpreter_command402_consent = Game_Interpreter.prototype.command402;
     Game_Interpreter.prototype.command402 = function() {
         if (gameProfile() && this._list && this._branch[this._indent] === this._params[0]) {
+            const body = branchBody(this);
+            const refused = refusedSacrifice(this, body);
+            let rn = refused ? playerOfActorId(refused) : 0;
+            if (rn && rn === (this._coopStarter || 1)) rn = 0;
+            const ra = rn ? $gameActors.actor(refused) : null;
+            if (ra && !ra.isDead() && $gameParty._actors.indexOf(refused) >= 0) {
+                const r = consentGate(this, body, 'sacrifice', { n: rn, id: refused });
+                if (r === 'wait') return false;
+                if (r === 'yes') {
+                    // el sacrificio (en un evento hijo) y luego el "salir del bucle" de esa respuesta
+                    const brk = this._list.indexOf(body.find(c => c.code === 113));
+                    this.setupChild(sacrificeFor(this._list, refused), this._eventId);
+                    this._index = brk - 1;
+                    return true;
+                }
+                return _Game_Interpreter_command402_consent.call(this); // (se niega, como en el juego)
+            }
             const kind = SACRIFICE_CE.test(commonEventOfList(this._list) || '') ? 'sacrifice' : 'give';
-            const r = consentGate(this, branchBody(this), kind);
+            const r = consentGate(this, body, kind);
             if (r === 'wait') return false;
             if (r === 'no') {
                 this.skipBranch();

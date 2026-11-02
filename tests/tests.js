@@ -941,6 +941,57 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         check('T32p P3 says yes: the character leaves', consentAsked.length === 1 && $gameParty._actors.indexOf(mine) < 0, 'party=' + $gameParty._actors);
         CoopLocal.setSetting('keepCharacters', true);
         consentAnswer = 0;
+        // el circulo ritual de verdad ofrece a D'arce (que en el juego se niega): lo lleva P3
+        var circleCe = $dataCommonEvents[ceId(/^RITUAL CIRCLE$/)];
+        if (circleCe) {
+            if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+            $gameParty._actors = [1, 3];
+            for (k = 0; k < 5; k++) frame();
+            SceneManager._scene.spawnPlayer(3, 3, true);
+            for (k = 0; k < 5; k++) frame();
+            [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, sw === 246); }); // (P1, Cahara, usa el circulo)
+            var seen = [];
+            function runRitual(answer) {
+                consentAsked = []; seen = [];
+                var it5 = new Game_Interpreter();
+                it5.setup(circleCe.list, 0);
+                it5._coopStarter = 1;
+                for (var i5 = 0; i5 < 3000 && it5.isRunning(); i5++) {
+                    if ($gameMessage._texts.length) seen.push($gameMessage._texts.join(' '));
+                    if ($gameMessage.isChoice()) {
+                        var q = $gameMessage._texts.join(' '), ch = $gameMessage._choices;
+                        if (CoopLocal.askPlayer()) { consentAsked.push(q); $gameMessage.onChoice(answer); }
+                        else if (/D'arce\?/.test(q)) $gameMessage.onChoice(0);
+                        else {
+                            var pick = ch.indexOf('Sacrifice');
+                            if (pick < 0) pick = ch.indexOf('No');
+                            if (pick < 0) pick = ch.length - 1;
+                            $gameMessage.onChoice(pick);
+                        }
+                    }
+                    if ($gameMessage.isBusy()) $gameMessage.clear();
+                    it5.update();
+                }
+                for (var f5 = 0; f5 < 10; f5++) frame();
+                return !it5.isRunning();
+            }
+            var aff = $gameSwitches && $gameVariables.value(162);
+            var ended = runRitual(1);
+            check('T32s FH1 ritual circle offers P3\'s D\'arce: P3 is asked; no = D\'arce refuses (as in the game), stays',
+                ended && consentAsked.length === 1 && $gameParty._actors.indexOf(3) >= 0 && seen.some(function(t) { return /What do you think you are doing/.test(t); }),
+                'asked=' + consentAsked.length + ' party=' + $gameParty._actors + ' ended=' + ended);
+            ended = runRitual(0);
+            check('T32t yes = sacrificed like the others (affinity +1), P3 takes another character',
+                ended && consentAsked.length === 1 && $gameParty._actors.indexOf(3) < 0 && $gameVariables.value(162) === aff + 1 &&
+                seen.some(function(t) { return /affinity/i.test(t); }),
+                'party=' + $gameParty._actors + ' affinity ' + aff + '->' + $gameVariables.value(162) + ' ended=' + ended + ' asked=' + consentAsked.length);
+            [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, false); });
+            $gameParty._actors = [1, 3, mine];
+            if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+            for (k = 0; k < 5; k++) frame();
+            SceneManager._scene.spawnPlayer(3, mine, true);
+            for (k = 0; k < 5; k++) frame();
+        }
         // (vuelta al de antes para lo que sigue)
         $gameParty.addActor(mine);
         if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
@@ -980,6 +1031,40 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         runCircle(0);
         for (k = 0; k < 10; k++) frame();
         check('T32r yes = sacrificed (not kept by "Keep players\' characters")', tAsked.length === 1 && $gameParty._actors.indexOf(16) < 0, 'asked=' + tAsked + ' party=' + $gameParty._actors);
+        // una concursante de P3 (Marina): el circulo de P1 la ofrece; P3 decide
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        $gameParty._actors = [1, 3];
+        for (k = 0; k < 5; k++) frame();
+        SceneManager._scene.spawnPlayer(3, 3, true);
+        for (k = 0; k < 5; k++) frame();
+        function runCircleP1(answer) {
+            tAsked = []; var seenT = [];
+            var it6 = new Game_Interpreter();
+            it6.setup(tCircle.list, 0);
+            it6._coopStarter = 1;
+            for (var i6 = 0; i6 < 3000 && it6.isRunning(); i6++) {
+                if ($gameMessage._texts.length) seenT.push($gameMessage._texts.join(' '));
+                if ($gameMessage.isChoice()) {
+                    var q6 = $gameMessage._texts.join(' ');
+                    if (CoopLocal.askPlayer()) { tAsked.push(CoopLocal.askPlayer()); $gameMessage.onChoice(answer); }
+                    else $gameMessage.onChoice(/Sacrifice/.test(q6) && (q6.indexOf($gameActors.actor(3).name()) >= 0 || q6.indexOf('\N[3]') >= 0) ? 0 : 1);
+                }
+                if ($gameMessage.isBusy()) $gameMessage.clear();
+                it6.update();
+            }
+            for (var f6 = 0; f6 < 10; f6++) frame();
+            return seenT;
+        }
+        var seenNo = runCircleP1(1);
+        check('T32u Termina circle offers P3\'s Marina: P3 is asked; no = she refuses as in the game', tAsked.length === 1 && $gameParty._actors.indexOf(3) >= 0 &&
+            seenNo.some(function(t) { return /repay/.test(t); }), 'asked=' + tAsked + ' party=' + $gameParty._actors);
+        $gameSwitches.setValue(1420, true); $gameSwitches.setValue(1419, false); $gameSwitches.setValue(233, false);
+        var affT = $gameVariables.value(266);
+        runCircleP1(0);
+        check('T32v yes = sacrificed like a ghoul: the circle is used, affinity +1, no ghoul switch',
+            tAsked.length === 1 && $gameParty._actors.indexOf(3) < 0 && $gameSwitches.value(1419) && $gameVariables.value(266) === affT + 1 && !$gameSwitches.value(233),
+            'asked=' + tAsked + ' party=' + $gameParty._actors + ' used=' + $gameSwitches.value(1419) + ' aff=' + affT + '->' + $gameVariables.value(266));
+        $gameSwitches.setValue(1420, false); $gameSwitches.setValue(1419, false);
         if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
         $gameParty._actors = keepParty;
         for (k = 0; k < 5; k++) frame();
