@@ -495,6 +495,49 @@ tick(net, [host, g2], 40)
 g2.ev('CoopNet.localKeys = 0')
 tick(net, [host, g2], 10)
 check('P2 walks again after the menu', host.ev('$gamePlayer2.x') != p2x0, '%s -> %s' % (p2x0, host.ev('$gamePlayer2.x')))
+# --- Fear & Hunger 1: the host's ritual circle offers P2's character; P2 is asked (on both PCs) ---
+# (no message window here: the answers are given on both PCs on the same frame)
+if host.ev("/^fear & hunger$/i.test($dataSystem.gameTitle)") and host.ev('$gamePlayer2._coopActorId') == 3:
+    ce48 = host.ev("$dataCommonEvents.filter(function(c){ return c && c.name === 'RITUAL CIRCLE'; })[0].id")
+    aligned_worlds(net, [host, g2])
+    for p_ in (host, g2):
+        p_.ev('$gameTemp.reserveCommonEvent(%d)' % ce48)
+    STEP = r"""(function(){ var t = $gameMessage._texts.join(' '), out = '';
+      if ($gameMessage.isChoice()) {
+        var ch = $gameMessage._choices, pick;
+        if (CoopLocal.askPlayer()) { pick = 0; out = 'ASK' + CoopLocal.askPlayer() + ' ' + t; }
+        else if (/D'arce\?/.test(t)) pick = 0;
+        else { pick = ch.indexOf('Sacrifice'); if (pick < 0) pick = ch.indexOf('No'); if (pick < 0) pick = ch.length - 1; }
+        $gameMessage.onChoice(pick);
+      }
+      if ($gameMessage.isBusy()) $gameMessage.clear();
+      return out; })()"""
+    asks = []
+    for _ in range(400):
+        aligned_worlds(net, [host, g2])
+        r = [p_.ev(STEP) for p_ in (host, g2)]
+        if r[0] or r[1]:
+            asks.append(r)
+        tick(net, [host, g2], 5)
+        if not host.ev('$gameMap.isEventRunning()') and not host.ev('$gameTemp.isCommonEventReserved()') and _ > 3:
+            break
+    check("FH1 net: the host's circle offers P2's D'arce, P2 is asked on both PCs",
+          len(asks) == 1 and asks[0][0].startswith('ASK2 Player 2:') and asks[0][1].startswith('ASK2 Player 2:'), asks)
+    check("FH1 net: P2 said yes - D'arce is sacrificed on both PCs, P2 takes another character",
+          host.ev('$gameParty._actors.indexOf(3) < 0') and g2.ev('$gameParty._actors.indexOf(3) < 0') and host.ev('$gamePlayer2._coopActorId') != 3,
+          [p_.ev('JSON.stringify($gameParty._actors)') for p_ in (host, g2)])
+    same, frames = aligned_worlds(net, [host, g2])
+    check('FH1 net: same world after the sacrifice', same, frames)
+    # (D'arce back for P2, for the rest)
+    for p_ in (host, g2):
+        p_.ev('$gameParty.addActor(3)')
+    tick(net, [host, g2], 20)
+    for p_ in (host, g2):
+        p_.ev('SceneManager._scene.coopRemovePlayer(2, true); SceneManager._scene.spawnPlayer(2, 3, true)')
+    tick(net, [host, g2], 20)
+    same, frames = aligned_worlds(net, [host, g2])
+    check('FH1 net: P2 plays D\'arce again (same world)', same and host.ev('$gamePlayer2 && $gamePlayer2._coopActorId') == 3, frames)
+
 # and opens it again for the next test
 g2.ev('CoopNet.localKeys = 32')
 tick(net, [host, g2], 6)
