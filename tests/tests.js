@@ -794,10 +794,19 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     var p3 = $gamePlayer3;
     if (!p3) { check('T32 setup: P3 joined', false); return; }
     var mine = p3._coopActorId;
+    // (la pregunta al jugador cuyo personaje se lleva la historia: responde "Si" = 0 / "No" = 1)
+    var consentAnswer = 0, consentAsked = [];
+    function answerConsent() {
+        if (CoopLocal.askPlayer && CoopLocal.askPlayer() && $gameMessage.isChoice()) {
+            consentAsked.push(CoopLocal.askPlayer() + ':' + $gameMessage._texts.join(' '));
+            $gameMessage.onChoice(consentAnswer);
+            $gameMessage.clear();
+        }
+    }
     function runEvent(list) {
         var it = new Game_Interpreter();
         it.setup(list, 0);
-        for (var i = 0; i < 200 && it.isRunning(); i++) it.update();
+        for (var i = 0; i < 200 && it.isRunning(); i++) { answerConsent(); it.update(); }
     }
     // un evento de la historia quita su personaje: se queda
     runEvent([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 0, indent: 0, parameters: [] }]);
@@ -839,6 +848,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         runEvent([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 115, indent: 0, parameters: [] },
             { code: 117, indent: 0, parameters: [ceId(/^TransferSTATStoMARRIAGE$/)] }, { code: 0, indent: 0, parameters: [] }]);
         for (k = 0; k < 15; k++) frame();
+        check('T32i0 FH1 marriage: P3 is asked first', consentAsked.length === 1 && /^3:/.test(consentAsked[0]), JSON.stringify(consentAsked));
         check('T32i FH1 marriage with P3\'s character: it leaves the party, P3 takes the free character',
             $gameParty._actors.indexOf(mine) < 0 && !!$gamePlayer3 && $gamePlayer3._coopActorId !== mine && $gameParty._actors.indexOf($gamePlayer3._coopActorId) > 0,
             'party=' + $gameParty._actors + ' p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'none'));
@@ -860,7 +870,17 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             var it2 = $gameMap._interpreter; // (como un evento del mapa: el grupo se reparte al terminar)
             it2.setup(circle.list, 0);
             try {
-                for (var f = 0; f < 4000 && it2.isRunning(); f++) { if ($gameMessage.isBusy()) $gameMessage.clear(); frame(); }
+                var ownerAtAsk = -1, ownerInfo = '';
+                for (var f = 0; f < 4000 && it2.isRunning(); f++) {
+                    if (ownerAtAsk < 0 && CoopLocal.askPlayer() && $gameMessage.isChoice()) {
+                        // (sin graficos no hay ventana de mensajes: una de mentira con la eleccion abierta)
+                        var scMw = SceneManager._scene, keepMw = scMw._messageWindow;
+                        scMw._messageWindow = { _choiceWindow: { active: true } };
+                        ownerAtAsk = CoopLocal.inputOwner();
+                        scMw._messageWindow = keepMw;
+                    }
+                    answerConsent(); if ($gameMessage.isBusy()) $gameMessage.clear(); frame();
+                }
             } finally {
                 Game_Interpreter.prototype.command303 = keep303;
                 SceneManager._nextScene = null;
@@ -870,6 +890,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             check('T32k FH1 real marriage (circle1): the knight + the captain of P3 become Marriage, the captain is not there twice',
                 p3had === 6 && $gameParty._actors.indexOf(6) < 0 && $gameParty._actors.indexOf(3) < 0 && $gameParty._actors.indexOf(9) >= 0 && !it2.isRunning(),
                 'party=' + $gameParty._actors + ' p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'waiting') + ' running=' + it2.isRunning());
+            check('T32k2 the question is answered by P3 (not P1)', ownerAtAsk === 3, 'owner=' + ownerAtAsk + ' ' + ownerInfo);
             check('T32l after the marriage P3 takes the free character', !!$gamePlayer3 && $gameParty._actors.indexOf($gamePlayer3._coopActorId) > 0,
                 'p3=' + ($gamePlayer3 ? $gamePlayer3._coopActorId : 'waiting') + ' parked=' + JSON.stringify(CoopLocal.parked(3)) + ' party=' + $gameParty._actors + ' scene=' + SceneManager._scene.constructor.name + ' msg=' + $gameMessage.isBusy() + ' idle=' + !$gameMap.isEventRunning());
         } catch (e) {
@@ -879,6 +900,47 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         $gameParty._actors = [1, 3, mine];
         if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
         for (k = 0; k < 5; k++) frame();
+        // "No": la boda no se hace; un sacrificio / un regalo elegido en una respuesta tampoco
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        $gameParty._actors = [1, 3, mine];
+        for (k = 0; k < 5; k++) frame();
+        SceneManager._scene.spawnPlayer(3, mine, true);
+        for (k = 0; k < 5; k++) frame();
+        consentAnswer = 1; consentAsked = [];
+        runEvent([{ code: 129, indent: 0, parameters: [mine, 1, false] }, { code: 115, indent: 0, parameters: [] },
+            { code: 117, indent: 0, parameters: [ceId(/^TransferSTATStoMARRIAGE$/)] }, { code: 0, indent: 0, parameters: [] }]);
+        for (k = 0; k < 10; k++) frame();
+        check('T32m FH1 marriage, P3 says no: nothing happens', consentAsked.length === 1 && $gameParty._actors.indexOf(mine) >= 0 &&
+            !!$gamePlayer3 && $gamePlayer3._coopActorId === mine, 'party=' + $gameParty._actors + ' asked=' + consentAsked.length);
+        // una respuesta que se lo lleva (aqui con "Keep players' characters" Off: si se iria)
+        CoopLocal.setSetting('keepCharacters', false);
+        var choiceList = [
+            { code: 102, indent: 0, parameters: [['Give', 'Keep'], 1, 0, 2, 0] },
+            { code: 402, indent: 0, parameters: [0, 'Give'] }, { code: 129, indent: 1, parameters: [mine, 1, false] }, { code: 0, indent: 1, parameters: [] },
+            { code: 402, indent: 0, parameters: [1, 'Keep'] }, { code: 0, indent: 1, parameters: [] },
+            { code: 404, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }];
+        function runChoice(pick) {
+            var it3 = new Game_Interpreter();
+            it3.setup(choiceList, 0);
+            for (var i3 = 0; i3 < 300 && it3.isRunning(); i3++) {
+                if ($gameMessage.isChoice() && !(CoopLocal.askPlayer && CoopLocal.askPlayer())) { $gameMessage.onChoice(pick); $gameMessage.clear(); }
+                answerConsent();
+                it3.update();
+            }
+        }
+        consentAsked = []; consentAnswer = 1;
+        runChoice(0);
+        for (k = 0; k < 10; k++) frame();
+        check('T32n giving P3\'s character away, P3 says no: they stay', consentAsked.length === 1 && $gameParty._actors.indexOf(mine) >= 0,
+            'party=' + $gameParty._actors + ' asked=' + JSON.stringify(consentAsked));
+        consentAsked = []; consentAnswer = 0;
+        runChoice(1);
+        check('T32o the other answer: P3 is not asked', consentAsked.length === 0, JSON.stringify(consentAsked));
+        runChoice(0);
+        for (k = 0; k < 10; k++) frame();
+        check('T32p P3 says yes: the character leaves', consentAsked.length === 1 && $gameParty._actors.indexOf(mine) < 0, 'party=' + $gameParty._actors);
+        CoopLocal.setSetting('keepCharacters', true);
+        consentAnswer = 0;
         // (vuelta al de antes para lo que sigue)
         $gameParty.addActor(mine);
         if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
@@ -886,6 +948,43 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         SceneManager._scene.spawnPlayer(3, mine, true);
         for (k = 0; k < 5; k++) frame();
         check('T32j setup back: P3 plays its character again', !!$gamePlayer3 && $gamePlayer3._coopActorId === mine);
+    }
+    // Termina: el circulo ritual (sacrificar a un gul) con un gul de P3: se le pregunta
+    var tCircle = /termina/i.test($dataSystem.gameTitle) ? $dataCommonEvents.filter(function(ce) { return ce && /^RITUAL_CIRCLE_SACRIFICE$/.test(ce.name); })[0] : null;
+    if (tCircle && $dataActors[16]) {
+        var keepParty = $gameParty._actors.slice();
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        $gameParty._actors = [keepParty[0], 16];
+        for (k = 0; k < 5; k++) frame();
+        SceneManager._scene.spawnPlayer(3, 16, true);
+        for (k = 0; k < 5; k++) frame();
+        var tAsked = [];
+        function runCircle(answer) {
+            var it4 = new Game_Interpreter();
+            it4.setup(tCircle.list, 0);
+            for (var i4 = 0; i4 < 600 && it4.isRunning(); i4++) {
+                if ($gameMessage.isChoice()) {
+                    if (CoopLocal.askPlayer && CoopLocal.askPlayer()) { tAsked.push(CoopLocal.askPlayer()); $gameMessage.onChoice(answer); }
+                    else $gameMessage.onChoice(0);
+                }
+                if ($gameMessage.isBusy()) $gameMessage.clear();
+                it4.update();
+            }
+        }
+        var p3ghoul = !!$gamePlayer3 && $gamePlayer3._coopActorId === 16;
+        runCircle(1);
+        for (k = 0; k < 10; k++) frame();
+        check('T32q Termina ritual circle: P3 (a ghoul) is asked; no = not sacrificed', p3ghoul && tAsked.length === 1 && tAsked[0] === 3 && $gameParty._actors.indexOf(16) >= 0,
+            'p3ghoul=' + p3ghoul + ' asked=' + tAsked + ' party=' + $gameParty._actors);
+        tAsked = [];
+        runCircle(0);
+        for (k = 0; k < 10; k++) frame();
+        check('T32r yes = sacrificed (not kept by "Keep players\' characters")', tAsked.length === 1 && $gameParty._actors.indexOf(16) < 0, 'asked=' + tAsked + ' party=' + $gameParty._actors);
+        if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+        $gameParty._actors = keepParty;
+        for (k = 0; k < 5; k++) frame();
+        SceneManager._scene.spawnPlayer(3, mine, true);
+        for (k = 0; k < 5; k++) frame();
     }
     $gameParty.removeActor(spare);
     for (k = 0; k < 5; k++) frame();

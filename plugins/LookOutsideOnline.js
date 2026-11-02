@@ -283,6 +283,7 @@
         menuOwner: 0,       // jugador que abrio el menu (solo responden sus teclas)
         parked: {},         // jugador -> { actorId, any }: sin personaje por ahora, vuelve solo
         storyTook: {},      // jugador -> actorId: la historia se lo llevo para siempre (boda, sacrificio...)
+        askPlayer: 0,       // jugador al que se le pregunta ahora (elige el la respuesta)
         lastActor: {},      // jugador -> ultimo personaje que llevo (al volver lo prefiere)
         takes: [],          // jugadores a los que el anfitrion quito el personaje (se aplica en el mapa)
         away: {},           // jugador -> true: no esta (mando desconectado...): su personaje va con la IA
@@ -401,7 +402,10 @@
         'If the protagonist dies (a monster, a trap...): the next player alive (or a companion who can be the protagonist) takes over. Game over: as in the game.':
             'Если герой погибает (монстр, ловушка...): героем становится следующий живой игрок (или спутник, который может быть героем). Конец игры — как в игре.',
         // menu Co-op
-        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Cheat: party: -': 'Чит: отряд: -',
+        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Yes': 'Да', 'No': 'Нет',
+        'Player {n}: they want to sacrifice {name}. Do you agree?': 'Игрок {n}: {name} хотят принести в жертву. Вы согласны?',
+        'Player {n}: the marriage of flesh - {name} and {hero} become one forever. Do you agree?': 'Игрок {n}: брак плоти — {name} и {hero} навсегда станут одним целым. Вы согласны?',
+        'Player {n}: {name} would be given away and leave the party for good. Do you agree?': 'Игрок {n}: {name} отдадут, и он(а) навсегда покинет отряд. Вы согласны?', 'Cheat: party: -': 'Чит: отряд: -',
         'Cheat: use a ritual circle here (sacrifices...)  (after the menu)': 'Чит: ритуальный круг здесь (жертвы...)  (после меню)',
         'Close the menu: the marriage begins': 'Закройте меню: начнётся брак', 'Close the menu: the ritual circle opens': 'Закройте меню: откроется ритуальный круг',
         'The protagonist stays': 'Главный герой остаётся', 'Choose someone else': 'Выберите другого',
@@ -565,7 +569,7 @@
         [/^Cheats on$/, 'Читы включены'], [/^Cheats off$/, 'Читы выключены'], [/^Online game open  -  your IP: (.+)$/, 'Сетевая игра открыта  —  ваш IP: $1'],
         [/^Player (\d+) is away$/, 'Игрок $1 отошёл'], [/^(.+) plays (.+)  -  any button to come back$/, '$1 ведёт: $2  —  любая кнопка, чтобы вернуться'],
         [/^Player (\d+) is back$/, 'Игрок $1 вернулся'], [/^Player (\d+)$/, 'Игрок $1'], [/^Split view: (.+)$/, 'Масштаб экрана: $1'],
-        [/^Player (\d+) is waiting for (.+)$/, 'Игрок $1 ждёт: $2'], [/^(.+) left the party for good$/, '$1 навсегда покидает отряд'],
+        [/^Player (\d+) is waiting for (.+)$/, 'Игрок $1 ждёт: $2'], [/^(.+) left the party for good$/, '$1 навсегда покидает отряд'], [/^Player (\d+) said no$/, 'Игрок $1 отказался'],
         [/^Player (\d+) takes the next free character  -  (.+) to choose now$/, 'Игрок $1 возьмёт следующего свободного персонажа  —  $2: выбрать сейчас'],
         [/^Comes back with them  -  (.+) to play someone else now$/, 'Вернётся вместе с ним  —  $1: играть за другого сейчас'], [/^Player (\d+) is now (.+)$/, 'Игрок $1 теперь: $2'], [/^(.+) stays with Player (\d+)$/, '$1 остаётся у игрока $2'],
         [/^Make room and press (.+) again$/, 'Освободите место и снова нажмите $1'], [/^(.+)  -  Press G to change camera$/, '$1  —  G — сменить камеру'],
@@ -877,6 +881,7 @@
     function choiceOwner() {
         if (!coopOn() || !inScene(Scene_Map) || !$gameMap.isEventRunning()) return 0;
         if (!messageInputActive()) return 0;
+        if (CoopState.askPlayer >= 2 && coopPlayer(CoopState.askPlayer)) return CoopState.askPlayer;
         const n = $gameMap._interpreter._coopStarter || 0;
         return (n >= 2 && coopPlayer(n)) ? n : 0;
     }
@@ -2455,6 +2460,9 @@
         englishName(kind, obj) { return englishName(kind, obj); },
         // un jugador en espera: { actorId, any } (o null)
         parked(n) { return CoopState.parked[n] || null; },
+        // la proxima eleccion la responde este jugador (0 = como siempre)
+        setAskPlayer(n) { CoopState.askPlayer = n || 0; },
+        askPlayer() { return CoopState.askPlayer; },
         // el idioma del juego (y del mod): como al cambiar "Language" en los ajustes
         setGameLanguage(value) {
             coopSettings.language = value;

@@ -440,22 +440,30 @@
     // Las demas salidas (Cahara que se va, Enki leyendo, la captura...) siguen como antes.
     const TAKEN_CE = /^(RITUAL CIRCLE\d*|TransferSTATSto\w+|HUNGER_of_\w+|Infection_SYSTEM|deathCheck|AFTER BATTLE|Miasma_effect\w*|GOD_OF_THE_DEPTHS|Demon Baby_GROWING|\w+_Disable_skill)$/i;
     const TAKEN_CALL = /^(RITUAL CIRCLE\d*|TransferSTATSto\w+)$/i;
+    // (Termina: su circulo ritual - los gules y Kalev se pueden sacrificar)
+    const TAKEN_CE_TERMINA = /^RITUAL_CIRCLE_SACRIFICE$/i;
+    const SACRIFICE_CE = /^(RITUAL[ _]CIRCLE\w*|GOD_OF_THE_DEPTHS)$/i;
     const TAKEN_MAP = /^(Level 9|Level 10|Next_plane|The_Void|Fortress|Mahabre_inside1|Golden_temple_inside2?|Ancient_Passageway)$/i;
-    const TAKEN_SWITCH = /^(GiveGirl|GiveKidDemon|lady_of_moon_gone|demon_kid_sword|D'arce_DEAD|DARCE_with_legarde|CAHARA_SPOT2|KNIGHT_SPOT2|OUTLANDER_SPOT2)$/i;
+    const TAKEN_SWITCH = /^(GiveGirl|GiveKidDemon|lady_of_moon_gone|demon_kid_sword|D'arce_DEAD|DARCE_with_legarde|CAHARA_SPOT2|KNIGHT_SPOT2|OUTLANDER_SPOT2|(girl|demonkid)EATEN\d|.+ on chains)$/i;
     let ceByList = null;
     function commonEventName(id) {
         const ce = typeof $dataCommonEvents !== 'undefined' && $dataCommonEvents ? $dataCommonEvents[id] : null;
         return (ce && ce.name) || '';
     }
-    function storyTakesActor(interp, actorId) {
-        if (gameProfile() !== GAME_PROFILES.fearhunger1) return false;
-        const list = interp && interp._list;
-        if (!list) return false;
+    function commonEventOfList(list) {
         if (!ceByList) {
             ceByList = new Map();
             ($dataCommonEvents || []).forEach(ce => { if (ce && ce.list) ceByList.set(ce.list, ce.name || ''); });
         }
-        if (ceByList.has(list)) return TAKEN_CE.test(ceByList.get(list));
+        return ceByList.has(list) ? ceByList.get(list) : null;
+    }
+    function storyTakesActor(interp, actorId) {
+        const list = interp && interp._list;
+        if (!list || !gameProfile()) return false;
+        if (gameProfile() === GAME_PROFILES.termina) return TAKEN_CE_TERMINA.test(commonEventOfList(list) || '');
+        if (gameProfile() !== GAME_PROFILES.fearhunger1) return false;
+        const ceName = commonEventOfList(list);
+        if (ceName !== null) return TAKEN_CE.test(ceName);
         const info = typeof $dataMapInfos !== 'undefined' && $dataMapInfos ? $dataMapInfos[$gameMap.mapId()] : null;
         if (info && TAKEN_MAP.test(info.name || '')) return true;
         const sw = ($dataSystem && $dataSystem.switches) || [];
@@ -468,6 +476,109 @@
         });
     }
     coop.storyTakesActor = storyTakesActor;
+
+    // ---- antes de llevarse al personaje de un jugador, se le pregunta a ese jugador ---------------
+    // El sacrificio en un circulo, dar a alguien (la nina a Pocketcat, a la hidra, encadenar...) - al
+    // elegir esa respuesta - y la boda de la carne - antes de que empiece -: "Jugador N: ... ¿De
+    // acuerdo?" y responde el. "No": esa respuesta no se hace (el circulo sigue con lo demas); la boda
+    // no empieza (y no vuelve a empezar sola: se apaga su interruptor de "amor").
+    function playerOfActorId(id) {
+        for (let n = 2; n <= 4; n++) {
+            const p = coop.player(n);
+            if (p && p._coopActorId === id) return n;
+        }
+        return 0;
+    }
+    function consentFor(interp, cmds) {
+        for (const c of cmds) {
+            if (c.code !== 129 || c.parameters[1] !== 1) continue;
+            const id = c.parameters[0], n = playerOfActorId(id), actor = $gameActors.actor(id);
+            if (!n || !actor || actor.isDead() || $gameParty._actors.indexOf(id) < 0) continue;
+            // (solo si de verdad se lo lleva: con "Keep players' characters" lo demas se queda)
+            if (storyTakesActor(interp, id) || coop.setting('keepCharacters') === false) return { n: n, id: id };
+        }
+        return null;
+    }
+    function marriesIn(list) {
+        return list.some(c => c.code === 117 && /^TransferSTATSto\w+$/i.test(commonEventName(c.parameters[0])));
+    }
+    const CONSENT_TEXT = {
+        sacrifice: 'Player {n}: they want to sacrifice {name}. Do you agree?',
+        marriage: 'Player {n}: the marriage of flesh - {name} and {hero} become one forever. Do you agree?',
+        give: 'Player {n}: {name} would be given away and leave the party for good. Do you agree?'
+    };
+    function askConsent(who, kind, done) {
+        const leader = $gameParty.leader();
+        const text = coop.tr(CONSENT_TEXT[kind]).split('{n}').join(String(who.n))
+            .split('{name}').join($gameActors.actor(who.id).name()).split('{hero}').join(leader ? leader.name() : '');
+        $gameMessage.setFaceImage('', 0);
+        $gameMessage.setBackground(0);
+        $gameMessage.setPositionType(2);
+        wrapText(text, 52).forEach(t => $gameMessage.add(t));
+        $gameMessage.setChoices([coop.tr('Yes'), coop.tr('No')], 0, 1);
+        $gameMessage.setChoiceCallback(i => {
+            coop.setAskPlayer(0);
+            done(i === 0 ? 'yes' : 'no');
+        });
+        coop.setAskPlayer(who.n);
+    }
+    // 'yes' = seguir, 'wait' = esperando la respuesta, 'no' = no lo quiere
+    function consentGate(interp, cmds, kind) {
+        const pend = interp._coopConsent;
+        if (pend && pend.list === interp._list && pend.index === interp._index) {
+            if (pend.answer === null) return 'wait';
+            interp._coopConsent = null;
+            if (pend.answer === 'no') coop.banner('Player ' + pend.n + ' said no', $gameActors.actor(pend.id).name(), '#ffaa44', 150);
+            return pend.answer;
+        }
+        const who = consentFor(interp, cmds);
+        if (!who) return 'yes';
+        if ($gameMessage.isBusy()) return 'wait';
+        const ask = { list: interp._list, index: interp._index, n: who.n, id: who.id, answer: null };
+        interp._coopConsent = ask;
+        askConsent(who, kind, answer => { ask.answer = answer; });
+        return 'wait';
+    }
+    function branchBody(interp) {
+        const out = [], list = interp._list, ind = interp._indent;
+        for (let i = interp._index + 1; i < list.length; i++) {
+            const c = list[i];
+            if (c.indent <= ind && (c.code === 402 || c.code === 403 || c.code === 404 || c.code === 0)) break;
+            out.push(c);
+        }
+        return out;
+    }
+    // la respuesta elegida de una eleccion
+    const _Game_Interpreter_command402_consent = Game_Interpreter.prototype.command402;
+    Game_Interpreter.prototype.command402 = function() {
+        if (gameProfile() && this._list && this._branch[this._indent] === this._params[0]) {
+            const kind = SACRIFICE_CE.test(commonEventOfList(this._list) || '') ? 'sacrifice' : 'give';
+            const r = consentGate(this, branchBody(this), kind);
+            if (r === 'wait') return false;
+            if (r === 'no') {
+                this.skipBranch();
+                return true;
+            }
+        }
+        return _Game_Interpreter_command402_consent.call(this);
+    };
+    // la boda (un evento entero: el circulo con el "amor" encendido, o el truco)
+    const _Game_Interpreter_executeCommand_consent = Game_Interpreter.prototype.executeCommand;
+    Game_Interpreter.prototype.executeCommand = function() {
+        if (this._index === 0 && this._list && this._coopConsentOk !== this._list && gameProfile() && marriesIn(this._list)) {
+            const r = consentGate(this, this._list, 'marriage');
+            if (r === 'wait') return false;
+            if (r === 'no') {
+                const ev = this._eventId ? $gameMap.event(this._eventId) : null;
+                const page = ev && ev.page();
+                if (page && page.trigger === 3 && page.conditions.switch1Valid) $gameSwitches.setValue(page.conditions.switch1Id, false);
+                this._index = this._list.length;
+                return true;
+            }
+            this._coopConsentOk = this._list;
+        }
+        return _Game_Interpreter_executeCommand_consent.call(this);
+    };
 
     const SOUL_STONE_ID = 116; // los dos juegos: la piedra con un alma dentro
 
