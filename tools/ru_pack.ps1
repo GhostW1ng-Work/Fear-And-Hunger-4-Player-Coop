@@ -32,11 +32,12 @@ function Add-RussianTranslation([string]$dest, [string]$docs) {
 Russian translation of Fear & Hunger 2: Termina - by savannstm
 https://github.com/savannstm/fh2-termina-translation
 VK: https://vk.com/stivhuis228   Telegram: https://t.me/Arsen1337Curduke
+License: WTFPL (as in that repository) - included in the co-op mod with credit to the author.
 
 The co-op mod uses it when its Language is Russian: Options > Co-op settings > Language
 (the game restarts). The game's own files are not changed - English is one switch away.
 
-Русский перевод Fear & Hunger 2: Termina - автор savannstm (ссылки выше).
+Русский перевод Fear & Hunger 2: Termina - автор savannstm (ссылки выше), лицензия WTFPL.
 Кооператив включает его, если язык мода - русский: Опции > Co-op settings > Language
 (игра перезапустится). Файлы самой игры не меняются - английский остаётся.
 '@
