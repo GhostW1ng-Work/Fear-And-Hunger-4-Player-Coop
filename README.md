@@ -252,6 +252,10 @@ For testing. They need *Cheats: On*; online, the host's choice counts.
 | Get a soul stone | Co-op menu | One soul stone. |
 | Restore HP, mind and hunger | Co-op menu | For the whole party. |
 | Get torches and fire | Co-op menu | 3 torches + Tinderbox / Matches / Lighter. |
+| Party: < name > | Co-op menu (both games) | Left/right chooses any character of the game, OK adds them to the party (if there is room) or removes them if they are in it (not the protagonist). A player's character removed: the player waits, as when the story removes it. |
+| Marriage of flesh with < name > | Co-op menu (Fear & Hunger 1) | Left/right chooses the partner in the party; when you close the menu the game performs the marriage of flesh with the protagonist, as in a ritual circle (if the protagonist is already *Marriage*: the fusion). |
+| Use a ritual circle here | Co-op menu (Fear & Hunger 1) | When you close the menu the game's ritual circle opens right there (sacrifices and the rest). |
+| Teleport: < place > | Co-op menu (Fear & Hunger 1) | Left/right chooses, OK takes everyone where the game brings you before an ending: Level 9 (ending A - the girl in the party, B), Level 10, the next plane (C / D), the void (C), the fortress (S). |
 | *Contestants left: N* | Co-op menu (Termina) | Shows how many contestants are still alive. The tower door (ending B) opens only at 1, with nobody else in the party. |
 | Kill all contestants not in the party | Co-op menu (Termina) | Every contestant not in your party (and not a player's character) dies the way the game records it: gone from the map, their soul can be taken, the count goes down. **Cannot be undone - use a separate save slot.** |
 | Play the ending The Fourth Festival | Co-op menu (Termina) | Shows that ending now (to check its text). |

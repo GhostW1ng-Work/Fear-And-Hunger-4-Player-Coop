@@ -755,6 +755,147 @@
         }
     });
 
+    // ---- trucos para probar: cualquier personaje en el grupo (los dos juegos) ----------------------
+    // izquierda/derecha elige; OK lo mete en el grupo (si hay sitio) o, si ya esta, lo saca (el
+    // protagonista no). Sacar a uno de un jugador: ese jugador espera, como cuando lo saca la historia.
+    function cheatActors() {
+        return ($dataActors || []).filter(a => a && a.name && a.characterName && !/^test$/i.test(englishName('Actors', a)));
+    }
+    let cheatActorAt = 0;
+    function cheatActor() {
+        const list = cheatActors();
+        if (!list.length) return null;
+        cheatActorAt = ((cheatActorAt % list.length) + list.length) % list.length;
+        return list[cheatActorAt];
+    }
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return !!gameProfile() && !!$gameParty; },
+        name() {
+            const a = cheatActor();
+            if (!a) return 'Cheat: party: -';
+            const inParty = $gameParty._actors.indexOf(a.id) >= 0;
+            return 'Cheat: party: < ' + $gameActors.actor(a.id).name() + ' > ' + (inParty ? '(in party: OK removes)' : '(OK adds)');
+        },
+        change(step) {
+            cheatActorAt += step;
+        },
+        run() {
+            const a = cheatActor();
+            if (!a) return SoundManager.playBuzzer();
+            const actors = $gameParty._actors;
+            if (actors.indexOf(a.id) >= 0) {
+                if (actors[0] === a.id) {
+                    coop.banner('The protagonist stays', 'Choose someone else', '#ffaa44', 120);
+                    return SoundManager.playBuzzer();
+                }
+                $gameParty.removeActor(a.id);
+            } else {
+                if ($gameParty.isFull()) {
+                    coop.banner('The party is full', 'Remove someone first (same cheat)', '#ffaa44', 140);
+                    return SoundManager.playBuzzer();
+                }
+                const actor = $gameActors.actor(a.id);
+                if (actor.isDead()) actor.revive();
+                $gameParty.addActor(a.id);
+            }
+            $gamePlayer.refresh();
+            $gameMap.requestRefresh();
+            SoundManager.playShop();
+        }
+    });
+
+    // ---- trucos de Fear & Hunger 1: la boda, el circulo ritual, ir a los finales -----------------
+    function isFearHunger1() {
+        return !!gameProfile() && gameProfile() === GAME_PROFILES.fearhunger1;
+    }
+    function commonEventId(re) {
+        const ce = ($dataCommonEvents || []).find(e => e && re.test(e.name || ''));
+        return ce ? ce.id : 0;
+    }
+    // un evento corto en el mapa (empieza al volver del menu)
+    function runOnMap(list) {
+        if ($gameMap.isEventRunning()) return false;
+        $gameMap._interpreter.setup(list.concat([{ code: 0, indent: 0, parameters: [] }]), 0);
+        return true;
+    }
+    // la boda de la carne, como en el circulo: se va el companero y el juego hace "Marriage" con el
+    // protagonista (si el protagonista ya es Marriage: la fusion)
+    let marryAt = 0;
+    function marryPartner() {
+        const list = $gameParty._actors.slice(1).filter(id => $gameActors.actor(id) && !$gameActors.actor(id).isDead());
+        if (!list.length) return 0;
+        marryAt = ((marryAt % list.length) + list.length) % list.length;
+        return list[marryAt];
+    }
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isFearHunger1() && !!$gameParty; },
+        name() {
+            const id = marryPartner();
+            return 'Cheat: marriage of flesh with < ' + (id ? $gameActors.actor(id).name() : '-') + ' >  (after the menu)';
+        },
+        change(step) {
+            marryAt += step;
+        },
+        run() {
+            const id = marryPartner();
+            const leader = $gameParty._actors[0];
+            const fusion = leader === 9; // (Marriage + uno mas = la fusion)
+            const ce = commonEventId(fusion ? /^TransferSTATStoFUSION$/ : /^TransferSTATStoMARRIAGE$/);
+            if (!id || !ce || leader === 11 || !runOnMap([{ code: 129, indent: 0, parameters: [id, 1, false] }, { code: 117, indent: 0, parameters: [ce] }])) {
+                return SoundManager.playBuzzer();
+            }
+            coop.banner('Close the menu: the marriage begins', '', '#ff8866', 140);
+            SoundManager.playShop();
+        }
+    });
+    // el circulo ritual del juego (sacrificios, portal...)
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isFearHunger1() && !!$gameParty; },
+        name() {
+            return 'Cheat: use a ritual circle here (sacrifices...)  (after the menu)';
+        },
+        run() {
+            const ce = commonEventId(/^RITUAL CIRCLE$/);
+            if (!ce) return SoundManager.playBuzzer();
+            $gameTemp.reserveCommonEvent(ce);
+            coop.banner('Close the menu: the ritual circle opens', '', '#ff8866', 140);
+            SoundManager.playShop();
+        }
+    });
+    // ir a los finales (a donde lleva el juego)
+    const ENDING_PLACES = [
+        { name: 'Level 9: ending A (the girl in the party) / B', map: 'Level 9', x: 32, y: 55, d: 8 },
+        { name: 'Level 10: ending A', map: 'Level 10', x: 20, y: 16, d: 2 },
+        { name: 'Next plane: endings C / D', map: 'Next_plane', x: 48, y: 48, d: 2 },
+        { name: 'The void: ending C', map: 'The_Void', x: 23, y: 13, d: 2 },
+        { name: 'Fortress: ending S', map: 'Fortress', x: 14, y: 5, d: 2 }
+    ];
+    let endingAt = 0;
+    function endingPlace() {
+        endingAt = ((endingAt % ENDING_PLACES.length) + ENDING_PLACES.length) % ENDING_PLACES.length;
+        return ENDING_PLACES[endingAt];
+    }
+    coop.addAssignAction({
+        cheat: true,
+        visible() { return isFearHunger1(); },
+        name() {
+            return 'Cheat: teleport: < ' + endingPlace().name + ' >';
+        },
+        change(step) {
+            endingAt += step;
+        },
+        run() {
+            const p = endingPlace();
+            const info = ($dataMapInfos || []).find(m => m && m.name === p.map);
+            if (!info) return SoundManager.playBuzzer();
+            $gamePlayer.reserveTransfer(info.id, p.x, p.y, p.d, 0);
+            SoundManager.playShop();
+        }
+    });
+
     // ---- trucos de Fear & Hunger (con "Cheats" en Opciones > Co-op > Co-op settings) ----------
     coop.addSettings([
         { key: 'cheatUnlock', name: '  Cheat: open locks', values: [false, true], labels: ['Off', 'On'], after: 'cheatOneShot',

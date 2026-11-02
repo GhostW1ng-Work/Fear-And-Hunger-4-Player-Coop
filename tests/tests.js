@@ -1996,4 +1996,77 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     }
 })();
 
+// --- T61: trucos para probar: cualquiera al grupo, la boda, el circulo, ir a los finales ---
+(function() {
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 5; k++) frame();
+    var w = new Window_CoopAssign(0, 0, 816, 500);
+    function row(re) {
+        for (var r = 0; r < w.maxItems(); r++) { var ac = w.actionAt(r); if (ac && re.test(ac.name())) return ac; }
+        return null;
+    }
+    var party = row(/^Cheat: party: </);
+    check('T61 cheat "party: < name >" is in the Co-op menu', !!party);
+    if (!party) return;
+    // elegir a alguien que no esta en el grupo
+    var keep = $gameParty._actors.slice();
+    $gameParty._actors = keep.slice(0, 1);
+    for (k = 0; k < 5; k++) frame();
+    var tries = 0;
+    while (/in party/.test(party.name()) && tries++ < 60) party.change(1);
+    var name = /< (.+) >/.exec(party.name())[1];
+    party.run();
+    var added = $gameParty.members().filter(function(a) { return a.name() === name; })[0];
+    check('T61b OK adds that character to the party', !!added && /in party/.test(party.name()), name + ' party=' + $gameParty._actors);
+    party.run();
+    check('T61c OK again removes them', $gameParty.members().indexOf(added) < 0, 'party=' + $gameParty._actors);
+    // el protagonista no se quita; con el grupo lleno no entra nadie
+    tries = 0;
+    while (!/in party/.test(party.name()) && tries++ < 60) party.change(1);
+    party.run();
+    check('T61d the protagonist is not removed', $gameParty._actors.length === 1, 'party=' + $gameParty._actors);
+    var others = $dataActors.filter(function(a) { return a && a.name && a.characterName && $gameParty._actors.indexOf(a.id) < 0; }).slice(0, 3);
+    others.forEach(function(a) { $gameParty.addActor(a.id); });
+    tries = 0;
+    while (/in party/.test(party.name()) && tries++ < 60) party.change(1);
+    var full = $gameParty._actors.length;
+    party.run();
+    check('T61e full party: nobody more joins', $gameParty._actors.length === full && full === 4, 'party=' + $gameParty._actors);
+    if (/^fear & hunger$/i.test($dataSystem.gameTitle)) {
+        var marry = row(/^Cheat: marriage of flesh/), circle = row(/^Cheat: use a ritual circle/), tp = row(/^Cheat: teleport: </);
+        check('T61f FH1: the marriage, ritual circle and endings teleport cheats are there', !!marry && !!circle && !!tp);
+        if (tp) {
+            tp.run();
+            var lv9 = $dataMapInfos.filter(function(m) { return m && m.name === 'Level 9'; })[0];
+            check('T61g FH1: teleport to Level 9 (ending A with the girl)', !!lv9 && $gamePlayer._newMapId === lv9.id, $gamePlayer._newMapId);
+            $gamePlayer._transferring = false;
+        }
+        if (marry) {
+            var partner = $gameParty._actors[1];
+            [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, false); });
+            var leader = $gameParty._actors[0];
+            var selectSw = { 1: 246, 3: 242, 4: 243, 5: 244, 6: 245 }[leader];
+            if (selectSw) $gameSwitches.setValue(selectSw, true);
+            marry.run();
+            var keep303 = Game_Interpreter.prototype.command303;
+            Game_Interpreter.prototype.command303 = function() { return true; };
+            try {
+                for (var f = 0; f < 3000 && $gameMap._interpreter.isRunning(); f++) { if ($gameMessage.isBusy()) $gameMessage.clear(); frame(); }
+            } finally {
+                Game_Interpreter.prototype.command303 = keep303;
+                SceneManager._nextScene = null;
+                $gameScreen.clear();
+            }
+            check('T61h FH1 marriage cheat: the partner and the protagonist become Marriage',
+                !selectSw || ($gameParty._actors.indexOf(9) >= 0 && $gameParty._actors.indexOf(partner) < 0 && $gameParty._actors.indexOf(leader) < 0),
+                'leader=' + leader + ' partner=' + partner + ' party=' + $gameParty._actors);
+            [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, false); });
+        }
+    }
+    $gameParty._actors = keep;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

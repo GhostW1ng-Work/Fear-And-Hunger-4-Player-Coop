@@ -4,6 +4,7 @@
 
 - **Fixed (Fear & Hunger 1): the marriage of flesh with a player's character.** The game removes the partner and adds *Marriage*, but the mod kept the partner of P2-P4 (*Keep players' characters*): the character was there twice. Now what the game takes for good leaves the party for the player too - the marriage, a sacrifice in a ritual circle, a trade (the girl / the demon kid to Pocketcat, the lady of the moon), hunger, infection, miasma, and the scenes of the endings (Level 9 with the girl, the fortress, the void...). The player takes the next free character (or waits for one; their join key chooses at once). Other story exits (Cahara leaving, Enki in the library, the capture) stay as before.
 - The banners "Player N is waiting for..." and the new one are in Russian too.
+- **New cheats for testing** (Co-op menu, *Cheats* On): **Party: < name >** in both games - any character of the game into the party (if there is room) or out of it; Fear & Hunger 1: **Marriage of flesh with < name >** (the game's own marriage with the protagonist, after the menu), **Use a ritual circle here** (sacrifices...), **Teleport: < place >** to where the game brings you before the endings (Level 9 - ending A with the girl / B, Level 10, the next plane, the void, the fortress).
 
 ## v1.9.5
 
