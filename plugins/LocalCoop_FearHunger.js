@@ -420,13 +420,8 @@
 
     // El juego traducido (www/lang/ru) tiene en ruso los nombres de objetos, enemigos, personajes...:
     // lo que el mod busca por su nombre lo busca por el nombre en ingles (www/data, que no cambia).
-    const englishDb = {};
     function englishName(kind, obj) {
-        if (!obj) return '';
-        if (window.$coopGameLang !== 'ru') return obj.name || '';
-        if (englishDb[kind] === undefined) englishDb[kind] = readDataSync(kind + '.json');
-        const en = englishDb[kind] && englishDb[kind][obj.id];
-        return (en && en.name) || obj.name || '';
+        return coop.englishName ? coop.englishName(kind, obj) : ((obj && obj.name) || '');
     }
 
     const SOUL_STONE_ID = 116; // los dos juegos: la piedra con un alma dentro
@@ -677,7 +672,7 @@
         const lostAll = kind => limbs[kind].some(id => /2$/.test($dataSystem.switches[id] || '') && $gameSwitches.value(id));
         if (lostAll('arm') && lostAll('leg')) {
             limbs.arm.concat(limbs.leg).forEach(id => $gameSwitches.setValue(id, false));
-            actor.states().filter(st => LIMB_STATE_NAMES.test(st.name)).forEach(st => actor.removeState(st.id));
+            actor.states().filter(st => LIMB_STATE_NAMES.test(englishName('States', st))).forEach(st => actor.removeState(st.id));
         }
         // vuelve con parte de la vida y la mente
         const part = (Number(coop.setting('reviveHp')) || 30) / 100;
@@ -1475,7 +1470,7 @@
     }
 
     function stateIdNamed(re) {
-        const s = ($dataStates || []).find(st => st && re.test(st.name));
+        const s = ($dataStates || []).find(st => st && re.test(englishName('States', st)));
         return s ? s.id : 0;
     }
 
@@ -1605,14 +1600,14 @@
         sw.arm.concat(sw.leg).forEach(id => { switches[id] = $gameSwitches.value(id); });
         return {
             switches: switches,
-            states: a.states().filter(st => LIMB_STATE_NAMES.test(st.name)).map(st => st.id),
+            states: a.states().filter(st => LIMB_STATE_NAMES.test(englishName('States', st))).map(st => st.id),
             equips: a.equips().map(it => it ? (DataManager.isWeapon(it) ? 'w' : 'a') + it.id : '')
         };
     }
     function limbRestore(a, snap) {
         if (!a || !snap) return;
         Object.keys(snap.switches).forEach(id => $gameSwitches.setValue(Number(id), snap.switches[id]));
-        a.states().filter(st => LIMB_STATE_NAMES.test(st.name) && snap.states.indexOf(st.id) < 0).forEach(st => a.removeState(st.id));
+        a.states().filter(st => LIMB_STATE_NAMES.test(englishName('States', st)) && snap.states.indexOf(st.id) < 0).forEach(st => a.removeState(st.id));
         snap.states.forEach(id => { if (!a.isStateAffected(id)) a.addState(id); });
         // el arma que solto al quedarse sin brazos
         snap.equips.forEach((code, slot) => {
@@ -3620,7 +3615,7 @@
         try {
             const fs = require('fs'), path = require('path');
             const www = path.dirname(process.mainModule.filename);
-            const ru = path.join(www, 'lang', 'ru', 'data', file);
+            const ru = path.join(www, window.$coopRuDir || 'lang/ru', 'data', file);
             const src = current && window.$coopGameLang === 'ru' && fs.existsSync(ru) ? ru : path.join(www, 'data', file);
             return JSON.parse(fs.readFileSync(src, 'utf8').replace(/^\uFEFF/, ''));
         } catch (e) {

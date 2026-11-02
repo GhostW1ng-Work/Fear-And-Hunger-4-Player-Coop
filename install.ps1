@@ -270,14 +270,13 @@ Copy-Item (Join-Path $PSScriptRoot 'extras\coop_view.html') $viewPage -Force
 $mainJs = Join-Path $jsDir 'main.js'
 if (-not (Test-Path "$mainJs.coop.bak")) { Copy-Item $mainJs "$mainJs.coop.bak" }
 Copy-Item (Join-Path $PSScriptRoot 'extras\main.js') $mainJs -Force
-# la traduccion al ruso (de savannstm) - solo es de Termina
-$ruSrc = Join-Path $PSScriptRoot 'lang\ru'
-if ((Test-Path $ruSrc) -and $title -match 'termina') {
-    $ruDst = Join-Path (Split-Path $jsDir -Parent) 'lang\ru'
-    Remove-Item $ruDst -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force (Split-Path $ruDst -Parent) | Out-Null
-    Copy-Item $ruSrc $ruDst -Recurse -Force
-    Write-Host 'Russian translation: Options > Co-op settings > Language (the game restarts)'
+# las traducciones al ruso (main.js usa la de este juego)
+$langSrc = Join-Path $PSScriptRoot 'lang'
+if (Test-Path $langSrc) {
+    $langDst = Join-Path (Split-Path $jsDir -Parent) 'lang'
+    Remove-Item $langDst -Recurse -Force -ErrorAction SilentlyContinue
+    Copy-Item $langSrc $langDst -Recurse -Force
+    Write-Host 'Russian: Options > Co-op settings > Language (the game restarts)'
 }
 if ($Net -eq 'host' -or $Net -eq 'join') {
     $cfg = if ($Net -eq 'host') { "{ ""role"": ""host"", ""port"": $NetPort }" } else { "{ ""role"": ""join"", ""host"": ""$NetHost"", ""port"": $NetPort }" }

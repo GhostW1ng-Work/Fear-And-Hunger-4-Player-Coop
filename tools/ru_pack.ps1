@@ -1,46 +1,71 @@
 <#
-  The Russian translation of Termina (by savannstm) for the release archives: dot-source this and call
-  Add-RussianTranslation <folder> <docsFolder>. It unpacks TerminaRus.zip (repository root, not in git)
-  into <folder> (www\lang\ru of the game), without its changelog page (that goes to <docsFolder>) and
-  its window icon, and adds a note with the authors. Without TerminaRus.zip nothing is added.
+  The Russian translations of the games for the release archives: dot-source this and call
+  Add-RussianTranslations <langFolder> <docsFolder>. Each one is unpacked from its archive in the
+  repository root (not in git) into its own folder of <langFolder> (www\lang of the game); the mod's
+  main.js uses the one made for the game it runs in. A missing archive is just left out.
 #>
-function Add-RussianTranslation([string]$dest, [string]$docs) {
-    $root = Split-Path $PSScriptRoot -Parent
-    $zipPath = Join-Path $root 'TerminaRus.zip'
-    if (-not (Test-Path $zipPath)) {
-        Write-Warning 'TerminaRus.zip not found: the archive goes without the Russian translation'
-        return
-    }
-    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
-    $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
-    try {
-        foreach ($e in $zip.Entries) {
-            $name = $e.FullName.Replace('\', '/')
-            if ($name.EndsWith('/') -or $name.StartsWith('icon/')) { continue }
-            if ($name.EndsWith('.html')) {
-                $target = Join-Path $docs 'TerminaRus - changes.html'
-            } else {
-                $target = Join-Path $dest $name.Replace('/', '\')
-            }
-            New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
-            [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $target, $true)
-        }
-    } finally {
-        $zip.Dispose()
-    }
-    $about = @'
+$RussianTranslations = @(
+    @{
+        Zip = 'TerminaRus.zip'; Folder = 'ru-termina'
+        # (all of it but its changelog page - to the docs - and its window icon)
+        Take = { param($n) -not $n.StartsWith('icon/') }
+        Doc = @{ '.html' = 'Termina - Russian translation - changes.html' }
+        About = @'
 Russian translation of Fear & Hunger 2: Termina - by savannstm
 https://github.com/savannstm/fh2-termina-translation
 VK: https://vk.com/stivhuis228   Telegram: https://t.me/Arsen1337Curduke
 License: WTFPL (as in that repository) - included in the co-op mod with credit to the author.
+'@
+    },
+    @{
+        Zip = 'FearHunger_khoohatt.zip'; Folder = 'ru-fh1'
+        # (its texts and pictures and the code files it changed - the rest of its js is the game's own)
+        Take = { param($n) $n -match '^(data|img)/' -or $n -in @('js/plugins.js', 'js/rpg_windows.js', 'js/plugins/YEP_BattleEngineCore.js', 'js/plugins/YEP_ItemSynthesis.js') }
+        Doc = @{ 'README.txt' = 'Fear & Hunger 1 - Russian translation - README.txt' }
+        About = @'
+Russian translation of Fear & Hunger (1) - by khoohatt (version 1.0, made for the game 1.4.1)
+'@
+    }
+)
+
+function Add-RussianTranslations([string]$lang, [string]$docs) {
+    $root = Split-Path $PSScriptRoot -Parent
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    foreach ($t in $RussianTranslations) {
+        $zipPath = Join-Path $root $t.Zip
+        if (-not (Test-Path $zipPath)) {
+            Write-Warning "$($t.Zip) not found: the archive goes without that translation"
+            continue
+        }
+        $dest = Join-Path $lang $t.Folder
+        $zip = [IO.Compression.ZipFile]::OpenRead($zipPath)
+        try {
+            foreach ($e in $zip.Entries) {
+                $name = $e.FullName.Replace('\', '/')
+                if ($name.EndsWith('/') -or $name -match '(^|/)\.DS_Store$') { continue }
+                $doc = $t.Doc.Keys | Where-Object { $name -eq $_ -or ($_.StartsWith('.') -and $name.EndsWith($_)) } | Select-Object -First 1
+                if ($doc) {
+                    $target = Join-Path $docs $t.Doc[$doc]
+                } elseif (& $t.Take $name) {
+                    $target = Join-Path $dest $name.Replace('/', '\')
+                } else {
+                    continue
+                }
+                New-Item -ItemType Directory -Force (Split-Path $target -Parent) | Out-Null
+                [IO.Compression.ZipFileExtensions]::ExtractToFile($e, $target, $true)
+            }
+        } finally {
+            $zip.Dispose()
+        }
+        $about = $t.About + @'
 
 The co-op mod uses it when its Language is Russian: Options > Co-op settings > Language
 (the game restarts). The game's own files are not changed - English is one switch away.
 
-Русский перевод Fear & Hunger 2: Termina - автор savannstm (ссылки выше), лицензия WTFPL.
-Кооператив включает его, если язык мода - русский: Опции > Co-op settings > Language
-(игра перезапустится). Файлы самой игры не меняются - английский остаётся.
+Кооператив включает этот перевод, если язык мода - русский: Options > Co-op settings >
+Language (на русском: Опции > Кооп > Настройки кооператива > Язык; игра перезапустится). Файлы самой игры не меняются - английский остаётся.
 '@
-    [IO.File]::WriteAllText((Join-Path $dest 'ABOUT.txt'), $about, (New-Object Text.UTF8Encoding $false))
-    Write-Host "Russian translation added: $dest"
+        [IO.File]::WriteAllText((Join-Path $dest 'ABOUT.txt'), $about, (New-Object Text.UTF8Encoding $false))
+        Write-Host "Russian translation added: $dest"
+    }
 }

@@ -2,8 +2,9 @@
 
 ## Unreleased
 
-- **Termina in Russian:** the mod comes with the Russian translation of the game by savannstm (https://github.com/savannstm/fh2-termina-translation). Options > Co-op settings > *Language* now switches the whole game too, not only the mod: the game restarts in that language (from the title at once; during a game - after the next start). The game's own files are not changed: the translation lives in `www/lang/ru` and the mod's `main.js` uses it instead of the game's files. On a Russian PC the game starts in Russian at first. Online, all players need the same game language (the host says so).
-- The mod's names and lookups work with the translated game too (soul stones, torches, keys, PvP body parts, the names of the contestants, the scene at the top of the tower).
+- **The games in Russian:** the mod comes with the Russian translations of both games - Termina by savannstm (https://github.com/savannstm/fh2-termina-translation), Fear & Hunger 1 by khoohatt (its version 1.0). Options > Co-op settings > *Language* now switches the whole game too, not only the mod: the game restarts in that language (from the title at once; during a game - after the next start). The game's own files are not changed: the translations live in `www/lang/ru-termina` and `www/lang/ru-fh1`, and the mod's `main.js` uses the one made for the game it runs in instead of the game's files (Fear & Hunger 1: also the engine file it changed). On a Russian PC the game starts in Russian at first. Online, all players need the same game language (the host says so).
+- In Russian the mod's entries in the menus are Russian too: *Кооп*, *Настройки кооператива...*, *Сетевая игра...*, *Создать / Войти в сетевую игру* on the title screen, and their help lines.
+- The mod's names and lookups work with the translated games too (soul stones, torches, keys, states such as cut limbs, PvP body parts, the names of the contestants, the scene at the top of the tower).
 
 ## v1.9.4
 

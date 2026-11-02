@@ -12,8 +12,9 @@ PLAY: on the map press X (or Start on a gamepad) - player 2 joins; U / Numpad 0 
 Start on another gamepad - the next one. The rest is in README.md; online play:
 docs\NETPLAY.md.
 
-RUSSIAN (Termina): the archive has the Russian translation of the game by savannstm
-(www\lang\ru). Options > Co-op settings > Language: Русский - the game restarts in Russian.
+RUSSIAN: the archive has the Russian translations of both games (www\lang: Termina by
+savannstm, Fear & Hunger 1 by khoohatt) - the game uses its own one.
+Options > Co-op settings > Language: Русский - the game restarts in Russian.
 English again: the same setting. On a Russian PC the game starts in Russian at first.
 
 UPDATE: unpack the new version the same way, replacing the files.
@@ -44,9 +45,12 @@ https://github.com/GhostW1ng-Work/Fear-And-Hunger-4-Player-Coop/releases
 или Start на другом геймпаде - следующий. Остальное - в README.ru.md; игра по сети -
 docs\NETPLAY.ru.md.
 
-РУССКИЙ ЯЗЫК (Termina): в архиве - русский перевод игры от savannstm (www\lang\ru).
-Опции > Co-op settings > Language: Русский - игра перезапустится на русском. Обратно на
-английский - та же настройка. На русской Windows игра сразу запускается на русском.
+РУССКИЙ ЯЗЫК: в архиве - русские переводы обеих игр (www\lang: Termina от savannstm,
+Fear & Hunger 1 от khoohatt), игра берёт свой.
+На русской Windows игра сразу запускается на русском. Сменить язык:
+  по-русски:    Опции > Кооп > Настройки кооператива... > Язык
+  по-английски: Options > Co-op > Co-op settings... > Language
+(игра перезапустится).
 
 ОБНОВЛЕНИЕ: распакуйте новую версию так же, с заменой файлов.
 

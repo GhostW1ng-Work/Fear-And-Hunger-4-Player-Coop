@@ -400,7 +400,11 @@
         'If the protagonist dies (a monster, a trap...): the next player alive (or a companion who can be the protagonist) takes over. Game over: as in the game.':
             'Если герой погибает (монстр, ловушка...): героем становится следующий живой игрок (или спутник, который может быть героем). Конец игры — как в игре.',
         // menu Co-op
-        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Who controls each character in combat': 'Кто управляет каждым персонажем в бою',
+        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Network game...': 'Сетевая игра...',
+        'Host online': 'Создать сетевую игру', 'Join online': 'Войти в сетевую игру',
+        'Camera, split screen, gamepads and keys of the local co-op.': 'Камера, разделённый экран, геймпады и клавиши кооператива.',
+        'Open the local co-op settings.': 'Открыть настройки кооператива.',
+        'Play over the local network, each player on their own PC.': 'Игра по локальной сети, каждый игрок на своём ПК.', 'Who controls each character in combat': 'Кто управляет каждым персонажем в бою',
         'Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it;  "Pn plays it": for who waits)':
             'Влево/Вправо, OK: сменить   Отмена: назад   (P2–P4: отошёл / забрать; «Pn играет» — ожидающему)',
         'Cheat: restore HP, mind and hunger': 'Чит: восстановить здоровье, рассудок и голод', 'Cheat: get torches and fire': 'Чит: факелы и огонь',
@@ -591,6 +595,27 @@
         I18N_RU_FRAGMENTS.forEach(f => { if (out.indexOf(f[0]) >= 0) out = out.split(f[0]).join(f[1]); });
         return lead + out;
     }
+    // El juego traducido (www/lang/..., ver main.js) tiene en ruso los nombres de objetos, estados,
+    // enemigos, personajes...: lo que el mod busca por su nombre lo busca por el nombre en ingles (los
+    // archivos de la propia www/data, que no cambian).
+    const englishDb = {};
+    function englishName(kind, obj) {
+        if (!obj) return '';
+        if (window.$coopGameLang !== 'ru') return obj.name || '';
+        if (englishDb[kind] === undefined) {
+            englishDb[kind] = null;
+            try {
+                const fs = require('fs'), path = require('path');
+                const file = path.join(path.dirname(process.mainModule.filename), 'data', kind + '.json');
+                englishDb[kind] = JSON.parse(String(fs.readFileSync(file, 'utf8')).replace(/^\uFEFF/, ''));
+            } catch (e) {
+                englishDb[kind] = null;
+            }
+        }
+        const en = englishDb[kind] && englishDb[kind][obj.id];
+        return (en && en.name) || obj.name || '';
+    }
+
     function coopLanguage() {
         try {
             return coopSettings.language || 'en';
@@ -2413,6 +2438,8 @@
         // el texto en el idioma del mod (ver IDIOMA DEL MOD)
         tr(text) { return tr(text); },
         language() { return coopLanguage(); },
+        // el nombre en ingles de un objeto de la base de datos (kind: 'Items', 'States', 'Enemies'...)
+        englishName(kind, obj) { return englishName(kind, obj); },
         // el idioma del juego (y del mod): como al cambiar "Language" en los ajustes
         setGameLanguage(value) {
             coopSettings.language = value;
@@ -2571,15 +2598,22 @@
         if (isCoopWindow(this) && typeof text === 'string') arguments[0] = tr(text);
         return _Window_Base_drawTextEx_tr.apply(this, arguments);
     };
-    // "Co-op" en el menu y "Co-op settings..." en Opciones
-    [window.Window_MenuCommand, window.Window_Options].forEach(cls => {
+    // las entradas del co-op en el menu, en Opciones (y su categoria) y en el titulo, y sus ayudas
+    const COOP_MENU_NAMES = ['Co-op', 'Co-op settings...', 'Network game...', 'Host online', 'Join online'];
+    const COOP_MENU_HELPS = ['Camera, split screen, gamepads and keys of the local co-op.', 'Open the local co-op settings.',
+        'Play over the local network, each player on their own PC.'];
+    [window.Window_MenuCommand, window.Window_Options, window.Window_OptionsCategory, window.Window_TitleCommand].forEach(cls => {
         if (!cls || !cls.prototype.commandName) return;
         const orig = cls.prototype.commandName;
         cls.prototype.commandName = function(index) {
             const name = orig.call(this, index);
-            return name === 'Co-op' || name === 'Co-op settings...' ? tr(name) : name;
+            return COOP_MENU_NAMES.indexOf(name) >= 0 ? tr(name) : name;
         };
     });
+    const _Window_Help_setText_tr = Window_Help.prototype.setText;
+    Window_Help.prototype.setText = function(text) {
+        return _Window_Help_setText_tr.call(this, COOP_MENU_HELPS.indexOf(text) >= 0 ? tr(text) : text);
+    };
     // la letra de las ventanas: con cirilico (despues de todos los plugins: algunos la cambian)
     const _Scene_Boot_start_cyr = Scene_Boot.prototype.start;
     Scene_Boot.prototype.start = function() {
@@ -4703,8 +4737,8 @@
     Game_Battler.prototype.addState = function(stateId) {
         if (isPartyActor(this)) {
             const st = $dataStates[stateId];
-            if (cheatOn('cheatLimbs') && st && LIMB_STATE.test(st.name)) return;
-            if (cheatOn('cheatGod') && (stateId === this.deathStateId() || (st && /^headless/i.test(st.name)))) {
+            if (cheatOn('cheatLimbs') && st && LIMB_STATE.test(englishName('States', st))) return;
+            if (cheatOn('cheatGod') && (stateId === this.deathStateId() || (st && /^headless/i.test(englishName('States', st))))) {
                 if (this._hp <= 0) this._hp = 1;
                 return;
             }

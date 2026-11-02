@@ -11,7 +11,7 @@
 
 [English version](README.md)
 
-**Termina на русском:** вместе с модом идёт русский перевод Termina от [savannstm](https://github.com/savannstm/fh2-termina-translation). Опции > Co-op settings > **Language** переключает и мод, и всю игру между английским и русским (игра перезапустится); файлы самой игры не меняются.
+**Игры на русском:** вместе с модом идут русские переводы обеих игр — Termina от [savannstm](https://github.com/savannstm/fh2-termina-translation), Fear & Hunger 1 от khoohatt. Опции > Кооп > Настройки кооператива > **Язык** (в английской игре: Options > Co-op > Co-op settings > Language) переключает и мод, и всю игру между английским и русским (игра перезапустится); файлы самой игры не меняются.
 
 **Сообщество и поддержка:** [Discord](https://discord.gg/7JTs84Qt6w) — новости, помощь, баги, поиск игроков · поддержать мод: [Boosty](https://boosty.to/flyingfrogs) · [Patreon](https://patreon.com/FlyingFrogs)
 
@@ -205,7 +205,7 @@
 
 ## Настройки
 
-В игре: **Options → Co-op → Co-op settings...** Они сохраняются как громкость и действуют во всех сохранениях.
+В игре: **Options → Co-op → Co-op settings...** (на русском: Опции → Кооп → Настройки кооператива...) Они сохраняются как громкость и действуют во всех сохранениях.
 
 **Управление и экран:**
 

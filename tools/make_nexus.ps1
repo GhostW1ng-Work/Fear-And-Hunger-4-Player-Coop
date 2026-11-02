@@ -31,7 +31,7 @@ foreach ($f in @('NETPLAY.md', 'NETPLAY.ru.md', 'DOOR_LINES.md', 'ENDING_FOURTH_
 }
 
 . (Join-Path $PSScriptRoot 'ru_pack.ps1')
-Add-RussianTranslation (Join-Path $stage 'www\lang\ru') (Join-Path $stage 'docs')
+Add-RussianTranslations (Join-Path $stage 'www\lang') (Join-Path $stage 'docs')
 
 $zip = Join-Path $dist "$name.zip"
 Remove-Item $zip -ErrorAction SilentlyContinue

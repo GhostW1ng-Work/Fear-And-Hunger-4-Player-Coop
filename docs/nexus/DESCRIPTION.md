@@ -18,7 +18,7 @@ Based on [rpgmaker-local-coop](https://github.com/TheTiranix/rpgmaker-local-coop
 - **The protagonist can change** - if the protagonist dies, the next player takes over and the story goes on.
 - **PvP** - attack another player: the game's own body-part battles, cut arms, legs and heads, fights to the death, several sides at once. Kill the protagonist - become the protagonist.
 - **Lots of settings and cheats** - rules for death, revives, PvP, camera, and test cheats.
-- **English and Russian** - the mod and the whole game: the Russian translation of Termina by [savannstm](https://github.com/savannstm/fh2-termina-translation) is included, one setting switches the language (the game restarts).
+- **English and Russian** - the mod and the whole game: the Russian translations are included (Termina by [savannstm](https://github.com/savannstm/fh2-termina-translation), Fear & Hunger 1 by khoohatt), one setting switches the language (the game restarts).
 
 ## New in Termina (spoilers)
 
