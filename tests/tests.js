@@ -985,6 +985,35 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
                 ended && consentAsked.length === 1 && $gameParty._actors.indexOf(3) < 0 && $gameVariables.value(162) === aff + 1 &&
                 seen.some(function(t) { return /affinity/i.test(t); }),
                 'party=' + $gameParty._actors + ' affinity ' + aff + '->' + $gameVariables.value(162) + ' ended=' + ended + ' asked=' + consentAsked.length);
+            // lo mismo con el truco del menu "Co-op" (el circulo se abre en el mapa al cerrar el menu)
+            var wC = new Window_CoopAssign(0, 0, 816, 500), circleCheat = null;
+            for (var rC = 0; rC < wC.maxItems(); rC++) { var acC = wC.actionAt(rC); if (acC && /ritual circle/.test(acC.name())) circleCheat = acC; }
+            var resultsC = [];
+            [1, 0].forEach(function(answer) {
+                if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
+                $gameParty._actors = [1, 3];
+                for (k = 0; k < 5; k++) frame();
+                SceneManager._scene.spawnPlayer(3, 3, true);
+                for (k = 0; k < 10; k++) frame();
+                consentAsked = []; var seenC = [];
+                circleCheat.run();
+                for (var fC = 0; fC < 3000; fC++) {
+                    if ($gameMessage._texts.length) seenC.push($gameMessage._texts.join(' '));
+                    if ($gameMessage.isChoice()) {
+                        var qC = $gameMessage._texts.join(' '), chC = $gameMessage._choices;
+                        if (CoopLocal.askPlayer()) { consentAsked.push(qC); $gameMessage.onChoice(answer); }
+                        else if (/D'arce\?/.test(qC)) $gameMessage.onChoice(0);
+                        else { var pk = chC.indexOf('Sacrifice'); if (pk < 0) pk = chC.indexOf('No'); if (pk < 0) pk = chC.length - 1; $gameMessage.onChoice(pk); }
+                    }
+                    if ($gameMessage.isBusy()) $gameMessage.clear();
+                    frame();
+                    if (fC > 20 && !$gameMap.isEventRunning() && !$gameTemp.isCommonEventReserved()) break;
+                }
+                resultsC.push({ asked: consentAsked.length, d: $gameParty._actors.indexOf(3) >= 0,
+                    seen: seenC.filter(function(t, i) { return seenC.indexOf(t) === i; }).slice(0, 6) });
+            });
+            check('T32w the ritual circle cheat: P3 (D\'arce) is asked - no: stays, yes: sacrificed',
+                !!circleCheat && resultsC[0].asked === 1 && resultsC[0].d && resultsC[1].asked === 1 && !resultsC[1].d, JSON.stringify(resultsC));
             [246, 242, 243, 244, 245, 375].forEach(function(sw) { $gameSwitches.setValue(sw, false); });
             $gameParty._actors = [1, 3, mine];
             if ($gamePlayer3) SceneManager._scene.coopRemovePlayer(3);
