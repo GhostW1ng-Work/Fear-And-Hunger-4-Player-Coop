@@ -35,6 +35,12 @@ def load_ctx(plugins=True):
     if plugins:
         ctx.eval('PluginManager._parameters = {}; PluginManager.parameters = function(n){ return (__params[n.toLowerCase()]||{}); }; var __params = {};')
         ctx.eval('Input.initialize();')
+        # plugins del juego que cambian los eventos (HIME_LargeChoices copia la lista del evento en
+        # cada eleccion): con ellos, como en el juego
+        for f in ['HIME_LargeChoices']:
+            path = GAME + '/js/plugins/' + f + '.js'
+            if os.path.exists(path):
+                ctx.eval(read(path))
         for f in ['LookOutsideOnline', 'LocalCoop_FearHunger', 'LocalCoop_QuickSave']:
             ctx.eval(read(os.path.join(PLUGINS, f + '.js')))
         if os.environ.get('WITH_NET'):

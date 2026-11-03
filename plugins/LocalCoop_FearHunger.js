@@ -457,13 +457,24 @@
         }
         return ceByList.has(list) ? ceByList.get(list) : null;
     }
+    // El evento comun que corre un interprete. Se recuerda al empezar: algunos plugins del juego
+    // cambian la lista por una copia (HIME_LargeChoices, en cada eleccion) y luego ya no se reconoce.
+    const _Game_Interpreter_setup_ce = Game_Interpreter.prototype.setup;
+    Game_Interpreter.prototype.setup = function(list, eventId) {
+        _Game_Interpreter_setup_ce.call(this, list, eventId);
+        this._coopCe = list ? commonEventOfList(list) : null;
+    };
+    function commonEventOf(interp) {
+        const name = interp && interp._list ? commonEventOfList(interp._list) : null;
+        return name !== null ? name : ((interp && interp._coopCe) || null);
+    }
     function storyTakesActor(interp, actorId) {
         const list = interp && interp._list;
         if (!list || !gameProfile()) return false;
-        if (list.__coopTakes) return true; // (el sacrificio de un personaje de jugador que dijo que si)
-        if (gameProfile() === GAME_PROFILES.termina) return TAKEN_CE_TERMINA.test(commonEventOfList(list) || '');
+        if (list.__coopTakes || interp._coopTakes) return true; // (el sacrificio de un personaje de jugador que dijo que si)
+        if (gameProfile() === GAME_PROFILES.termina) return TAKEN_CE_TERMINA.test(commonEventOf(interp) || '');
         if (gameProfile() !== GAME_PROFILES.fearhunger1) return false;
-        const ceName = commonEventOfList(list);
+        const ceName = commonEventOf(interp);
         if (ceName !== null) return TAKEN_CE.test(ceName);
         const info = typeof $dataMapInfos !== 'undefined' && $dataMapInfos ? $dataMapInfos[$gameMap.mapId()] : null;
         if (info && TAKEN_MAP.test(info.name || '')) return true;
@@ -555,7 +566,7 @@
     // propio circulo con los demas (la escena, la afinidad con el dios), y su jugador toma a otro.
     // Respuesta "Si" de "¿Sacrificar a X?" sin quitar a nadie, dentro de "Si: X esta en el grupo".
     function refusedSacrifice(interp, body) {
-        if (!SACRIFICE_CE.test(commonEventOfList(interp._list) || '')) return 0;
+        if (!SACRIFICE_CE.test(commonEventOf(interp) || '')) return 0;
         if (body.some(c => c.code === 129) || !body.some(c => c.code === 113)) return 0;
         const list = interp._list;
         let i = interp._index - 1;
@@ -616,7 +627,7 @@
     const _Game_Interpreter_command111_sacrifice = Game_Interpreter.prototype.command111;
     Game_Interpreter.prototype.command111 = function() {
         const p = this._params, prof = gameProfile();
-        if (prof && p[0] === 0 && this._list && SACRIFICE_CE.test(commonEventOfList(this._list) || '')) {
+        if (prof && p[0] === 0 && this._list && SACRIFICE_CE.test(commonEventOf(this) || '')) {
             const starter = this._coopStarter || 1;
             const actorId = Number(Object.keys(prof.select).find(id => prof.select[id] === p[1] && Number(id) !== 9 && Number(id) !== 11)) || 0;
             const n = actorId ? playerOfActorId(actorId) : 0;
@@ -645,12 +656,13 @@
                     // el sacrificio (en un evento hijo) y luego el "salir del bucle" de esa respuesta
                     const brk = this._list.indexOf(body.find(c => c.code === 113));
                     this.setupChild(sacrificeFor(this._list, refused), this._eventId);
+                    if (this._childInterpreter) this._childInterpreter._coopTakes = true;
                     this._index = brk - 1;
                     return true;
                 }
                 return _Game_Interpreter_command402_consent.call(this); // (se niega, como en el juego)
             }
-            const kind = SACRIFICE_CE.test(commonEventOfList(this._list) || '') ? 'sacrifice' : 'give';
+            const kind = SACRIFICE_CE.test(commonEventOf(this) || '') ? 'sacrifice' : 'give';
             const r = consentGate(this, body, kind);
             if (r === 'wait') return false;
             if (r === 'no') {
