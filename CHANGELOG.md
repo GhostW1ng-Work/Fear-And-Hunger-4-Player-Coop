@@ -1,11 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.9.6
 
 - **Fixed (Fear & Hunger 1): the marriage of flesh with a player's character.** The game removes the partner and adds *Marriage*, but the mod kept the partner of P2-P4 (*Keep players' characters*): the character was there twice. Now what the game takes for good leaves the party for the player too - the marriage, a sacrifice in a ritual circle, a trade (the girl / the demon kid to Pocketcat, the lady of the moon), hunger, infection, miasma, and the scenes of the endings (Level 9 with the girl, the fortress, the void...). The player takes the next free character (or waits for one; their join key chooses at once). Other story exits (Cahara leaving, Enki in the library, the capture) stay as before.
 - The banners "Player N is waiting for..." and the new one are in Russian too.
 - **The player is asked first:** before a sacrifice in a ritual circle, a trade (the girl to Pocketcat, to the hydra, chains...) or the marriage of flesh takes a player's character, that player answers "Player N: ... Do you agree?" with their own keys. *No*: that choice is not done; the marriage does not start (its "love" switch goes off, so it does not start again by itself). Termina: its ritual circle (a ghoul or Black Kalev played by a player) asks too and, on *Yes*, really takes them (before, *Keep players' characters* kept them).
 - **Ritual circle with several players:** the game offers only the circle user's own hero, who refuses. Now the characters of the other players are offered too; choosing one asks their player - *Yes*: sacrificed like the others (the circle's own scene, the affinity with the god, the circle counts as used), *No*: they refuse with the game's words. Fear & Hunger 1 and Termina.
+- **Fixed:** after the first choice in an event (the game's *HIME_LargeChoices* copies the event at each choice) the mod no longer recognised the ritual circle: no question for the player, and a sacrifice after a choice could be kept by *Keep players' characters*.
+- README: how to take a companion with 4 players (the game's party has 4 places).
 - **New cheats for testing** (Co-op menu, *Cheats* On): **Party: < name >** in both games - any character of the game into the party (if there is room) or out of it; Fear & Hunger 1: **Marriage of flesh with < name >** (the game's own marriage with the protagonist, after the menu), **Use a ritual circle here** (sacrifices...), **Teleport: < place >** to where the game brings you before the endings (Level 9 - ending A with the girl / B, Level 10, the next plane, the void, the fortress).
 
 ## v1.9.5
