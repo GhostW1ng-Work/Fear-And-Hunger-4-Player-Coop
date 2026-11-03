@@ -20,6 +20,13 @@ var document = {
     querySelector: function() { return null; }, head: __el()
 };
 window.addEventListener = function(type, fn) { (__listeners[type] = __listeners[type] || []).push(fn); };
+// como el navegador: un manejador que falla no impide los demas (el error se apunta)
+var __listenerErrors = [];
+function __dispatch(type, e) {
+    (__listeners[type] || []).forEach(function(f) {
+        try { f(e); } catch (err) { __listenerErrors.push(type + ': ' + String(err && err.message || err)); }
+    });
+}
 window.removeEventListener = function() {};
 var __pads = [];
 var navigator = { userAgent: 'Chrome', platform: 'Win32', getGamepads: function() { return __pads; } };

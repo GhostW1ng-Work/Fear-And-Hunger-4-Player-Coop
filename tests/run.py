@@ -20,7 +20,10 @@ ctx.eval('Graphics._width = 816; Graphics._height = 624; Graphics._boxWidth = 81
 try:
     out = ctx.eval(read(os.path.join(HERE, 'tests.js')), timeout=120000)
 except Exception as e:
-    print('EXC', str(e)[:1500])
+    lines = str(e).splitlines()
+    # (la primera linea y la pila: el codigo de algunos plugins del juego es una linea enorme)
+    print('EXC', lines[0][:300] if lines else '')
+    print('\n'.join(ln[:200] for ln in lines[1:] if ln.strip().startswith('at '))[:3000])
     out = ctx.eval('__results.join(String.fromCharCode(10))')
 print(out)
 results = [line for line in out.splitlines() if line.startswith(('PASS', 'FAIL'))]

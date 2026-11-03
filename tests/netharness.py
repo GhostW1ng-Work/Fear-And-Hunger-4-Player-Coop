@@ -8,7 +8,7 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-from load import load_ctx, read, GAME, PLUGINS  # noqa: E402
+from load import load_ctx, read, GAME, PLUGINS, load_game_plugins, game_plugins_ready, GAME_PLUGIN_REPORT  # noqa: E402
 
 MAP_ID = int(os.environ.get('NET_MAP', '58'))
 MAP_JSON = read(GAME + '/data/Map%03d.json' % MAP_ID)
@@ -154,9 +154,16 @@ class Peer:
         ctx.eval(FAKES)
         cfg = {'role': role, 'host': '10.0.0.1', 'port': 47810}
         ctx.eval('__files["/game/www/coop_net.json"] = %s;' % json.dumps(json.dumps(cfg)))
-        ctx.eval('PluginManager.parameters = function(n){ return {}; }; Input.initialize(); TouchInput.clear();')
+        ctx.eval('var __params = {}; PluginManager.parameters = function(n){ return __params[n.toLowerCase()] || {}; }; Input.initialize(); TouchInput.clear();')
+        # (los plugins del juego: aqui aun no - piden graficos que este banco no tiene: el fondo de los
+        # menus, el efecto de empezar un combate; NET_GAME_PLUGINS=1 para probarlo)
+        with_game = os.environ.get('NET_GAME_PLUGINS') == '1'
+        if with_game:
+            load_game_plugins(ctx)
         for f in ['LookOutsideOnline', 'LocalCoop_FearHunger', 'LocalCoop_Net']:
             ctx.eval(read(os.path.join(PLUGINS, f + '.js')))
+        if with_game:
+            game_plugins_ready(ctx)
         ctx.eval(POST)
         self.ctx = ctx
 

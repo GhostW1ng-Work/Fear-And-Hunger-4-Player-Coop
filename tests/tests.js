@@ -8,7 +8,7 @@ function keyEv(code, keyCode, location) {
 function down(code, keyCode, location) {
     var e = keyEv(code, keyCode, location);
     Input._onKeyDown(e);
-    (__listeners.keydown || []).forEach(function(f) { f(e); });
+    __dispatch('keydown', e);
 }
 function up(code, keyCode, location) {
     var e = keyEv(code, keyCode, location);
@@ -45,6 +45,11 @@ scene = new Scene_Map();
 scene._spriteset = null;
 scene.addWindow = function() {};
 scene._windowLayer = { removeChild: function() {} };
+// (las ventanas que un plugin del juego espera en el mapa: la de YEP_GabWindow)
+function __gabWindow() {
+    try { return new Window_Gab(false); } catch (e) { return { storeGabs: function() {}, addGabData: function() {}, forceGabData: function() {}, clearGabData: function() {} }; }
+}
+if (typeof Window_Gab !== 'undefined') scene._gabWindow = __gabWindow();
 SceneManager._scene = scene;
 TouchInput.clear && TouchInput.clear();
 frame();
@@ -237,7 +242,7 @@ check('T12 camera cycles through P4 (mode 5)', seen.indexOf(5) >= 0, seen.join('
 scene._active = true;
 scene.stop = function() {}; // la escena de prueba no tiene graficos (fundido, ventanas)
 DataManager.loadMapData = function() {};
-function fkey(code, shift) { (__listeners.keydown || []).forEach(function(f) { f({ keyCode: code, repeat: false, shiftKey: !!shift }); }); }
+function fkey(code, shift) { __dispatch('keydown', { keyCode: code, repeat: false, shiftKey: !!shift }); }
 var before = $gameParty._actors.join(',');
 fkey(117, true);
 check('T13 Shift+F6 saved slot 99', DataManager.isThisGameFile(99));
@@ -250,6 +255,7 @@ check('T13c Shift+F7 goes to a new map scene', next instanceof Scene_Map);
 next.create();
 check('T13d party restored from quick save', $gameParty._actors.join(',') === before, $gameParty._actors.join(','));
 next._spriteset = null; next.addWindow = function() {}; next._windowLayer = { removeChild: function() {} };
+if (typeof Window_Gab !== "undefined") next._gabWindow = __gabWindow();
 SceneManager._scene = next; SceneManager._nextScene = null;
 frame();
 check('T13e players rejoin after quick load', !!$gamePlayer2 && !!$gamePlayer3 && !!$gamePlayer4);
@@ -289,7 +295,10 @@ cmd.makeCommandList();
 var syms = cmd._list.map(function(c) { return c.symbol; });
 check('T14f P3 menu hides options/save/gameEnd/formation', syms.indexOf('options') < 0 && syms.indexOf('save') < 0 && syms.indexOf('gameEnd') < 0 && syms.indexOf('formation') < 0 && syms.indexOf('item') >= 0 && syms.indexOf('equip') >= 0, syms.join(','));
 var fakeMenu = Object.create(Scene_Menu.prototype);
-fakeMenu._commandWindow = { currentSymbol: function() { return 'equip'; } };
+fakeMenu._commandWindow = { currentSymbol: function() { return 'equip'; }, setHandler: function() {} };
+// (como al crear el menu de verdad: YEP_MainMenuManager pone ahi lo que hace cada orden)
+fakeMenu._statusWindow = { show: function() {}, hide: function() {}, setFormationMode: function() {}, selectLast: function() {}, activate: function() {}, setHandler: function() {} };
+if (fakeMenu.createCommandWindowBinds) fakeMenu.createCommandWindowBinds();
 $gameParty.setMenuActor($gameActors.actor($gameParty._actors[0]));
 fakeMenu.commandPersonal();
 check('T14g Equip opens directly on P3 character', SceneManager._nextScene instanceof Scene_Equip && $gameParty.menuActor().actorId() === p3Actor, $gameParty.menuActor().actorId());
@@ -660,7 +669,11 @@ $gameMap._interpreter.clear();
 $gameMessage.clear();
 var optWin = Object.create(Window_Options.prototype);
 optWin._list = []; optWin.makeCommandList();
-check('T28 Options has "Co-op settings..."', optWin._list.some(function(c) { return c.symbol === 'coopSettings'; }));
+// (con YEP_OptionsCore las opciones van por pestanas: la del co-op)
+var yepCoop = typeof Yanfly !== 'undefined' && Yanfly.Param && Array.isArray(Yanfly.Param.OptionsCategories) ?
+    Yanfly.Param.OptionsCategories.filter(function(c) { return c.Name === 'Co-op'; })[0] : null;
+check('T28 Options has "Co-op settings..."', optWin._list.some(function(c) { return c.symbol === 'coopSettings'; }) ||
+    !!(yepCoop && yepCoop.OptionsList.some(function(o) { return o.Symbol === 'coopSettings'; })));
 var cfg = ConfigManager.makeData();
 check('T28b settings saved with the config', !!cfg.coopSettings && cfg.coopSettings.p3Keys === 'all', JSON.stringify(cfg.coopSettings));
 var setScene = new Scene_CoopSettings(); setScene.create();
@@ -1347,9 +1360,10 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     // ---- el personaje que lleva P2 no esta ademas como NPC (paginas vacias "ya en el grupo") ----
     var hp = carrierN && CoopLocal.player(carrierN);
     var hx = hp && hp.actor() && hp.actor().actorId();
-    var freeSw = function(from) { for (var i = from; i < from + 400; i++) if (!$dataSystem.switches[i] && !$gameSwitches.value(i)) return i; return 0; };
+    // (un interruptor sin nombre del propio juego: algunos plugins del juego leen su nombre)
+    var freeSw = function(from) { for (var i = Math.min(from, $dataSystem.switches.length - 1); i > 0; i--) if ($dataSystem.switches[i] === '' && !$gameSwitches.value(i)) return i; return 0; };
     if (hx) {
-        var joinSw = freeSw(4600), otherSw = freeSw(joinSw + 1);
+        var joinSw = freeSw(4600), otherSw = freeSw(joinSw - 1);
         var origNames = [$dataSystem.switches[joinSw], $dataSystem.switches[otherSw]];
         $dataSystem.switches[joinSw] = 'Test_InTheParty!';
         $dataSystem.switches[otherSw] = 'Test_unrelated';
@@ -1383,7 +1397,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         evA.refresh();
         // P2 deja el personaje: el NPC vuelve
         // "esperando": el juego apaga ese interruptor al contratarle; y si asi saldria otra pagina con algo, nada
-        var waitSw = freeSw(otherSw + 1), sceneSw = freeSw(waitSw + 1);
+        var waitSw = freeSw(otherSw - 1), sceneSw = freeSw(waitSw - 1);
         var origNames2 = [$dataSystem.switches[waitSw], $dataSystem.switches[sceneSw]];
         $dataSystem.switches[waitSw] = 'Test_waiting_at_train';
         $dataSystem.switches[sceneSw] = 'Test_scene_waiting';
