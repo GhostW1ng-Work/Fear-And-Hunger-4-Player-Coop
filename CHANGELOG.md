@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Both games: P2-P4 without a leg can no longer run**, like the protagonist (in Termina the running animation also broke).
 - **Fear & Hunger 1: special defeats wound everybody.** When a lost battle costs the protagonist their legs or gives them a state (the guard, the blood pit...), every player still alive gets the same on their own character, instead of staying healthy.
 
 ## v1.9.7

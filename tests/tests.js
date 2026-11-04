@@ -2296,6 +2296,34 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     for (k = 0; k < 5; k++) frame();
 })();
 
+// --- T72: sin una pierna no se corre (en los dos juegos) ---
+(function() {
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 5; k++) frame();
+    var keepParty = $gameParty._actors.slice();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    if (!$gamePlayer3) { check('T72 setup: P3 joined', false); return; }
+    var id = $gamePlayer3._coopActorId;
+    var LEG = { 1: [38, 39], 3: [250, 251], 4: [254, 255], 5: [258, 259], 6: [263, 264] }[id];
+    if (!LEG) { check('T72 setup: a character with legs', false, id); return; }
+    var keepA = $gameSwitches.value(LEG[0]), keepB = $gameSwitches.value(LEG[1]);
+    $gameSwitches.setValue(LEG[0], false); $gameSwitches.setValue(LEG[1], false);
+    var keys = $gamePlayer3.keys(), keepShift = keys.shift;
+    keys.shift = true;
+    var healthy = $gamePlayer3.isDashing();
+    $gameSwitches.setValue(LEG[0], true);
+    var oneLeg = $gamePlayer3.isDashing();
+    $gameSwitches.setValue(LEG[1], true);
+    var noLegs = $gamePlayer3.isDashing();
+    keys.shift = keepShift;
+    $gameSwitches.setValue(LEG[0], keepA); $gameSwitches.setValue(LEG[1], keepB);
+    check('T72 with both legs a player runs', healthy === true, healthy);
+    check('T72b without a leg, or both, a player cannot run', oneLeg === false && noLegs === false, [oneLeg, noLegs]);
+    $gameParty._actors = keepParty;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 // --- T70: FH1, lo que el juego le hace "al protagonista" ---
 (function() {
     if (!/fear/i.test($dataSystem.gameTitle || '') || /termina/i.test($dataSystem.gameTitle || '')) return;

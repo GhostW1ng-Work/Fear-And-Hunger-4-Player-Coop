@@ -103,6 +103,9 @@
     // Con un arma de fuego equipada, la tecla de correr dispara (igual que el Shift de P1)
     coop.registerHook({
         canDash(player) {
+            // sin una pierna no se corre (como el protagonista en el juego), y se ve como se arrastra
+            const legless = coop.actorOf(player);
+            if (legless && gameProfile() && limbsLost(legless.actorId(), 'leg') > 0) return false;
             return !gunTypeOf(coop.actorOf(player));
         }
     });
