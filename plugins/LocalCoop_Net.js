@@ -737,6 +737,7 @@
             followOwnCamera();
             // durante un cambio de escena no se compara: cada PC termina de cargar el mapa nuevo
             // en un momento distinto, aunque el juego no avanza hasta que todos estan listos
+            noteState();
             if (Net.frame % HASH_EVERY === 0 && SceneManager._sceneStarted && !SceneManager._nextScene) checkHash(Net.frame);
         } finally {
             window.Date = NativeDate;
@@ -2058,6 +2059,62 @@
     }
     const PART_NAMES = ['scene/map', 'players', 'events', 'party', 'switches', 'variables', 'random'];
 
+    // ---- diario para el registro de desync: que estaba haciendo el juego en cada cuadro ------------
+    // La huella solo se compara cada segundo. Para ver DONDE se separan dos PC se guarda lo que cambia
+    // cuadro a cuadro (que orden de que evento corre, el mensaje, la fase del combate, las teclas de
+    // P1...) y se escribe junto a la huella. Solo se lee el estado: no cambia nada del juego.
+    const STATE_KEEP = 1500;
+    const STATE_LOG_FRAMES = 120;
+    const stateTrail = [];
+    let stateLast = '';
+
+    function stateInterpreter() {
+        let it = typeof $gameMap !== 'undefined' && $gameMap ? $gameMap._interpreter : null;
+        const out = [];
+        for (let depth = 0; it && it._list && depth < 6; depth++) {
+            const cmd = it._list[it._index];
+            out.push(it._eventId + '@' + it._index + ':' + (cmd ? cmd.code : '-') + (it._waitCount ? 'w' + it._waitCount : '') + (it._waitMode ? '[' + it._waitMode + ']' : ''));
+            it = it._childInterpreter;
+        }
+        return out.join('>') || '-';
+    }
+
+    function stateLine() {
+        const sm = SceneManager, scene = sm._scene;
+        const parts = [scene ? scene.constructor.name.replace('Scene_', '') : '-', 'ev ' + stateInterpreter()];
+        if (typeof $gameMessage !== 'undefined' && $gameMessage && $gameMessage.isBusy()) {
+            const mw = scene && scene._messageWindow;
+            const ts = mw && mw._textState;
+            parts.push('msg' + ($gameMessage.isChoice() ? ' choice' : '') + (mw ? ' open' + mw.openness + (mw.pause ? ' pause' : '') + (mw._waitCount ? ' w' + mw._waitCount : '') + (ts ? ' c' + ts.index : '') : ''));
+        }
+        if (scene instanceof Scene_Battle) {
+            const sub = BattleManager._subject;
+            const log = scene._logWindow;
+            const sp = scene._spriteset;
+            parts.push('battle ' + BattleManager._phase + (sub ? ' s' + (sub.isActor() ? 'a' + sub.actorId() : 'e' + sub.index()) : '') +
+                (log ? ' log' + log._methods.length + (log._waitCount ? 'w' + log._waitCount : '') : '') +
+                (sp && sp.isAnimationPlaying && sp.isAnimationPlaying() ? ' anim' : '') + (sp && sp.isEffecting && sp.isEffecting() ? ' fx' : '') +
+                (sp && sp.isAnyoneMoving && sp.isAnyoneMoving() ? ' move' : '') + (sp && sp.isPopupPlaying && sp.isPopupPlaying() ? ' pop' : ''));
+        } else if (typeof $gamePlayer !== 'undefined' && $gamePlayer) {
+            parts.push('p1 ' + $gamePlayer._realX.toFixed(2) + ',' + $gamePlayer._realY.toFixed(2) + ' d' + $gamePlayer._direction +
+                ($gamePlayer.canMove() ? '' : ' stop') + ($gamePlayer.isDashing() ? ' dash' : ''));
+        }
+        parts.push('keys ' + (Net.lastAll || []).join('.'));
+        return parts.join(' | ');
+    }
+
+    function noteState() {
+        try {
+            const line = stateLine();
+            if (line === stateLast) return;
+            stateLast = line;
+            stateTrail.push({ f: Net.frame, s: line });
+            if (stateTrail.length > STATE_KEEP + 300) stateTrail.splice(0, stateTrail.length - STATE_KEEP);
+        } catch (e) {
+            // (solo es para el registro: nunca debe molestar al juego)
+        }
+    }
+
     function writeDesyncLog(f, who, diff) {
         const full = Net.history[f];
         if (!full) return;
@@ -2070,6 +2127,9 @@
         const calls = randTrail.filter(t => t.f >= from && t.f <= f).map(trailLine);
         lines.push('[random calls ' + from + '..' + f + ': ' + calls.length + ']');
         calls.forEach(l => lines.push('  ' + l));
+        const states = stateTrail.filter(t => t.f >= f - STATE_LOG_FRAMES && t.f <= f);
+        lines.push('[state ' + (f - STATE_LOG_FRAMES) + '..' + f + ': ' + states.length + ']');
+        states.forEach(t => lines.push('  ' + t.f + ' ' + t.s));
         try {
             fs.appendFileSync(path.join(baseDir, 'coop_net_desync.log'), lines.join('\n') + '\n');
         } catch (e) {

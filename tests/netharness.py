@@ -358,6 +358,7 @@ host.ev('(function coopTestCaller(){ Math.random(); })()')  # a random call with
 tick(net, [host, g2], 200)
 log = host.ev('__files["/game/www/coop_net_desync.log"] || ""')
 check('desync detected and logged', 'different: events' in log, log[:80])
+check('the desync log has the frame-by-frame state of the game', '[state ' in log and '| keys ' in log and 'ev ' in log, log.split('[state ')[1][:120] if '[state ' in log else '')
 check('the desync log lists the random calls with who made them', '[random calls' in log and 'coopTestCaller' in log.split('[random calls')[1], log.split('[random calls')[1][:160] if '[random calls' in log else '')
 same, frames = aligned_worlds(net, [host, g2])
 check('back in sync after the snapshot', same, frames)
