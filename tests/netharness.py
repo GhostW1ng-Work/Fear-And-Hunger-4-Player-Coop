@@ -939,6 +939,17 @@ if after[1]:
 else:
     check('focus: the host loses the focus: P1 keeps their key on both PCs until the release arrives', False, after)
 check('focus: the host loses the focus: the same world', same, frames)
+# the log says when P1 loses a key on one PC, and who cleared the keys
+dh, dg, dn = lag_game(40, pid=66)
+dh.ev('CoopNet.localKeys = 2')
+tick(dn, [dh, dg], 12)
+dg.ev('Input.clear()')
+tick(dn, [dh, dg], 3)
+check('diary: the clear of the keys is noted on that PC', dg.ev('CoopNet.inputClears') == 1, dg.ev('CoopNet.inputClears'))
+check('diary: P1 losing a held key is noted on that PC only', dg.ev('CoopNet.p1LostCount') == 1 and not dh.ev('CoopNet.p1LostCount'), [dg.ev('CoopNet.p1LostCount'), dh.ev('CoopNet.p1LostCount')])
+dh.ev('CoopNet.localKeys = 0')
+tick(dn, [dh, dg], 10)
+
 # without a network game the game clears the keys as always
 vf = Peer(64, 'host')
 vf.ev("Input._currentState.down = true; Input._onLostFocus();")

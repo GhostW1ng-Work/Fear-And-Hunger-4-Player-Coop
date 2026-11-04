@@ -2118,8 +2118,36 @@
         return parts.join(' | ');
     }
 
+    // Si P1 pierde en este PC una direccion que los cuadros dicen pulsada, se apunta en el registro,
+    // y tambien quien borra las teclas (con su pila): comparando dos PC se ve quien fue.
+    function noteP1Keys() {
+        if (!(SceneManager._scene instanceof Scene_Map)) return;
+        const bits = Net.applied[1] || 0;
+        const lost = ACTIONS.filter((a, i) => ['up', 'down', 'left', 'right'].indexOf(a) >= 0 && ((bits >> i) & 1) && !Input._currentState[a]).join(' ');
+        if (lost === (Net.p1Lost || '')) return;
+        Net.p1Lost = lost;
+        if (lost) {
+            Net.p1LostCount = (Net.p1LostCount || 0) + 1;
+            battleLog('P1 lost on this PC the key it holds: ' + lost);
+        }
+    }
+
+    const INPUT_CLEAR_LOG_MAX = 200;
+    const _Input_clear = Input.clear;
+    Input.clear = function() {
+        if (Net.active && !inSub && Object.keys(this._currentState || {}).some(k => this._currentState[k])) {
+            Net.inputClears = (Net.inputClears || 0) + 1;
+            if (Net.inputClears <= INPUT_CLEAR_LOG_MAX) {
+                const stack = (new Error().stack || '').split('\n').slice(2, 6).map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/\\]([^\/\\]+:\d+):\d+\)/, '($1)')).join(' < ');
+                battleLog('the keys were cleared: ' + stack);
+            }
+        }
+        _Input_clear.call(this);
+    };
+
     function noteState() {
         try {
+            noteP1Keys();
             const line = stateLine();
             if (line === stateLast) return;
             stateLast = line;
