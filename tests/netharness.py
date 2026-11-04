@@ -976,6 +976,31 @@ tick(dn, [dh, dg], 12)
 states = [dh.ev('!!Input._currentState.down'), dg.ev('!!Input._currentState.down')]
 check('keys: and P1 lets go of it too', states == [False, False], states)
 
+# the language of the game (the menu of the mod can be Russian in a copy without the translation)
+def lang_game(host_lang, guest_lang, guest_has, pid):
+    h = Peer(pid, 'host')
+    g = Peer(pid + 1, 'join')
+    n = Net(h, [g], latency=20)
+    for p_ in (h, g):
+        p_.ev('CoopLocal.setGameLanguage = function(v) { window.__switched = v; };')
+    h.ev(HOST_SETUP)
+    h.ev("window.$coopGameLang = '%s'; window.$coopHasRu = true;" % host_lang)
+    g.ev("window.$coopGameLang = '%s'; window.$coopHasRu = %s;" % (guest_lang, 'true' if guest_has else 'false'))
+    tick(n, [h, g], 3)
+    h.ev("__menuPress('host')")
+    g.ev("__menuPress('join')")
+    tick(n, [h, g], 20)
+    return g.ev('CoopNet.rejected'), g.ev('window.__switched || ""')
+
+why, sw = lang_game('ru', 'en', False, 90)
+check('language: a copy without the translation is told so', 'not translated' in why and not sw, [why, sw])
+why, sw = lang_game('ru', 'en', True, 92)
+check('language: with the translation installed, the guest switches to the language of the host', 'Different game language' in why and sw == 'ru', [why, sw])
+why, sw = lang_game('en', 'ru', True, 94)
+check('language: and to English too', sw == 'en', [why, sw])
+why, sw = lang_game('ru', 'ru', True, 96)
+check('language: the same language: let in', not why and not sw, [why, sw])
+
 # without a network game the game clears the keys as always
 vf = Peer(64, 'host')
 vf.ev("Input._currentState.down = true; Input._onLostFocus();")

@@ -10,6 +10,7 @@
 - **Fear & Hunger 1: a rusty nail and the like hurt the player who stepped on it**, not the protagonist.
 - **Online: the sounds of a menu are only heard on the PC of the player in it.**
 - **Online: P2-P4 letting go of a key no longer stops P1** when P1 holds the same direction.
+- **Online: a clearer language check.** A copy of the game without the translation (the menu of the mod can still be in Russian) is told to install the full archive; with the translation installed, a guest switches to the language of the host by itself (the game restarts, then connect again).
 - **Faster to connect online:** the world is sent compressed, 7-10 times smaller (about 2 MB -> about 240 KB on late-game saves): on a slow VPN about 1 second instead of about 10. Guests see "Receiving the world from the host...".
 
 ## v1.9.6

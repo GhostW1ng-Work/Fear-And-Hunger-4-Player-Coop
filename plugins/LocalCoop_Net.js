@@ -2444,7 +2444,7 @@
 
     function helloMessage() {
         const hero = savedHero(Net.config.bring);
-        return { t: 'hello', mod: coop.version, game: gameVersion(), lang: window.$coopGameLang || 'en', plugins: activePlugins(), pw: Net.config.password || '',
+        return { t: 'hello', mod: coop.version, game: gameVersion(), lang: window.$coopGameLang || 'en', hasRu: !!window.$coopHasRu, plugins: activePlugins(), pw: Net.config.password || '',
             bring: hero ? { actorId: hero.actorId, name: hero.name, level: hero.level, json: hero.json } : null };
     }
 
@@ -2456,7 +2456,11 @@
         // (el juego traducido: otros textos y otros plugins - los mensajes no durarian lo mismo)
         const lang = window.$coopGameLang || 'en', theirLang = msg.lang || 'en';
         const langName = l => (l === 'ru' ? 'Русский' : 'English');
-        if (theirLang !== lang) return 'Different game language: host ' + langName(lang) + ', you ' + langName(theirLang);
+        if (theirLang !== lang) {
+            // (el menu del mod puede estar en ruso en una copia sin la traduccion del juego)
+            if (lang === 'ru' && msg.hasRu === false) return 'The host plays the game in Russian, your copy of the game is not translated: install the full archive of the mod';
+            return 'Different game language: host ' + langName(lang) + ', you ' + langName(theirLang);
+        }
         const mine = activePlugins();
         const theirs = Array.isArray(msg.plugins) ? msg.plugins : [];
         const missing = mine.filter(n => theirs.indexOf(n) < 0);
@@ -2971,7 +2975,8 @@
                     const problem = helloProblem(msg);
                     if (problem) {
                         rejected = true;
-                        send(sock, { t: 'reject', reason: problem });
+                        // (con la traduccion instalada, el invitado se cambia solo al idioma del anfitrion)
+                        send(sock, { t: 'reject', reason: problem, lang: /^Different game language/.test(problem) ? window.$coopGameLang || 'en' : undefined });
                         sock.end();
                         banner('A player could not join (' + sock.remoteAddress + ')', problem, '#ffaa44', 300);
                         return;
@@ -3035,6 +3040,7 @@
                 } else if (msg.t === 'reject') {
                     Net.rejected = String(msg.reason || 'Rejected');
                     banner('The host did not let you in', Net.rejected, '#ff5555', 400);
+                    if (msg.lang && window.$coopHasRu && msg.lang !== window.$coopGameLang) coop.setGameLanguage(msg.lang);
                 } else if (msg.t === 'snap') {
                     applySnapshot(msg.meta, unpackWorld(msg));
                 } else if (msg.t === 'fr') {
