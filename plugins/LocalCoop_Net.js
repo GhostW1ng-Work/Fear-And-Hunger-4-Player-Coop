@@ -420,6 +420,21 @@
         Net.localKeys = 0;
     });
 
+    // Al perder el foco (Alt+Tab, un clic en otra ventana, un aviso de otro programa) el juego borra
+    // todas las teclas. Las de P1 solo se repiten cuando cambian, asi que en ESE PC P1 perdia la tecla
+    // que tenia pulsada hasta soltarla: se quedaba quieto mientras en los otros PC seguia andando
+    // (o en un combate el texto iba a otra velocidad). En red las teclas son de los cuadros, iguales
+    // para todos. Lo que este PC tenga pulsado se suelta arriba, y eso ya viaja como un cuadro mas.
+    const _Input_onLostFocus = Input._onLostFocus;
+    Input._onLostFocus = function() {
+        if (!Net.active) {
+            _Input_onLostFocus.call(this);
+            return;
+        }
+        Net.focusLost = (Net.focusLost || 0) + 1;
+        battleLog('this window lost the focus (the game goes on)');
+    };
+
     function capturePad(gamepad) {
         // el mando solo cuenta en la ventana activa (dos copias del juego en un PC leen el mismo mando)
         if (typeof document !== 'undefined' && document.hasFocus && !document.hasFocus()) {

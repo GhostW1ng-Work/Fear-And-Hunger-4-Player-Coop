@@ -896,6 +896,54 @@ def door(h, g, n):
     return h.ev('SceneManager._sceneStarted') and g.ev('SceneManager._sceneStarted')
 
 
+# a window that loses the focus (Alt+Tab, a click on another window, a popup) does not touch the shared keys
+def focus_test(who, pid):
+    h, g, n = lag_game(40, pid=pid)
+    other = g if who == 'guest' else h
+    h.ev('CoopNet.localKeys = 2')       # P1 holds a direction and keeps it
+    tick(n, [h, g], 12)
+    held = [h.ev("!!Input._currentState.down"), g.ev("!!Input._currentState.down")]
+    other.ev('Input._onLostFocus()')
+    tick(n, [h, g], 3)
+    after = [h.ev("!!Input._currentState.down"), g.ev("!!Input._currentState.down")]
+    h.ev('CoopNet.localKeys = 0')
+    tick(n, [h, g], 20)
+    # P1 walks with a held key while that window goes on losing the focus, as in the logs of a real game
+    walked = False
+    pos = '[$gamePlayer.x, $gamePlayer.y].join(",")'
+    for key in (2, 8, 1, 4):
+        before = h.ev(pos)
+        h.ev('CoopNet.localKeys = %d' % key)
+        tick(n, [h, g], 30)
+        other.ev('Input._onLostFocus()')
+        tick(n, [h, g], 60)
+        h.ev('CoopNet.localKeys = 0')
+        tick(n, [h, g], 25)
+        walked = walked or h.ev(pos) != before
+    check('focus (' + who + '): P1 did walk in this test', walked)
+    aligned_worlds(n, [h, g])
+    check('focus (' + who + '): the PCs did not go apart (no repair was needed)',
+          not h.ev('!!__files["/game/www/coop_net_desync.log"]'), (h.ev('__files["/game/www/coop_net_desync.log"] || ""'))[:90])
+    same, frames = aligned_worlds(n, [h, g])
+    log = other.ev('CoopNet.focusLost')
+    return held, after, same, frames, log
+
+held, after, same, frames, flog = focus_test('guest', 60)
+check('focus: P1 holds a key on both PCs', held == [True, True], held)
+check('focus: the guest loses the focus: P1 keeps their key there too', after == [True, True], after)
+check('focus: the same world after that', same, frames)
+check('focus: it is counted (and written in the log)', flog == 5, flog)
+held, after, same, frames, flog = focus_test('host', 62)
+if after[1]:
+    check('focus: the host loses the focus: P1 keeps their key on both PCs until the release arrives', after == [True, True], after)
+else:
+    check('focus: the host loses the focus: P1 keeps their key on both PCs until the release arrives', False, after)
+check('focus: the host loses the focus: the same world', same, frames)
+# without a network game the game clears the keys as always
+vf = Peer(64, 'host')
+vf.ev("Input._currentState.down = true; Input._onLostFocus();")
+check('focus: outside a network game the keys are cleared as always', vf.ev("!Input._currentState.down"))
+
 # the world is sent packed, and it unpacks to the same game
 vh, vg, vn = lag_game(40, pid=20)
 check('lag: the host sends the world packed', 'Z:' in vh.ev('__sentSnap || ""'), vh.ev('(__sentSnap || "").slice(0, 60)'))
