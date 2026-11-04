@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (online): after any stop of more than half a second, P2-P4 lost their controls for good.** A stop of the guest's game (dragging the window, loading) or of the network (common on a VPN): the host goes on without their keys, as it should, but the guest caught up only partly and stayed behind, so all their keys arrived too late, forever. Now a guest really catches up, smoothly (only what stays in its queue for half a second, so an uneven network does not make it stutter), and keys that arrive late count for the next frame.
+- **Fixed (online): the game could hang for everybody.** With late keys the host also ignored what that PC had loaded: the next door never opened, for anyone - and if the world took more than half a second to reach a guest, the game never started at all.
+- **Faster to connect online:** the world is sent compressed, 7-10 times smaller (about 2 MB -> about 240 KB on late-game saves): on a slow VPN about 1 second instead of about 10. Guests see "Receiving the world from the host...".
+
 ## v1.9.6
 
 - **Fixed (Fear & Hunger 1): the marriage of flesh with a player's character.** The game removes the partner and adds *Marriage*, but the mod kept the partner of P2-P4 (*Keep players' characters*): the character was there twice. Now what the game takes for good leaves the party for the player too - the marriage, a sacrifice in a ritual circle, a trade (the girl / the demon kid to Pocketcat, the lady of the moon), hunger, infection, miasma, and the scenes of the endings (Level 9 with the girl, the fortress, the void...). The player takes the next free character (or waits for one; their join key chooses at once). Other story exits (Cahara leaving, Enki in the library, the capture) stay as before.

@@ -88,7 +88,7 @@ FakeSocket.prototype.on = function(ev, fn) { (this.handlers[ev] = this.handlers[
 FakeSocket.prototype.emit = function(ev, arg) { (this.handlers[ev] || []).slice().forEach(function(f) { f(arg); }); };
 FakeSocket.prototype.setEncoding = function() {};
 FakeSocket.prototype.setNoDelay = function() {};
-FakeSocket.prototype.write = function(d) { if (!this.destroyed) __outbox.push([this.id, d]); };
+FakeSocket.prototype.write = function(d) { if (!this.destroyed) { if (d.indexOf('"t":"snap"') >= 0) __sentSnap = d; __outbox.push([this.id, d]); } };
 FakeSocket.prototype.end = FakeSocket.prototype.destroy = function() {
     if (this.destroyed) return;
     this.destroyed = true;
@@ -99,12 +99,14 @@ var __netlib = {
     createServer: function(cb) { __server = cb; return { listen: function(p, f) { if (f) f(); }, on: function() {}, close: function() {} }; },
     connect: function(port, host) { var s = new FakeSocket(__peerId * 100 + (++__timerId)); __connects.push(s.id); return s; }
 };
+var __sentSnap = '';
 function __accept(id) { var s = new FakeSocket(id); __server(s); }
 function __deliver(id, data) {
     var s = __sockets[id];
     if (!s || s.destroyed) return;
     if (data === null) { s.destroyed = true; s.emit('close'); } else s.emit('data', data);
 }
+var Buffer = { from: function(x) { return { data: x }; } };
 var process = { mainModule: { filename: '/game/www/index.html' } };
 var require = function(name) {
     if (name === 'fs') return {
@@ -118,6 +120,10 @@ var require = function(name) {
     };
     if (name === 'os') return { networkInterfaces: function() { return { eth: [{ family: 'IPv4', internal: false, address: '10.0.0.' + __peerId }] }; } };
     if (name === 'net') return __netlib;
+    if (name === 'zlib') return {
+        deflateSync: function(b) { return { toString: function() { return 'Z:' + b.data; } }; },
+        inflateSync: function(b) { if (b.data.slice(0, 2) !== 'Z:') throw new Error('not packed'); return { toString: function() { return b.data.slice(2); } }; }
+    };
     throw new Error('no ' + name);
 };
 function __menuPress(role) {
@@ -188,6 +194,9 @@ class Net:
         self.latency = latency  # ms one way (0 = at once)
         self.time = 0.0         # ms, advanced by tick()
         self.queue = []         # [deliver_at, peer, sockId, data]
+        self.blocked_until = 0  # ms: un paron de la red: nada llega hasta entonces
+        self.slow_snap = 0      # ms que tarda en llegar el mundo (un mensaje grande por una VPN lenta)
+        self.link_last = {}     # (TCP: en cada conexion nada adelanta a lo anterior)
 
     def add_guest(self, g):
         self.guests.append(g)
@@ -210,12 +219,17 @@ class Net:
                     if not dest:
                         continue
                     peer, did = dest
-                    if self.latency:
-                        self.queue.append([self.time + self.latency, peer, did, data])
+                    if self.latency or self.blocked_until or self.slow_snap:
+                        at = max(self.time + self.latency, self.blocked_until)
+                        if data and '"t":"snap"' in data:
+                            at += self.slow_snap
+                        at = max(at, self.link_last.get((p.pid, sid), 0))
+                        self.link_last[(p.pid, sid)] = at
+                        self.queue.append([at, peer, did, data])
                         continue
                     peer.ev('__deliver(%d, %s)' % (did, json.dumps(data)))
                     moved = True
-            if self.latency:
+            if self.queue:
                 due = [q for q in self.queue if q[0] <= self.time]
                 self.queue = [q for q in self.queue if q[0] > self.time]
                 for _, peer, did, data in due:
@@ -622,6 +636,7 @@ g2.ev('CoopNet.localKeys = 0')
 tick(net, [host, g2], 20)
 same, frames = aligned_worlds(net, [host, g2])
 check('and plays again (same world)', same, frames)
+check('and P2 really walks with their keys again', host.ev('$gamePlayer2.y') != p2y, '%s -> %s' % (p2y, host.ev('$gamePlayer2.y')))
 
 # --- a third PC joins in the middle ---
 g3 = Peer(3, 'join')
@@ -830,6 +845,101 @@ fb = frame(lh)
 check('the PC playing the protagonist leaves: the host plays P1 now, the game goes on (no crash)',
       lh.ev('CoopNet.player') == 1 and lh.ev('CoopNet.slotOf(1)') == 1 and fb - fa >= 100 and lh.ev('SceneManager._scene instanceof Scene_Map'),
       [lh.ev('CoopNet.player'), lh.ev('CoopNet.slotOf(1)'), fb - fa])
+
+# --- lag (a VPN): whatever happens, P2 keeps their controls and the game does not hang ---
+def lag_game(latency, slow_snap=0, pid=20):
+    h = Peer(pid, 'host')
+    g = Peer(pid + 1, 'join')
+    n = Net(h, [g], latency=latency)
+    n.slow_snap = slow_snap
+    # (andando se puede entrar en un evento con combate: este banco no tiene los graficos del combate)
+    for p_ in (h, g):
+        p_.ev('Game_Interpreter.prototype.command301 = function() { return true; };')
+    h.ev(HOST_SETUP)
+    tick(n, [h, g], 3)
+    h.ev("__menuPress('host')")
+    g.ev("__menuPress('join')")
+    tick(n, [h, g], 10 + int(latency / 8))
+    h.ev('SceneManager.push(Scene_Options)')
+    tick(n, [h, g], 5)
+    h.ev('CoopNet.startRequested = true')
+    tick(n, [h, g], 80 + int(latency / 4) + int(slow_snap * 60 / 1000))
+    return h, g, n
+
+
+def p2_walks(h, g, n):
+    moved = False
+    for key in (2, 8, 1, 4):
+        before = h.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")')
+        g.ev('CoopNet.localKeys = %d' % key)
+        tick(n, [h, g], 90)
+        g.ev('CoopNet.localKeys = 0')
+        tick(n, [h, g], 20)
+        moved = moved or h.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') != before
+    return moved
+
+
+def freeze_guest(h, n, frames_):
+    for _ in range(frames_):
+        n.time += 1000 / 60
+        h.ev('__tick(%f)' % (1000 / 60))
+        n.pump()
+
+
+def door(h, g, n):
+    aligned_worlds(n, [h, g])
+    ev = "$gameMap._interpreter.setup([{code:201,indent:0,parameters:[0,$gameMap.mapId(),$gamePlayer.x,$gamePlayer.y,2,0]},{code:0,indent:0,parameters:[]}],0)"
+    h.ev(ev)
+    g.ev(ev)
+    tick(n, [h, g], 200)
+    return h.ev('SceneManager._sceneStarted') and g.ev('SceneManager._sceneStarted')
+
+
+# the world is sent packed, and it unpacks to the same game
+vh, vg, vn = lag_game(40, pid=20)
+check('lag: the host sends the world packed', 'Z:' in vh.ev('__sentSnap || ""'), vh.ev('(__sentSnap || "").slice(0, 60)'))
+check('lag: ping 80 ms: P2 walks', p2_walks(vh, vg, vn))
+# the network stops for a second
+vn.blocked_until = vn.time + 1000
+tick(vn, [vh, vg], 180)
+vn.blocked_until = 0
+check('lag: after the network stopped for 1 s, P2 still walks with their keys', p2_walks(vh, vg, vn), vg.ev('CoopNet.frame'))
+same, frames = aligned_worlds(vn, [vh, vg])
+check('lag: same world after that', same, frames)
+# the guest's game stops for a second (dragging the window, loading...)
+freeze_guest(vh, vn, 60)
+tick(vn, [vh, vg], 120)
+check('lag: after the guest froze for 1 s, P2 still walks with their keys', p2_walks(vh, vg, vn), vg.ev('CoopNet.frame'))
+check('lag: after that, the guest is not stuck behind (no more than its margin + a little)',
+      vg.ev('(function(){var n=0;while(n<60&&CoopNet.frames[CoopNet.frame+n])n++;return n;})()') <= 4,
+      vg.ev('(function(){var n=0;while(n<60&&CoopNet.frames[CoopNet.frame+n])n++;return n;})()'))
+check('lag: and a door after that opens for both (the game does not hang)', door(vh, vg, vn), [vh.ev('CoopNet.allReady'), vh.ev('CoopNet.sceneSeq * 2 + 2')])
+same, frames = aligned_worlds(vn, [vh, vg])
+check('lag: same world after the door', same, frames)
+# the same on a LAN (no ping at all)
+lh2, lg2, ln2 = lag_game(0, pid=30)
+freeze_guest(lh2, ln2, 60)
+tick(ln2, [lh2, lg2], 120)
+check('lag: LAN, guest froze 1 s: P2 still walks', p2_walks(lh2, lg2, ln2))
+check('lag: LAN, and a door opens for both', door(lh2, lg2, ln2))
+# a key pressed while the guest is behind is not lost
+freeze_guest(lh2, ln2, 60)
+before = lh2.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")')
+lg2.ev('CoopNet.localKeys = 2')
+tick(ln2, [lh2, lg2], 15)
+lg2.ev('CoopNet.localKeys = 8')
+tick(ln2, [lh2, lg2], 60)
+lg2.ev('CoopNet.localKeys = 0')
+tick(ln2, [lh2, lg2], 30)
+check('lag: keys pressed right after a stop are not lost', lh2.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') != before)
+# a slow world: the game starts anyway, for both
+sh, sg, sn = lag_game(40, slow_snap=3000, pid=40)
+check('lag: the world took 3 s to arrive: the game started on both', sh.ev('SceneManager._sceneStarted') and sg.ev('SceneManager._sceneStarted') and sh.ev('!!$gamePlayer2'),
+      [sh.ev('CoopNet.allReady'), sh.ev('CoopNet.sceneSeq * 2 + 2')])
+check('lag: and P2 walks', sh.ev('!!$gamePlayer2') and p2_walks(sh, sg, sn))
+same, frames = aligned_worlds(sn, [sh, sg])
+check('lag: same world', same, frames)
+
 print('\n'.join(results))
 failed = [r for r in results if r.startswith('FAIL')]
 print('\n%d passed, %d failed' % (len(results) - len(failed), len(failed)))

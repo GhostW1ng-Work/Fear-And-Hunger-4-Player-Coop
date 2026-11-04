@@ -63,6 +63,13 @@
         dgram = null;
     }
 
+    let zlib = null; // para mandar el mundo comprimido (por una VPN 2 MB tardan segundos)
+    try {
+        zlib = require('zlib');
+    } catch (e) {
+        zlib = null;
+    }
+
     const DEFAULT_DELAY = 3;    // cuadros de margen para que lleguen las teclas de todos (al empezar)
     const MIN_DELAY = 2;        // a mano (en la misma red puede bastar)
     const AUTO_MIN_DELAY = 3;   // en Auto: el ping no ve los tirones del ritmo de cuadros de cada PC
@@ -188,6 +195,10 @@
         pendingEvents: [],      // sucesos para el proximo cuadro (p.ej. alguien se fue)
         blockedSince: 0,        // desde cuando se espera la tecla de algun invitado
         waitSince: {},          // jugador -> desde cuando se esperan sus teclas
+        late: {},               // jugador -> { bits, at }: sus ultimas teclas que llegaron tarde
+        queueLow: 0,            // invitado: lo minimo que ha tenido esperando en este medio segundo
+        queueTicks: 0,
+        catchUp: 0,             // invitado: cuadros de mas que quedan por recuperar
         stalledLog: {},
         blockedOn: [],
         startRequested: false,
@@ -746,6 +757,39 @@
         return n;
     }
 
+    // Cuantos cuadros puede tener esperando este PC. El anfitrion: los de su propia espera. Un invitado
+    // que va mas atrasado que el margen de su espera manda las teclas para cuadros que el anfitrion ya
+    // repartio: llegarian siempre tarde, y como los dos van a 60 cuadros por segundo seguiria asi para
+    // siempre. Asi que un invitado solo se queda con ese margen (espera - ping).
+    function framesAllowedWaiting() {
+        if (Net.role === 'host') return Net.delay + 2;
+        return Math.max(1, Net.delay - Math.ceil((Net.ping || 0) / STEP_MS));
+    }
+
+    // Los cuadros de mas de este cuadro de dibujo. Con la red a tirones la cola sube y baja: eso es el
+    // colchon que hace que se vea suave y no se toca. Lo que sobra es lo que no baja nunca: el minimo de
+    // la cola en el ultimo medio segundo, por encima de lo permitido. Eso se quita de uno en uno (no se
+    // nota). Muy atras (estuvo parado), de golpe.
+    const CATCH_WINDOW = 30;
+    function catchUpFrames() {
+        const n = framesWaiting();
+        const allowed = framesAllowedWaiting();
+        if (Net.role === 'host' || n >= 30) {
+            for (let extra = 0; Net.active && extra < 8 && framesWaiting() > allowed; extra++) runFrame();
+            return;
+        }
+        Net.queueLow = Net.queueTicks ? Math.min(Net.queueLow, n) : n;
+        Net.queueTicks = (Net.queueTicks || 0) + 1;
+        if (Net.queueTicks >= CATCH_WINDOW) {
+            Net.catchUp = Math.max(0, Net.queueLow - allowed);
+            Net.queueTicks = 0;
+        }
+        if (Net.catchUp > 0 && n > allowed) {
+            Net.catchUp--;
+            runFrame();
+        }
+    }
+
     const _SceneManager_updateMain = SceneManager.updateMain;
     SceneManager.updateMain = function() {
         if (Net.startRequested) {
@@ -779,7 +823,7 @@
             steps++;
         }
         // (muy atras - estuvo parado: minimizado, cargando... -: recupera varios por cuadro de dibujo)
-        for (let extra = 0; Net.active && extra < 8 && framesWaiting() > Net.delay + 2; extra++) runFrame();
+        catchUpFrames();
         this.renderScene();
         this.requestUpdate();
     };
@@ -2301,10 +2345,9 @@
     // ---- anfitrion ----------------------------------------------------------------------
 
     function hostStoreInput(f, player, bits, readySeq, battleReady) {
-        if (!Net.active || f < Net.nextBuild) return;
-        if (f < Net.nextBuild) return; // (llego tarde: ese cuadro ya salio sin ella)
-        if (!Net.inputs[f]) Net.inputs[f] = {};
-        Net.inputs[f][player] = bits;
+        if (!Net.active) return;
+        // lo que tiene cargado vale aunque la tecla llegue tarde (si no, la siguiente escena no
+        // empezaria nunca, para nadie)
         if (player === 1) {
             Net.hostReady = readySeq;
             Net.hostBattleReady = battleReady;
@@ -2315,6 +2358,13 @@
                 peer.battleReady = battleReady;
             }
         }
+        if (f < Net.nextBuild) {
+            // llego tarde: ese cuadro ya salio sin ella. Va en el siguiente que se reparta
+            Net.late[player] = { bits: bits, at: performance.now() };
+            return;
+        }
+        if (!Net.inputs[f]) Net.inputs[f] = {};
+        Net.inputs[f][player] = bits;
         hostBuildFrames();
     }
 
@@ -2339,9 +2389,11 @@
                     Net.blockedOn = missing;
                     return;
                 }
-                // los que no llegan: este cuadro sin sus teclas
+                // los que no llegan: este cuadro con sus ultimas teclas si son recientes (llegaron tarde),
+                // o sin teclas (su PC esta parado: su personaje no sigue andando solo)
                 missing.forEach(p => {
-                    got[p] = 0;
+                    const late = Net.late[p];
+                    got[p] = late && now - late.at < STALL_MS ? late.bits : 0;
                     if (!Net.stalledLog[p]) {
                         Net.stalledLog[p] = true;
                         battleLog('P' + p + ' is not answering: the game goes on without their keys');
@@ -2428,7 +2480,23 @@
         return id;
     }
 
+    // el mundo por la red: comprimido (de unos 2 MB a unas decenas de KB); sin zlib, tal cual
+    function packWorld(json) {
+        if (!zlib || typeof Buffer === 'undefined') return '';
+        try {
+            return zlib.deflateSync(Buffer.from(json, 'utf8')).toString('base64');
+        } catch (e) {
+            logError('compressing the world', e);
+            return '';
+        }
+    }
+
+    function unpackWorld(msg) {
+        return msg.z ? zlib.inflateSync(Buffer.from(msg.z, 'base64')).toString('utf8') : msg.save;
+    }
+
     function hostSnapshot(first) {
+        const welcoming = first || Net.joinQueue.length > 0;
         const back = Net.joinQueue.filter(n => Net.players.indexOf(n) >= 0);
         Net.joinQueue.forEach(n => {
             if (Net.players.indexOf(n) < 0) Net.players.push(n);
@@ -2486,13 +2554,19 @@
         };
         const saveJson = JsonEx.stringify(DataManager.makeSaveContents());
         Net.inputs = {};
+        Net.late = {};
+        Net.waitSince = {};
         Net.nextBuild = meta.f;
         Net.hold = null;
         Net.resyncWanted = false;
         Net.joinQueue = [];
         Net.ownHashes = {};
         Net.hostReady = -1;
-        peersNow.forEach(peer => send(peer.sock, { t: 'snap', meta: meta, save: saveJson }));
+        const packed = packWorld(saveJson);
+        peersNow.forEach(peer => {
+            if (welcoming) send(peer.sock, { t: 'note', title: 'Receiving the world from the host...', sub: '' });
+            send(peer.sock, packed ? { t: 'snap', meta: meta, z: packed } : { t: 'snap', meta: meta, save: saveJson });
+        });
         applySnapshot(meta, saveJson);
     }
 
@@ -2836,7 +2910,7 @@
                     Net.rejected = String(msg.reason || 'Rejected');
                     banner('The host did not let you in', Net.rejected, '#ff5555', 400);
                 } else if (msg.t === 'snap') {
-                    applySnapshot(msg.meta, msg.save);
+                    applySnapshot(msg.meta, unpackWorld(msg));
                 } else if (msg.t === 'fr') {
                     if (Net.active && msg.f >= Net.frame) Net.frames[msg.f] = msg;
                 } else if (msg.t === 'desync') {

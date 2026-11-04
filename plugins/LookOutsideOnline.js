@@ -402,7 +402,7 @@
         'If the protagonist dies (a monster, a trap...): the next player alive (or a companion who can be the protagonist) takes over. Game over: as in the game.':
             'Если герой погибает (монстр, ловушка...): героем становится следующий живой игрок (или спутник, который может быть героем). Конец игры — как в игре.',
         // menu Co-op
-        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Yes': 'Да', 'No': 'Нет',
+        'Co-op': 'Кооп', 'Co-op settings...': 'Настройки кооператива...', 'Receiving the world from the host...': 'Получаем мир от хоста...', 'Yes': 'Да', 'No': 'Нет',
         'Player {n}: they want to sacrifice {name}. Do you agree?': 'Игрок {n}: {name} хотят принести в жертву. Вы согласны?',
         'Player {n}: the marriage of flesh - {name} and {hero} become one forever. Do you agree?': 'Игрок {n}: брак плоти — {name} и {hero} навсегда станут одним целым. Вы согласны?',
         'Player {n}: {name} would be given away and leave the party for good. Do you agree?': 'Игрок {n}: {name} отдадут, и он(а) навсегда покинет отряд. Вы согласны?', 'Cheat: party: -': 'Чит: отряд: -',

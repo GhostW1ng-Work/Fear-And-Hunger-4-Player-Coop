@@ -114,7 +114,7 @@ With **Separate**:
 
 ## Disconnects, lag, coming back
 
-- **Nobody gets kicked for lagging.** If a player's game stops for a moment (minimized, loading, busy), the others don't wait more than half a second: the game goes on without that player's keys. When their game comes back, it quickly catches up and plays on in the same world.
+- **Nobody gets kicked for lagging.** If a player's game stops for a moment (minimized, loading, busy), the others don't wait more than half a second: the game goes on without that player's keys. When their game comes back, it quickly catches up and plays on in the same world. Their keys work again as soon as it has caught up.
 - **A player leaves** (closes the game, loses the connection): the game goes on for the others; their character becomes a normal companion following P1. In a battle, the host plays it until the battle ends (in a separate battle, the next player in it).
 - **A guest loses the host:** it goes back to the title (its copy of the world does not go on alone) and keeps trying to reconnect by itself.
 - **Coming back / joining later:** connect from the menu as at the start. The host waits for a quiet moment (on the map, no event, dialogue, menu or battle) and sends its world to everybody, like a save. The player gets their character back; a new player gets the next free number (up to P4).
