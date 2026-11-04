@@ -2296,4 +2296,79 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     for (k = 0; k < 5; k++) frame();
 })();
 
+// --- T70: FH1, lo que el juego le hace "al protagonista" ---
+(function() {
+    if (!/fear/i.test($dataSystem.gameTitle || '') || /termina/i.test($dataSystem.gameTitle || '')) return;
+    $gameMap._interpreter.clear(); $gameMessage.clear();
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 5; k++) frame();
+    var keepParty = $gameParty._actors.slice();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    if (!$gamePlayer3) { check('T70 setup: P3 joined', false); return; }
+    var mine = $gamePlayer3._coopActorId;
+    var leader = $gameParty._actors[0];
+    var sw = { 1: 246, 3: 242, 4: 243, 5: 244, 6: 245 }[leader];
+    [246, 242, 243, 244, 245, 375, 380].forEach(function(s) { $gameSwitches.setValue(s, false); });
+    $gameSwitches.setValue(sw, true);
+    var nail = [
+        { code: 111, indent: 0, parameters: [0, sw, 0] },
+        { code: 313, indent: 1, parameters: [0, leader, 0, 5] },
+        { code: 0, indent: 1, parameters: [] },
+        { code: 412, indent: 0, parameters: [] },
+        { code: 0, indent: 0, parameters: [] }
+    ];
+    function run(list, starter) {
+        var it = new Game_Interpreter();
+        it.setup(list, 0);
+        it._coopStarter = starter;
+        for (var i = 0; i < 50 && it.isRunning(); i++) it.update();
+    }
+    [leader, mine].forEach(function(id) { $gameActors.actor(id).removeState(5); });
+    run(nail, 3);
+    check('T70 FH1: P3 steps on a nail: it hurts P3, not the protagonist',
+        $gameActors.actor(mine).isStateAffected(5) && !$gameActors.actor(leader).isStateAffected(5),
+        'P3 ' + $gameActors.actor(mine).isStateAffected(5) + ' hero ' + $gameActors.actor(leader).isStateAffected(5));
+    [leader, mine].forEach(function(id) { $gameActors.actor(id).removeState(5); });
+    run(nail, 1);
+    check('T70b FH1: P1 steps on a nail: it hurts P1', $gameActors.actor(leader).isStateAffected(5) && !$gameActors.actor(mine).isStateAffected(5));
+    $gameActors.actor(leader).removeState(5);
+    // outside a "the protagonist is X" branch the event means that very character
+    var targets = [], keepAdd = Game_Battler.prototype.addState;
+    Game_Battler.prototype.addState = function(id) { targets.push(this.actorId()); };
+    var keepS1 = $gameSwitches.value(1);
+    $gameSwitches.setValue(1, true);
+    run([{ code: 111, indent: 0, parameters: [0, 1, 0] }, { code: 313, indent: 1, parameters: [0, leader, 0, 5] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 3);
+    $gameSwitches.setValue(1, keepS1);
+    Game_Battler.prototype.addState = keepAdd;
+    check('T70c FH1: an event for that very character stays on them', targets.join() === String(leader), 'targets ' + targets + ' leader ' + leader);
+    $gameActors.actor(leader).removeState(5);
+    // the protagonist dies in a battle
+    var heroDead = [
+        { code: 111, indent: 0, parameters: [4, leader, 6, 1] },
+        { code: 111, indent: 1, parameters: [0, sw, 0] },
+        { code: 129, indent: 2, parameters: [mine, 1, false] },
+        { code: 0, indent: 2, parameters: [] },
+        { code: 412, indent: 1, parameters: [] },
+        { code: 0, indent: 1, parameters: [] },
+        { code: 412, indent: 0, parameters: [] },
+        { code: 0, indent: 0, parameters: [] }
+    ];
+    var hero = $gameActors.actor(leader);
+    var hpKeep = hero.hp;
+    run(heroDead, 0);
+    check('T70d FH1: alive protagonist: nothing happens', !$gameParty.isAllDead());
+    hero.addState(hero.deathStateId());
+    $gameParty._inBattle = true;
+    run(heroDead, 0);
+    $gameParty._inBattle = false;
+    check('T70e FH1: the protagonist dies in a battle: the battle is lost for everybody', $gameParty.isAllDead() && $gameParty._actors.indexOf(mine) >= 0, $gameParty._actors);
+    delete $gameParty._coopHeroLost;
+    hero.removeState(hero.deathStateId());
+    hero.setHp(hpKeep || 1);
+    [246, 242, 243, 244, 245, 375, 380].forEach(function(s) { $gameSwitches.setValue(s, false); });
+    $gameParty._actors = keepParty;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 __results.join('\n') + '\n--log--\n' + __log.join('\n');

@@ -426,6 +426,18 @@ check('cancel in Skills goes back to the main menu', p2menu() == 'Scene_Menu', p
 same, frames = aligned_worlds(net, [host, g2])
 check('same world after moving between menu scenes', same, frames)
 
+# the sounds of a menu: only on the PC of its player
+for p_ in (host, g2):
+    p_.ev('window.__se = 0; window.__seKeep = AudioManager.playStaticSe; AudioManager.playStaticSe = function() { window.__se++; };')
+p2press(2)
+check('the sound of the menu of P2 is heard on their PC', g2.ev('window.__se') > 0, g2.ev('window.__se'))
+check('and not on the other PC', host.ev('window.__se') == 0, host.ev('window.__se'))
+p2press(1)
+for p_ in (host, g2):
+    p_.ev('AudioManager.playStaticSe = window.__seKeep;')
+same, frames = aligned_worlds(net, [host, g2])
+check('same world after the quiet menu', same, frames)
+
 # --- who you can pick in Skills / Equip ---
 def hpress(bits, frames=6, after=20):
     host.ev('CoopNet.localKeys = %d' % bits)
@@ -949,6 +961,20 @@ check('diary: the clear of the keys is noted on that PC', dg.ev('CoopNet.inputCl
 check('diary: P1 losing a held key is noted on that PC only', dg.ev('CoopNet.p1LostCount') == 1 and not dh.ev('CoopNet.p1LostCount'), [dg.ev('CoopNet.p1LostCount'), dh.ev('CoopNet.p1LostCount')])
 dh.ev('CoopNet.localKeys = 0')
 tick(dn, [dh, dg], 10)
+
+# P2 lets go of a key: P1 keeps holding the same one
+dh, dg, dn = lag_game(40, pid=68)
+dh.ev('CoopNet.localKeys = 2')
+dg.ev('CoopNet.localKeys = 2')
+tick(dn, [dh, dg], 12)
+dg.ev('CoopNet.localKeys = 0')
+tick(dn, [dh, dg], 12)
+states = [dh.ev('!!Input._currentState.down'), dg.ev('!!Input._currentState.down')]
+check('keys: P2 lets go of Down, P1 still holds it on both PCs', states == [True, True], states)
+dh.ev('CoopNet.localKeys = 0')
+tick(dn, [dh, dg], 12)
+states = [dh.ev('!!Input._currentState.down'), dg.ev('!!Input._currentState.down')]
+check('keys: and P1 lets go of it too', states == [False, False], states)
 
 # without a network game the game clears the keys as always
 vf = Peer(64, 'host')

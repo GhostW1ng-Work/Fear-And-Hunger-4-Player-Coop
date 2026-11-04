@@ -548,6 +548,7 @@
 
     function applyActions(all) {
         Net.lastAll = all;
+        const released = [];
         for (const p of Net.players) {
             const prev = Net.applied[p] || 0;
             const raw = all[seatOf(p)] || 0;
@@ -561,9 +562,15 @@
                 const was = (prev >> i) & 1;
                 const now = (cur >> i) & 1;
                 if (was !== now) coop.injectAction(p, action, !!now);
+                if (was && !now && p !== 1) released.push(i);
             });
             Net.applied[p] = cur;
         }
+        // soltar una tecla de P2-P4 la suelta en todos los contextos (para que nunca quede pegada),
+        // tambien la misma accion de P1: si P1 la sigue pulsando, sigue pulsada (P1 se paraba)
+        released.forEach(i => {
+            if (((Net.applied[1] || 0) >> i) & 1) coop.injectAction(1, ACTIONS[i], true);
+        });
     }
 
     // ---- F6 / F7 (con LocalCoop_QuickSave) en la partida en red: solo el anfitrion ----------
@@ -1001,6 +1008,19 @@
         Input._updateDirection();
     }
 
+    // los sonidos de un menu solo se oyen en el PC de su jugador (es solo sonido)
+    const MENU_SOUND_CALLS = ['playSe', 'playStaticSe', 'playMe'];
+    function quietMenu(n, fn) {
+        if (n === Net.player) return fn();
+        const saved = MENU_SOUND_CALLS.map(name => AudioManager[name]);
+        MENU_SOUND_CALLS.forEach(name => { AudioManager[name] = function() {}; });
+        try {
+            return fn();
+        } finally {
+            MENU_SOUND_CALLS.forEach((name, i) => { AudioManager[name] = saved[i]; });
+        }
+    }
+
     // ejecuta fn como si el menu del jugador n fuera la escena actual; devuelve la escena
     // a la que el menu quiere pasar (o null)
     function withSub(n, sub, fn) {
@@ -1022,7 +1042,7 @@
         inSub = true;
         let next = null;
         try {
-            fn();
+            quietMenu(n, fn);
         } finally {
             inSub = false;
             next = sm._nextScene;
@@ -1100,7 +1120,7 @@
         let next = null;
         let stack = null;
         try {
-            callOriginal();
+            quietMenu(n, callOriginal);
         } finally {
             inSub = false;
             delete map.stop;
@@ -1865,6 +1885,9 @@
                 const layer = battle.scene._windowLayer;
                 const active = layer ? layer.children.filter(w => w && w.active && w.visible && typeof w.index === 'function') : [];
                 win = active.map(w => w.constructor.name + '#' + w.index() + '/' + w.maxItems()).join(',') || 'none';
+                // (que parte del cuerpo se ve elegida en este PC: para comparar dos PC)
+                const picked = $gameTroop.members().filter(e => e._selected).map(e => e.name()).join('+');
+                if (picked) win += ' picked ' + picked;
             });
         } catch (e) {
             win = 'error ' + e.message;

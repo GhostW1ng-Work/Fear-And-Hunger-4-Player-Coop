@@ -2989,6 +2989,67 @@
     };
 
     // nadie pierde "por grupo": se acaba cuando cae uno de los dos (ver arriba)
+    // ---- Fear & Hunger 1: lo que el juego le hace "al protagonista" ------------------------------
+    // El juego va por interruptores: "si el protagonista es el mercenario, a ese". Son estos.
+    const FH1_HERO_SWITCH = { 246: 1, 242: 3, 243: 4, 244: 5, 245: 6, 375: 9, 380: 11 };
+    function fh1() {
+        return gameProfile() === GAME_PROFILES.fearhunger1;
+    }
+    // el personaje de la rama "si el protagonista es X" en la que esta esta orden (0 = no esta en una)
+    function heroBranchActor(interp) {
+        const list = interp._list;
+        const cmd = list && list[interp._index];
+        if (!cmd) return 0;
+        for (let k = interp._index - 1; k >= 0; k--) {
+            const c = list[k];
+            if (c.indent >= cmd.indent) continue;
+            return c.code === 111 && c.parameters[0] === 0 && c.parameters[2] === 0 ? FH1_HERO_SWITCH[c.parameters[1]] || 0 : 0;
+        }
+        return 0;
+    }
+
+    // Pisar un clavo y parecidos: el juego se lo hace al protagonista, porque es el unico que anda.
+    // Si lo ha activado otro jugador, le pasa a ese.
+    ['command311', 'command312', 'command313', 'command314'].forEach(name => {
+        const original = Game_Interpreter.prototype[name];
+        Game_Interpreter.prototype[name] = function() {
+            const n = this._coopStarter || 0;
+            const p = this._params;
+            if (n >= 2 && fh1() && !$gameParty.inBattle() && p[0] === 0 && p[1] === $gameParty._actors[0] && heroBranchActor(this) === p[1]) {
+                const actor = coop.actorOf(coop.player(n));
+                if (actor && actor.actorId() !== p[1]) {
+                    this._params = p.slice();
+                    this._params[1] = actor.actorId();
+                    try {
+                        return original.call(this);
+                    } finally {
+                        this._params = p;
+                    }
+                }
+            }
+            return original.call(this);
+        };
+    });
+
+    // Muere el protagonista en un combate: el juego oscurece la pantalla y saca a todos los demas del
+    // grupo, y asi se pierde el combate. Los personajes de los jugadores no salen del grupo, y el
+    // combate seguia con la pantalla negra. Se pierde igual: es el fin de la partida para todos.
+    const _Game_Interpreter_command129_heroLost = Game_Interpreter.prototype.command129;
+    Game_Interpreter.prototype.command129 = function() {
+        if (this._params[1] === 1 && fh1() && $gameParty.inBattle()) {
+            const hero = $gameActors.actor($gameParty._actors[0]);
+            if (hero && hero.isDead() && heroBranchActor(this) === hero.actorId()) {
+                $gameParty._coopHeroLost = true;
+                return true;
+            }
+        }
+        return _Game_Interpreter_command129_heroLost.call(this);
+    };
+    const _Game_Party_isAllDead_heroLost = Game_Party.prototype.isAllDead;
+    Game_Party.prototype.isAllDead = function() {
+        return !!this._coopHeroLost || _Game_Party_isAllDead_heroLost.call(this);
+    };
+
     const _Game_Party_isAllDead_pvp = Game_Party.prototype.isAllDead;
     Game_Party.prototype.isAllDead = function() {
         if (pvpInfo()) return false;

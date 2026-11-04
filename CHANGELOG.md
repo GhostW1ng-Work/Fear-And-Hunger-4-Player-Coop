@@ -6,6 +6,10 @@
 - **Fixed (online): the game could hang for everybody.** With late keys the host also ignored what that PC had loaded: the next door never opened, for anyone - and if the world took more than half a second to reach a guest, the game never started at all.
 - The online desync log (`www/coop_net_desync.log`) now shows what the game was doing frame by frame before the PCs went apart (the event and its command, the message, the battle phase, the keys): comparing the logs of two PCs shows where it started.
 - **Online: a window that loses the focus no longer sends the PCs apart.** Alt+Tab, a click on another window or a popup from another program made that PC forget the key P1 was holding: P1 stood still there and walked on the others (or battle text ran at another speed there), which caused the "PCs out of sync" repairs and could hang a battle.
+- **Fear & Hunger 1: when the protagonist dies in a battle, the game is over for everybody**, as in the game. It used to go on with a black screen, and online the PCs went apart.
+- **Fear & Hunger 1: a rusty nail and the like hurt the player who stepped on it**, not the protagonist.
+- **Online: the sounds of a menu are only heard on the PC of the player in it.**
+- **Online: P2-P4 letting go of a key no longer stops P1** when P1 holds the same direction.
 - **Faster to connect online:** the world is sent compressed, 7-10 times smaller (about 2 MB -> about 240 KB on late-game saves): on a slow VPN about 1 second instead of about 10. Guests see "Receiving the world from the host...".
 
 ## v1.9.6
