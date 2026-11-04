@@ -2366,6 +2366,61 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     delete $gameParty._coopHeroLost;
     hero.removeState(hero.deathStateId());
     hero.setHp(hpKeep || 1);
+    // a special defeat (the guard): the wounds of the protagonist go to every player
+    var swOf = { 1: 246, 3: 242, 4: 243, 5: 244, 6: 245 };
+    var LEG_L = { 1: 38, 3: 250, 4: 254, 5: 258, 6: 263 };
+    var other = [1, 3, 4, 5, 6].filter(function(id) { return id !== leader && id !== mine; })[0];
+    var defeat = [{ code: 603, indent: 0, parameters: [] }];
+    [leader, mine, other].forEach(function(id) {
+        defeat.push({ code: 111, indent: 1, parameters: [0, swOf[id], 0] });
+        defeat.push({ code: 121, indent: 2, parameters: [LEG_L[id], LEG_L[id], 0] });
+        defeat.push({ code: 313, indent: 2, parameters: [0, id, 0, 4] });
+        defeat.push({ code: 0, indent: 2, parameters: [] });
+        defeat.push({ code: 412, indent: 1, parameters: [] });
+    });
+    // the branch of the coin stays the protagonist's
+    defeat.push({ code: 111, indent: 1, parameters: [0, swOf[mine], 0] });
+    defeat.push({ code: 122, indent: 2, parameters: [14, 14, 0, 0, 77] });
+    defeat.push({ code: 0, indent: 2, parameters: [] });
+    defeat.push({ code: 412, indent: 1, parameters: [] });
+    defeat.push({ code: 0, indent: 1, parameters: [] });
+    defeat.push({ code: 604, indent: 0, parameters: [] });
+    defeat.push({ code: 0, indent: 0, parameters: [] });
+    function runDefeat(starter) {
+        var it = new Game_Interpreter();
+        it.setup(defeat, 0);
+        it._coopStarter = starter;
+        it._branch[0] = 2;
+        for (var i = 0; i < 50 && it.isRunning(); i++) it.update();
+    }
+    function clearWounds() {
+        [leader, mine, other].forEach(function(id) { $gameActors.actor(id).removeState(4); $gameActors.actor(id).clearResult(); $gameSwitches.setValue(LEG_L[id], false); });
+        $gameVariables.setValue(14, 0);
+    }
+    function wounded(id) { return $gameActors.actor(id).isStateAffected(4) && $gameSwitches.value(LEG_L[id]); }
+    clearWounds();
+    runDefeat(0);
+    check('T71 FH1 special defeat: the protagonist and the other player both lose their legs and get the state', wounded(leader) && wounded(mine),
+        'hero ' + wounded(leader) + ' P3 ' + wounded(mine));
+    check('T71b the character nobody plays is not touched', !wounded(other));
+    check('T71c the branch of the coin stays the protagonist\'s', $gameVariables.value(14) !== 77, $gameVariables.value(14));
+    clearWounds();
+    runDefeat(3);
+    check('T71d the same when P3 started the battle (not moved to P3 only)', wounded(leader) && wounded(mine), 'hero ' + wounded(leader) + ' P3 ' + wounded(mine));
+    clearWounds();
+    var mineActor = $gameActors.actor(mine), mineHp = mineActor.hp;
+    mineActor.addState(mineActor.deathStateId());
+    runDefeat(0);
+    check('T71e a dead player is not wounded', wounded(leader) && !wounded(mine), 'hero ' + wounded(leader) + ' P3 ' + wounded(mine));
+    mineActor.removeState(mineActor.deathStateId());
+    mineActor.setHp(mineHp || 1);
+    clearWounds();
+    // outside a defeat, a player's branch runs only if they are the protagonist
+    var noDefeat = defeat.slice(1, 6).concat([{ code: 0, indent: 0, parameters: [] }]);
+    noDefeat = [{ code: 111, indent: 0, parameters: [0, swOf[mine], 0] }, { code: 313, indent: 1, parameters: [0, mine, 0, 4] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }];
+    run(noDefeat, 0);
+    check('T71f outside a defeat nothing changes', !$gameActors.actor(mine).isStateAffected(4));
+    clearWounds();
     [246, 242, 243, 244, 245, 375, 380].forEach(function(s) { $gameSwitches.setValue(s, false); });
     $gameParty._actors = keepParty;
     for (k = 0; k < 5; k++) frame();

@@ -3008,6 +3008,57 @@
         return 0;
     }
 
+    // Esta orden esta en la rama "si se pierde" de un combate
+    function inDefeatBranch(interp) {
+        const list = interp._list;
+        const cmd = list && list[interp._index];
+        if (!cmd) return false;
+        let indent = cmd.indent;
+        for (let k = interp._index - 1; k >= 0 && indent > 0; k--) {
+            if (list[k].indent >= indent) continue;
+            indent = list[k].indent;
+            if (list[k].code === 603) return true;
+        }
+        return false;
+    }
+
+    // Los personajes de los jugadores que siguen en la partida
+    function activePlayerActors() {
+        const away = coop.awayPlayers();
+        const out = [$gameParty.leader()];
+        coop.players().forEach(pl => {
+            if (away.indexOf(pl.coopIndex()) < 0) out.push(coop.actorOf(pl));
+        });
+        return out.filter(a => a && a.isAlive()).map(a => a.actorId());
+    }
+
+    // Las derrotas especiales (el guardia corta las piernas y lleva al foso, etc.): el juego se lo hace
+    // al protagonista con una rama por personaje ("si el protagonista es X: sus piernas, su estado").
+    // Los demas jugadores siguen en el grupo y acababan sanos: pasan tambien por su rama. Solo las
+    // ramas de heridas: la de la moneda (cuenta distinta segun el protagonista) sigue siendo suya.
+    function isWoundBranch(interp) {
+        const list = interp._list;
+        const cmd = list[interp._index];
+        let any = false;
+        for (let k = interp._index + 1; k < list.length && list[k].indent > cmd.indent; k++) {
+            const code = list[k].code;
+            if (code === 0) continue;
+            if (code !== 121 && code !== 313) return false;
+            any = true;
+        }
+        return any;
+    }
+    const _Game_Interpreter_command111_defeat = Game_Interpreter.prototype.command111;
+    Game_Interpreter.prototype.command111 = function() {
+        const p = this._params;
+        if (p[0] === 0 && p[2] === 0 && FH1_HERO_SWITCH[p[1]] && !$gameSwitches.value(p[1]) && fh1() &&
+            inDefeatBranch(this) && isWoundBranch(this) && activePlayerActors().indexOf(FH1_HERO_SWITCH[p[1]]) >= 0) {
+            this._branch[this._indent] = true;
+            return true;
+        }
+        return _Game_Interpreter_command111_defeat.call(this);
+    };
+
     // Pisar un clavo y parecidos: el juego se lo hace al protagonista, porque es el unico que anda.
     // Si lo ha activado otro jugador, le pasa a ese.
     ['command311', 'command312', 'command313', 'command314'].forEach(name => {
@@ -3015,7 +3066,7 @@
         Game_Interpreter.prototype[name] = function() {
             const n = this._coopStarter || 0;
             const p = this._params;
-            if (n >= 2 && fh1() && !$gameParty.inBattle() && p[0] === 0 && p[1] === $gameParty._actors[0] && heroBranchActor(this) === p[1]) {
+            if (n >= 2 && fh1() && !$gameParty.inBattle() && p[0] === 0 && p[1] === $gameParty._actors[0] && heroBranchActor(this) === p[1] && !inDefeatBranch(this)) {
                 const actor = coop.actorOf(coop.player(n));
                 if (actor && actor.actorId() !== p[1]) {
                     this._params = p.slice();
