@@ -12,7 +12,7 @@ HOW YOU CAN PLAY
 FEATURES
 
 • Join any time - press a button on the map and pick a character from the party. Online, a guest can also bring the main character of their own save (level, skills, equipment).
-• Battles together or apart - fight the same enemy together, or each one their own battle at the same time. Walk up to a friend's battle and join in.
+• Battles together or apart - fight the same enemy together, or each one their own battle at the same time. Walk up to a friend's battle and join in. If separate battles give you trouble, the host can switch to battles together.
 • Your own light and stamina - every player carries their own torch and has their own running stamina.
 • Death and soul stones - a fallen player leaves a body; bring them back with a soul stone. A dead player watches the others' battles.
 • The protagonist can change - if the protagonist dies, the next player takes over and the story goes on.

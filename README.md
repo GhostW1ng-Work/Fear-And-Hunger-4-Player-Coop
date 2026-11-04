@@ -229,7 +229,7 @@ In the game: **Options > Co-op > Co-op settings...** They are saved like the vol
 | Setting | Default | What it does |
 |---|---|---|
 | *When P2-P4 die* | The party goes on | Only the death of P1 ends the game. *Game over* = the original rule. |
-| *Hero dies (not by a player)* | The next one takes over | Termina: if the protagonist dies (a monster, a trap...), the next player alive becomes the protagonist (online their PC plays P1); with no players left, a companion who can be the protagonist (played by P1). *Game over* = as in the game. |
+| *Hero dies (not by a player)* | The next one takes over | Fear & Hunger 1: the protagonist's death in a battle always ends the game for everybody. Termina: if the protagonist dies (a monster, a trap...), the next player alive becomes the protagonist (online their PC plays P1); with no players left, a companion who can be the protagonist (played by P1). *Game over* = as in the game. |
 | *Keep players' characters* | On | If the story removes the character of P2-P4 from the party, it stays (the solo parts of the story still work; in Fear & Hunger 1 the marriage, sacrifices, trades, hunger and the scenes of the endings still take the character). |
 | *Revive with soul stones* | On | Off: death is for good, there is no body to revive. |
 | *Revived with* | 30% | HP and mind of a character brought back. |
@@ -284,7 +284,7 @@ Experimental. Every player needs the game and **the same version of the mod** (t
 **Good to know:**
 - **Over the internet**, the easiest way is a virtual network like **Radmin VPN** or **ZeroTier** (free): everybody joins the same network and types the host's VPN address. Or forward TCP port 47810 on the host's router.
 - **Menus don't pause the game** - the others keep playing while you are in your menu.
-- **Battles**: *Together* (everybody fights, like on one PC) or *Separate* (only who an enemy touches; the others keep walking and can join by pressing OK next to a fighter). Several separate battles can run at once - P1 with one enemy, P2 with another.
+- **Battles**: *Together* (everybody fights, like on one PC) or *Separate* (only who an enemy touches; the others keep walking and can join by pressing OK next to a fighter). Several separate battles can run at once - P1 with one enemy, P2 with another. If you have problems with *Separate* (players out of sync, a battle that stops), the host can set **Battles: Together**.
 - While somebody fights a separate battle on the map, nobody can leave the map, sleep or save (otherwise the transfer would take the fighters along).
 - **Nobody gets kicked for lagging.** If someone's game stops for a moment (minimized, loading), the others go on and that game catches up. A player who loses the host goes back to the title and reconnects by themselves.
 - The host can change **PvP**, **Revive**, **Cheats** and **Played chars' NPCs** right in the online menu, also during the game.

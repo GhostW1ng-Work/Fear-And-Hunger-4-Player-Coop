@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.9.7
 
+- Separate battles stay in. If they give you trouble, the host can set **Battles: Together**.
 - **Fixed (online): after any stop of more than half a second, P2-P4 lost their controls for good.** A stop of the guest's game (dragging the window, loading) or of the network (common on a VPN): the host goes on without their keys, as it should, but the guest caught up only partly and stayed behind, so all their keys arrived too late, forever. Now a guest really catches up, smoothly (only what stays in its queue for half a second, so an uneven network does not make it stutter), and keys that arrive late count for the next frame.
 - **Fixed (online): the game could hang for everybody.** With late keys the host also ignored what that PC had loaded: the next door never opened, for anyone - and if the world took more than half a second to reach a guest, the game never started at all.
 - The online desync log (`www/coop_net_desync.log`) now shows what the game was doing frame by frame before the PCs went apart (the event and its command, the message, the battle phase, the keys): comparing the logs of two PCs shows where it started.
