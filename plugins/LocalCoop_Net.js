@@ -269,17 +269,18 @@
     const RAND_KEEP = 4000;
     const randTrail = [];
 
-    // (solo se guarda el Error: convertir la pila en texto cuesta, y solo hace falta si hay desync)
+    // (se guarda el texto y no el Error: un Error sin leer retiene los objetos de su pila - escenas
+    // viejas con todas sus imagenes - y con miles de ellos el juego se quedaba sin memoria)
     function noteRandom() {
         const limit = Error.stackTraceLimit;
         Error.stackTraceLimit = 10;
-        randTrail.push({ f: Net.frame, e: new Error() });
+        randTrail.push({ f: Net.frame, stack: new Error().stack || '' });
         Error.stackTraceLimit = limit;
         if (randTrail.length > RAND_KEEP + 500) randTrail.splice(0, randTrail.length - RAND_KEEP);
     }
 
     function trailLine(t) {
-        const st = (t.e.stack || '').split('\n').slice(3, 10)
+        const st = t.stack.split('\n').slice(3, 10)
             .map(l => l.trim().replace(/^at /, '').replace(/\(.*[\/\\]/, '(')).join(' < ');
         return t.f + ' ' + st;
     }
@@ -1376,6 +1377,37 @@
             // nada
         }
     }, 2000);
+
+    // el diario de la memoria: el juego es de 32 bits y se cierra solo si llega a unos 4 GB; una
+    // linea por minuto dice cuando y con que crece (solo lee: nada de esto va a la partida)
+    setInterval(() => {
+        try {
+            const m = process.memoryUsage();
+            const mb = n => Math.round(n / 1048576);
+            const items = (ImageManager._imageCache && ImageManager._imageCache._items) || {};
+            const keys = Object.keys(items);
+            let pixels = 0;
+            keys.forEach(k => {
+                const bitmap = items[k].bitmap;
+                if (bitmap && bitmap.isReady()) pixels += bitmap.width * bitmap.height;
+            });
+            const manager = Graphics._renderer && Graphics._renderer.textureManager;
+            const scene = SceneManager._scene;
+            const line = new NativeDate().toISOString() + '  ram ' + mb(m.rss) + ' MB  js ' + mb(m.heapUsed) + '/' + mb(m.heapTotal) +
+                ' MB  images ' + keys.length + ' (' + Math.round(pixels / 1e6) + ' Mpx)  textures ' +
+                (manager && manager._managedTextures ? manager._managedTextures.length : '-') +
+                '  map ' + (window.$gameMap ? $gameMap.mapId() : '-') + '  ' + (scene ? scene.constructor.name : '-') +
+                '  battles ' + battles.length + (Net.active ? '  frame ' + Net.frame : '') + '\n';
+            const file = path.join(baseDir, 'coop_memory.log');
+            fs.stat(file, (err, st) => {
+                const write = () => fs.appendFile(file, line, () => {});
+                if (!err && st && st.size > 256 * 1024) fs.rename(file, file + '.old', write);
+                else write();
+            });
+        } catch (e) {
+            // nada
+        }
+    }, 60000);
 
     function inSeparateBattle(n) {
         return !!battleOf(n);
