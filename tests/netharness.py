@@ -543,6 +543,7 @@ def start_as(n, event_id, cmds):
     for p_ in (host, g2):
         p_.ev("var e = $gameMap.event(%d); e.page().list = [%s,%s]; e.start(); e._starting = true; e._coopStarter = %d" % (event_id, cmds, END, n))
 SESS = "Object.keys(CoopNet.eventSessions()).join()"
+ACTION_BITS = dict(zip((8, 2, 4, 6), (1 << host.ev("CoopLocal.actions.indexOf('up')"), 1 << host.ev("CoopLocal.actions.indexOf('down')"), 1 << host.ev("CoopLocal.actions.indexOf('left')"), 1 << host.ev("CoopLocal.actions.indexOf('right')"))))
 RUNNING = "$gameMap.isEventRunning()"
 if len(ids) == 2:
     start_as(2, ids[0], SAY)
@@ -609,6 +610,29 @@ if len(ids) == 2:
         p_.ev("CoopNet.eventSessions()[2].message.clear()")
     tick(net, [host, g2], 90)
     check('sessions: and then it happens', both(RUNNING) == [False, False] and both(SESS) == ['', ''], [both(RUNNING), both(SESS)])
+    # a silent event on the floor (the maps are full of them) must not stop whoever holds a direction
+    tick(net, [host, g2], 10)
+    aligned_worlds(net, [host, g2])
+    FREE = "(function(){var p=$gamePlayer2,x=p.x,y=p.y,best=[0,0];[[6,1,0],[4,-1,0],[2,0,1],[8,0,-1]].forEach(function(d){var n=0,cx=x,cy=y;while(n<6&&$gameMap.isPassable(cx,cy,d[0])&&$gameMap.isPassable(cx+d[1],cy+d[2],10-d[0])&&!$gameMap.eventsXy(cx+d[1],cy+d[2]).length){cx+=d[1];cy+=d[2];n++}if(n>best[0])best=[n,d[0]]});return best})()"
+    free_n, free_d = host.ev(FREE)
+    if free_n >= 4:
+        dx, dy = {2: (0, 1), 4: (-1, 0), 6: (1, 0), 8: (0, -1)}[free_d]
+        for p_ in (host, g2):
+            p_.ev("var e = $gameMap.event(%d), g = $gamePlayer2; e.page().trigger = 1; e.page().priorityType = 0; e.refresh(); e._priorityType = 0; e._trigger = 1; e.page().list = [{code:122,indent:0,parameters:[15,15,0,0,3]},%s]; e._erased = false; e.locate(g.x + %d, g.y + %d); e.setThrough(true)" % (ids[1], END, dx * 2, dy * 2))
+        along = "$gamePlayer2.x * %d + $gamePlayer2.y * %d" % (dx, dy)
+        a0 = host.ev(along)
+        for p_ in (host, g2):
+            p_.ev("$gameVariables.setValue(15, 0)")
+        g2.ev('CoopNet.localKeys = %d' % ACTION_BITS[free_d])
+        tick(net, [host, g2], 80)
+        moved = host.ev(along) - a0
+        g2.ev('CoopNet.localKeys = 0')
+        tick(net, [host, g2], 10)
+        check('sessions: the event on the floor ran', both('$gameVariables.value(15)') == [3, 3], both('$gameVariables.value(15)'))
+        check('sessions: holding a direction goes on walking over a silent event', moved >= 3, moved)
+        check('sessions: and it was over at once', both(SESS) == ['', ''], both(SESS))
+    else:
+        check('sessions: room to walk for the floor event test', False, [free_n, free_d])
 else:
     check('sessions: this map has events to test with', False, ids)
 tick(net, [host, g2], 130)

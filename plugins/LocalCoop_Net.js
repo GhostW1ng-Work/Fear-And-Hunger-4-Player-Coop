@@ -2106,6 +2106,9 @@
         return cmd.code === 201 || cmd.code === 352 || cmd.code === 353 || cmd.code === 354 || (cmd.code === 301 && !Net.separate);
     }
 
+    const WALK_BITS = ACTIONS.reduce((bits, action, i) =>
+        (['up', 'down', 'left', 'right', 'shift'].indexOf(action) >= 0 ? bits | (1 << i) : bits), 0);
+
     function sessionList() {
         return Object.keys(sessions).map(Number).sort((x, y) => x - y).map(n => sessions[n]);
     }
@@ -2141,14 +2144,14 @@
             }
             if (!canStartSession(n)) return;
             ev.clearStartingFlag();
-            startEventSession(n, ev.list(), ev.eventId());
+            updateEventSession(startEventSession(n, ev.list(), ev.eventId()), SceneManager._scene);
         });
         const by = $gameTemp._coopReservedBy || 0;
         if (by && $gameTemp.isCommonEventReserved() && canStartSession(by)) {
             const ce = $gameTemp.reservedCommonEvent();
             $gameTemp.clearCommonEvent();
             $gameTemp._coopReservedBy = 0;
-            if (ce) startEventSession(by, ce.list, 0);
+            if (ce) updateEventSession(startEventSession(by, ce.list, 0), SceneManager._scene);
         }
     }
 
@@ -2166,7 +2169,14 @@
         const cache = scene._coopEventWindows || (scene._coopEventWindows = {});
         if (!cache[s.n]) {
             const main = scene._messageWindow;
-            scene.createMessageWindow();
+            // (la lista de respuestas se mide al crearla: el juego la crea sin ningun dialogo abierto)
+            const message = $gameMessage;
+            $gameMessage = new Game_Message();
+            try {
+                scene.createMessageWindow();
+            } finally {
+                $gameMessage = message;
+            }
             const created = scene._messageWindow;
             scene._messageWindow = main;
             cache[s.n] = { main: created, all: [created].concat(created.subWindows()).map(w => ({ w: w, update: w.update })) };
@@ -2248,7 +2258,10 @@
         delete sessions[s.n];
         closeSessionWindows(s);
         releaseScope(s);
-        Net.mask[s.n] = Net.raw[s.n] || 0;
+        // lo que sigue pulsado no vuelve a contar como pulsacion (Aceptar empezaria otra vez el mismo
+        // evento), pero quien sigue pulsando una direccion sigue andando: el mapa esta lleno de
+        // eventos invisibles en el suelo, y con cada uno habia que soltar la tecla y pulsarla otra vez
+        Net.mask[s.n] = (Net.raw[s.n] || 0) & ~WALK_BITS;
     }
 
     function closeEventSession(s) {
@@ -2267,32 +2280,42 @@
         $gameMap._interpreter = s.interp;
     }
 
+    // (un evento empieza a correr en el mismo cuadro: el del suelo que solo cambia una variable ya ha
+    // terminado cuando se leen las teclas, y quien anda ni lo nota)
+    function updateEventSession(s, scene) {
+        if (s.lastFrame === Net.frame) return;
+        s.lastFrame = Net.frame;
+        if (Net.left[s.n] || coop.isAway(s.n)) {
+            closeEventSession(s);
+            return;
+        }
+        try {
+            withSession(s, scene, () => {
+                updateVirtualInput(Net.raw[s.n] || 0);
+                s.interp.update();
+                s.screen.update();
+                // (las ventanas, solo si hacen falta: la mayoria de los eventos del suelo no dicen nada)
+                if (s.windows === null && s.message.isBusy()) {
+                    sessionWindows(s, scene);
+                    if (s.mainWindow) scene._messageWindow = s.mainWindow;
+                }
+                (s.windows || []).forEach(x => x.update.call(x.w));
+                updateSessionPictures(s, scene);
+            });
+        } catch (e) {
+            logError('the event of P' + s.n, e);
+            closeEventSession(s);
+            return;
+        }
+        if (s.wantsMap) {
+            if (!$gameMap._interpreter.isRunning() && !$gameMessage.isBusy() && !s.message.isBusy()) sessionToMap(s);
+        } else if (!s.interp.isRunning() && !s.message.isBusy() && (!s.mainWindow || s.mainWindow.isClosed())) {
+            closeEventSession(s);
+        }
+    }
+
     function updateEventSessions(scene) {
-        sessionList().forEach(s => {
-            if (Net.left[s.n] || coop.isAway(s.n)) {
-                closeEventSession(s);
-                return;
-            }
-            sessionWindows(s, scene);
-            try {
-                withSession(s, scene, () => {
-                    updateVirtualInput(Net.raw[s.n] || 0);
-                    s.interp.update();
-                    s.screen.update();
-                    s.windows.forEach(x => x.update.call(x.w));
-                    updateSessionPictures(s, scene);
-                });
-            } catch (e) {
-                logError('the event of P' + s.n, e);
-                closeEventSession(s);
-                return;
-            }
-            if (s.wantsMap) {
-                if (!$gameMap._interpreter.isRunning() && !$gameMessage.isBusy() && !s.message.isBusy()) sessionToMap(s);
-            } else if (!s.interp.isRunning() && !s.message.isBusy() && (!s.mainWindow || s.mainWindow.isClosed())) {
-                closeEventSession(s);
-            }
-        });
+        sessionList().forEach(s => updateEventSession(s, scene));
     }
 
     const _Game_Interpreter_executeCommand_session = Game_Interpreter.prototype.executeCommand;
