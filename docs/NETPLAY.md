@@ -84,6 +84,8 @@ A guest can choose one of their **own saves** in **Bring character**. Its main c
 
 **Menus don't pause the game.** When you open your menu, the world and the others go on; your character stands still. Several players can be in their menus at once. *Load* and *Game End* are not in the menu during an online game. Menus opened by events (shops...) still pause everybody.
 
+**You don't see other players' dialogs.** When a player talks to someone, reads a book or picks something up, the text, pictures and sounds are only on their PC, and only they can pass them. The others see "P2 is reading or talking" and wait: their characters stand still until it ends. Everybody sees scenes: automatic events, events an enemy starts by touching a player, and everything after a transfer, fade, tint, screen shake, music change, movie or a battle for everybody. If that player disconnects, everybody sees the dialog again and P1 can pass it.
+
 **Options.** Game options (*Always Dash*, *Command Remember*, battle speed...) are the host's on every PC. Volume, keys and camera are each player's own. A guest's own options come back when the online game ends.
 
 **Co-op rules** (*Co-op settings*: death, revive, cheats, NPCs) are the host's too.

@@ -547,9 +547,20 @@
     Net.swapSeats = swapSeats;
     Net.slotOf = slotOf;
 
+    const DIRECTION_BITS = ACTIONS.reduce((bits, action, i) =>
+        (['up', 'down', 'left', 'right'].indexOf(action) >= 0 ? bits | (1 << i) : bits), 0);
+    let lastKeysOwner = 0;
+
     function applyActions(all) {
         Net.lastAll = all;
         const released = [];
+        // al cambiar de dueno el juego borra las teclas: quien sigue pulsando una direccion sigue
+        // andando al acabar el dialogo de otro (Aceptar no: empezaria otra vez el mismo evento)
+        const owner = coop.inputOwner();
+        if (owner !== lastKeysOwner) {
+            if (!owner) Object.keys(Net.applied).forEach(p => { Net.applied[p] &= ~DIRECTION_BITS; });
+            lastKeysOwner = owner;
+        }
         for (const p of Net.players) {
             const prev = Net.applied[p] || 0;
             const raw = all[seatOf(p)] || 0;
@@ -1195,6 +1206,7 @@
             removeLeftovers();
         }
         _Scene_Map_update.call(this);
+        if (Net.active && !inSub) updateMessageVisibility(this);
     };
 
     // Con un combate aparte en marcha, el fin de la partida lo decide ese combate al perderlo (y va
@@ -2067,6 +2079,133 @@
         if (running && !inBattleCtx && this._interpreter._waitMode === 'coopBattle' && battles.some(b => b.interp === this._interpreter)) return false;
         return running;
     };
+
+    // ---- LO QUE HACE UN JUGADOR SOLO LO VE EL ----------------------------------------
+    // Hablar, leer un libro, recoger algo: el evento sigue en todos los PC (es la misma partida),
+    // pero el dialogo, sus imagenes y sus sonidos solo estan en el PC de quien lo empezo, y solo
+    // el lo pasa. Lo ven todos si es una escena: un evento automatico, uno que un enemigo empieza
+    // al tocarte, o desde el momento en que el evento hace algo de escena (traslado, fundido, tono,
+    // temblor, camara, vuelve la musica, video, fin de partida...).
+    const SCENE_COMMANDS = new Set([201, 203, 204, 211, 216, 217, 221, 222, 223, 224, 225, 241, 242, 243, 244, 245, 246, 251,
+        261, 283, 284, 303, 353, 354]);
+
+    function isSceneCommand(cmd) {
+        if (SCENE_COMMANDS.has(cmd.code)) return true;
+        // un combate para todos (el combate aparte no le importa a nadie mas)
+        if (cmd.code === 301) return !Net.separate;
+        // un personaje del mapa que camina un rato mientras el evento espera
+        if (cmd.code === 205) {
+            const route = cmd.parameters[1];
+            return cmd.parameters[0] > 0 && !!route && route.wait && route.list.length > 4;
+        }
+        return false;
+    }
+
+    // de quien es el evento que ahora solo ve un jugador (0: lo ven todos). Solo mira lo que es igual
+    // en todos los PC: de esto dependen las teclas que cuentan
+    function privateEventOwner() {
+        if (!Net.active || inSub || inBattleCtx || !(SceneManager._scene instanceof Scene_Map)) return 0;
+        const it = $gameMap._interpreter;
+        if (!it.isRunning() || it._coopPublic) return 0;
+        const n = it._coopStarter || 0;
+        if (!n || Net.left[n] || !coop.player(n) || coop.isAway(n) || isAutorunRoot(it)) return 0;
+        const ev = it._eventId > 0 && it._mapId === $gameMap.mapId() ? $gameMap.event(it._eventId) : null;
+        if (ev && ev.page() && ev.page().trigger === 2) return 0;
+        return n;
+    }
+
+    function hiddenFromMe() {
+        const n = privateEventOwner();
+        return n && n !== Net.player ? n : 0;
+    }
+
+    Net.privateEventOwner = privateEventOwner; // (para pruebas)
+
+    // las teclas: mientras hay dialogo, solo las de quien lo ve (y el mapa no se para si no lo hay)
+    coop.setMessageOwner(() => ($gameMessage && $gameMessage.isBusy() ? privateEventOwner() : 0), () => {
+        const n = hiddenFromMe();
+        return n && $gameMessage.isBusy() ? { owner: n, text: coop.tr('P' + n + ' is reading or talking') } : null;
+    });
+
+    const _Game_Interpreter_clear_private = Game_Interpreter.prototype.clear;
+    Game_Interpreter.prototype.clear = function() {
+        _Game_Interpreter_clear_private.call(this);
+        this._coopPublic = false;
+    };
+
+    const _Game_Interpreter_executeCommand_private = Game_Interpreter.prototype.executeCommand;
+    Game_Interpreter.prototype.executeCommand = function() {
+        if (Net.active && !inSub && !inBattleCtx && !$gameMap._interpreter._coopPublic) {
+            const cmd = this.currentCommand();
+            if (cmd && isSceneCommand(cmd)) {
+                for (let x = $gameMap._interpreter; x; x = x._childInterpreter) {
+                    if (x !== this) continue;
+                    $gameMap._interpreter._coopPublic = true;
+                    // lo que ya estaba escondido tambien se ve
+                    $gameScreen._pictures.forEach(p => { if (p) p._coopOwner = 0; });
+                    break;
+                }
+            }
+        }
+        return _Game_Interpreter_executeCommand_private.call(this);
+    };
+
+    // sus sonidos, solo en su PC
+    const _Game_Interpreter_update_private = Game_Interpreter.prototype.update;
+    Game_Interpreter.prototype.update = function() {
+        if (this === $gameMap._interpreter && hiddenFromMe()) {
+            return quietMenu(privateEventOwner(), () => _Game_Interpreter_update_private.call(this));
+        }
+        return _Game_Interpreter_update_private.call(this);
+    };
+
+    // sus imagenes (el libro, la moneda...): existen en todos los PC, pero se dibujan solo en el suyo
+    const _Game_Screen_showPicture = Game_Screen.prototype.showPicture;
+    Game_Screen.prototype.showPicture = function(pictureId) {
+        _Game_Screen_showPicture.apply(this, arguments);
+        const picture = this.picture(pictureId);
+        if (picture) picture._coopOwner = privateEventOwner();
+    };
+
+    const _Sprite_Picture_update_private = Sprite_Picture.prototype.update;
+    Sprite_Picture.prototype.update = function() {
+        _Sprite_Picture_update_private.call(this);
+        const picture = this.picture();
+        this.renderable = !(Net.active && picture && picture._coopOwner && picture._coopOwner !== Net.player);
+    };
+
+    // sus ventanas: solo no se dibujan (siguen abriendose y cerrandose igual en todos los PC)
+    const MESSAGE_WINDOWS = ['_goldWindow', '_choiceWindow', '_numberWindow', '_itemWindow', '_nameWindow'];
+    function updateMessageVisibility(scene) {
+        const main = scene._messageWindow;
+        if (!main) return;
+        const hide = !!hiddenFromMe();
+        const windows = MESSAGE_WINDOWS.map(name => main[name]).concat([main, scene._scrollTextWindow]);
+        quietMessage = hide ? privateEventOwner() : 0;
+        windows.forEach(w => {
+            if (!w) return;
+            if (hide) w.renderable = false;
+            // (al terminar, la ventana escondida no se ve cerrarse)
+            else if (!w.renderable && (w.openness === 0 || $gameMessage.isBusy())) w.renderable = true;
+        });
+    }
+
+    let quietMessage = 0;
+    const _Window_Message_update_private = Window_Message.prototype.update;
+    Window_Message.prototype.update = function() {
+        if (quietMessage) return quietMenu(quietMessage, () => _Window_Message_update_private.call(this));
+        return _Window_Message_update_private.call(this);
+    };
+
+    // los avisos de abajo ("has encontrado..."): solo se dibujan, no cuentan para la partida
+    ['startGabWindow', 'forceGabWindow'].forEach(name => {
+        const original = Scene_Base.prototype[name];
+        if (!original) return;
+        Scene_Base.prototype[name] = function() {
+            if (hiddenFromMe()) return;
+            return original.apply(this, arguments);
+        };
+    });
 
     // El enemigo del combate ni se mueve en el mapa: algunos persiguen con rutas que les pone otro
     // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan

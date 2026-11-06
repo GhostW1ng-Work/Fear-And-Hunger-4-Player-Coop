@@ -529,6 +529,49 @@ tick(net, [host, g2], 40)
 g2.ev('CoopNet.localKeys = 0')
 tick(net, [host, g2], 10)
 check('P2 walks again after the menu', host.ev('$gamePlayer2.x') != p2x0, '%s -> %s' % (p2x0, host.ev('$gamePlayer2.x')))
+# --- what one player does only that player sees ---
+SAY = "{code:101,indent:0,parameters:['',0,0,2]},{code:401,indent:0,parameters:['hello']}"
+DESYNC_LEN = 'String(__files["/game/www/coop_net_desync.log"] || "").length'
+desync0 = [host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)]
+PIC = "{code:231,indent:0,parameters:[7,'empty',0,0,0,0,100,100,255,0]}"
+def run_event(starter, cmds):
+    aligned_worlds(net, [host, g2])
+    for p_ in (host, g2):
+        p_.ev("$gameMap._interpreter.setup([%s,{code:0,indent:0,parameters:[]}],0); $gameMap._interpreter._coopStarter=%d" % (cmds, starter))
+    tick(net, [host, g2], 6)
+both = lambda js: [host.ev(js), g2.ev(js)]
+OWNER = 'CoopNet.privateEventOwner()'
+run_event(2, SAY + ',' + PIC + ',' + SAY)
+check("private: P2's dialog belongs to P2 on both PCs", both(OWNER) == [2, 2], both(OWNER))
+check("private: the keys of the dialog are P2's", both('CoopLocal.inputOwner()') == [2, 2], both('CoopLocal.inputOwner()'))
+text0 = both('$gameMessage._texts.join()')
+host.ev('CoopNet.localKeys = 16')
+tick(net, [host, g2], 10)
+host.ev('CoopNet.localKeys = 0')
+tick(net, [host, g2], 6)
+check("private: P1's Ok does not pass P2's dialog", both('$gameMessage._texts.join()') == text0 and text0[0] == 'hello', both('$gameMessage._texts.join()'))
+for p_ in (host, g2):
+    p_.ev('$gameMessage.clear()')
+tick(net, [host, g2], 6)
+check('private: the picture of the event belongs to P2 on both PCs', both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1') == [2, 2], both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1'))
+for p_ in (host, g2):
+    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear(); $gameScreen.erasePicture(7)')
+tick(net, [host, g2], 6)
+check('private: no event, nobody owns the keys', both('CoopLocal.inputOwner()') == [0, 0] and both(OWNER) == [0, 0], both('CoopLocal.inputOwner()'))
+run_event(2, PIC + ",{code:223,indent:0,parameters:[[0,0,0,0],1,false]}," + SAY)
+check('private: a scene command makes the event public on both PCs', both(OWNER) == [0, 0], both(OWNER))
+check('private: what was hidden is shown', both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1') == [0, 0], both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1'))
+for p_ in (host, g2):
+    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear(); $gameScreen.erasePicture(7); $gameScreen.startTint([0,0,0,0],1)')
+tick(net, [host, g2], 6)
+run_event(0, SAY)
+check('private: an event nobody started is public', both(OWNER) == [0, 0], both(OWNER))
+for p_ in (host, g2):
+    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear()')
+tick(net, [host, g2], 6)
+aligned_worlds(net, [host, g2])
+tick(net, [host, g2], 130)
+check('private: the worlds stayed the same', [host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)] == desync0, desync0)
 # --- Fear & Hunger 1: the host's ritual circle offers P2's character; P2 is asked (on both PCs) ---
 # (no message window here: the answers are given on both PCs on the same frame)
 if host.ev("/^fear & hunger$/i.test($dataSystem.gameTitle)") and host.ev('$gamePlayer2._coopActorId') == 3:
