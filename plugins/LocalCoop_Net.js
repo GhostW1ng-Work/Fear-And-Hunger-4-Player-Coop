@@ -547,20 +547,9 @@
     Net.swapSeats = swapSeats;
     Net.slotOf = slotOf;
 
-    const DIRECTION_BITS = ACTIONS.reduce((bits, action, i) =>
-        (['up', 'down', 'left', 'right'].indexOf(action) >= 0 ? bits | (1 << i) : bits), 0);
-    let lastKeysOwner = 0;
-
     function applyActions(all) {
         Net.lastAll = all;
         const released = [];
-        // al cambiar de dueno el juego borra las teclas: quien sigue pulsando una direccion sigue
-        // andando al acabar el dialogo de otro (Aceptar no: empezaria otra vez el mismo evento)
-        const owner = coop.inputOwner();
-        if (owner !== lastKeysOwner) {
-            if (!owner) Object.keys(Net.applied).forEach(p => { Net.applied[p] &= ~DIRECTION_BITS; });
-            lastKeysOwner = owner;
-        }
         for (const p of Net.players) {
             const prev = Net.applied[p] || 0;
             const raw = all[seatOf(p)] || 0;
@@ -568,7 +557,7 @@
             // con su menu abierto, sus teclas son del menu; al cerrarlo, las que siguen pulsadas
             // no cuentan en el mapa hasta soltarlas (si no, Cancelar volveria a abrir el menu)
             Net.mask[p] = (Net.mask[p] || 0) & raw;
-            const cur = (subs[p] || inSeparateBattle(p)) ? 0 : (raw & ~Net.mask[p]);
+            const cur = (subs[p] || inSeparateBattle(p) || sessions[p]) ? 0 : (raw & ~Net.mask[p]);
             if (prev === cur) continue;
             ACTIONS.forEach((action, i) => {
                 const was = (prev >> i) & 1;
@@ -611,7 +600,7 @@
             banner(fightersText() + ' fighting', 'No saving until the battle ends', '#ffaa44', 120);
             return;
         }
-        if (!(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || subs[1]) {
+        if (!(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || subs[1] || sessions[1]) {
             SoundManager.playBuzzer();
             return;
         }
@@ -625,7 +614,7 @@
 
     function applyQuickSave(ev) {
         const map = SceneManager._scene;
-        if (!(map instanceof Scene_Map) || battles.length || $gameMap.isEventRunning() || subs[1]) return;
+        if (!(map instanceof Scene_Map) || battles.length || $gameMap.isEventRunning() || subs[1] || sessions[1]) return;
         if (ev.save && ev.shift) {
             $gameSystem.onBeforeSave();
             const ok = DataManager.saveGame(QUICK_SLOT);
@@ -716,7 +705,7 @@
     function isSafePoint() {
         return SceneManager._scene instanceof Scene_Map && SceneManager._sceneStarted && !SceneManager._nextScene &&
             !$gameMap.isEventRunning() && !$gameMessage.isBusy() && !$gamePlayer.isTransferring() && !Net.pendingExtras &&
-            Object.keys(subs).length === 0 && Object.keys(Net.left).length === 0 && battles.length === 0 && pendingRoots.length === 0;
+            Object.keys(subs).length === 0 && Object.keys(sessions).length === 0 && Object.keys(Net.left).length === 0 && battles.length === 0 && pendingRoots.length === 0;
     }
 
     // Cuantos cuadros por delante manda este PC sus teclas. Tienen que llegar antes de que
@@ -1202,11 +1191,13 @@
         if (Net.active && !inSub) {
             updateBattles();
             updateSubs();
+            startEventSessions();
+            updateEventSessions(this);
         } else if (!Net.active) {
             removeLeftovers();
+            closeAllEventSessions();
         }
         _Scene_Map_update.call(this);
-        if (Net.active && !inSub) updateMessageVisibility(this);
     };
 
     // Con un combate aparte en marcha, el fin de la partida lo decide ese combate al perderlo (y va
@@ -1224,7 +1215,7 @@
     }
 
     // el personaje de quien esta en su menu no se mueve ni interactua
-    coop.setBusy(n => Net.active && (!!subs[n] || inSeparateBattle(n)));
+    coop.setBusy(n => Net.active && (!!subs[n] || inSeparateBattle(n) || !!sessions[n]));
     coop.setHidden(n => Net.active && inSeparateBattle(n));
 
     // Cargar partida y Salir no sirven en la partida en red (cada PC tiene sus archivos)
@@ -1320,24 +1311,34 @@
     // acababa: "Abortar combate", partes del enemigo muertas...). Cada combate ve lo que el mismo
     // cambio; lo que cambio OTRO combate en marcha lo ve como estaba antes. El mapa ve lo ultimo
     // (y al terminar, lo que dejo cada combate se queda).
+    // (los eventos de cada jugador, igual: dos cofres a la vez usan las mismas variables de la moneda)
+    const sessions = {};    // jugador -> su evento en marcha (ver CADA JUGADOR CON SU PROPIO EVENTO)
+    let session = null;     // el evento que se esta actualizando
+    let inEventCtx = false;
+    function scopeHolder() {
+        return inBattleCtx ? battle : (inEventCtx ? session : null);
+    }
+    function scopeAlive(o) {
+        return o.isSession ? sessions[o.n] === o : battles.indexOf(o) >= 0;
+    }
     const scopeOwner = { sw: {}, vars: {} };  // id -> combate que lo cambio (mientras dura)
     const scopeBase = { sw: {}, vars: {} };   // id -> valor antes de que lo cambiara un combate
     function scoped(kind, proto) {
         const _value = proto.value;
         const _setValue = proto.setValue;
         proto.value = function(id) {
-            const b = inBattleCtx ? battle : null;
+            const b = scopeHolder();
             if (!b || !b.scope || (this !== $gameSwitches && this !== $gameVariables)) return _value.call(this, id);
             const own = b.scope[kind];
             if (Object.prototype.hasOwnProperty.call(own, id)) return own[id];
             const o = scopeOwner[kind][id];
-            if (o && o !== b && battles.indexOf(o) >= 0) return scopeBase[kind][id];
+            if (o && o !== b && scopeAlive(o)) return scopeBase[kind][id];
             return _value.call(this, id);
         };
         proto.setValue = function(id, value) {
-            const b = inBattleCtx ? battle : null;
+            const b = scopeHolder();
             if (b && b.scope && (this === $gameSwitches || this === $gameVariables)) {
-                if (!scopeOwner[kind][id] || battles.indexOf(scopeOwner[kind][id]) < 0) scopeBase[kind][id] = _value.call(this, id);
+                if (!scopeOwner[kind][id] || !scopeAlive(scopeOwner[kind][id])) scopeBase[kind][id] = _value.call(this, id);
                 scopeOwner[kind][id] = b;
                 _setValue.call(this, id, value);
                 b.scope[kind][id] = _value.call(this, id); // (como lo guarda el juego: true/false, numero...)
@@ -2080,19 +2081,18 @@
         return running;
     };
 
-    // ---- LO QUE HACE UN JUGADOR SOLO LO VE EL ----------------------------------------
-    // Hablar, leer un libro, recoger algo: el evento sigue en todos los PC (es la misma partida),
-    // pero el dialogo, sus imagenes y sus sonidos solo estan en el PC de quien lo empezo, y solo
-    // el lo pasa. Lo ven todos si es una escena: un evento automatico, uno que un enemigo empieza
-    // al tocarte, o desde el momento en que el evento hace algo de escena (traslado, fundido, tono,
-    // temblor, camara, vuelve la musica, video, fin de partida...).
-    const SCENE_COMMANDS = new Set([201, 203, 204, 211, 216, 217, 221, 222, 223, 224, 225, 241, 242, 243, 244, 245, 246, 251,
-        261, 283, 284, 303, 353, 354]);
+    // ---- CADA JUGADOR CON SU PROPIO EVENTO --------------------------------------------
+    // Hablar, leer, abrir un cofre: lo que empieza un jugador corre en su propio interprete, con su
+    // dialogo, sus imagenes y sus sonidos, que solo estan en su PC (el resto de la logica corre igual
+    // en todos). Los demas siguen andando y empezando sus propios eventos. Cuando el evento hace
+    // algo de escena (traslado, fundido, tono, temblor, camara, musica, video, combate, tienda...)
+    // pasa a ser el evento del mapa de siempre, y lo ven todos, sin poder andar. Los eventos automaticos
+    // y los que empieza un enemigo al tocarte son del mapa desde el principio.
+    const SCENE_COMMANDS = new Set([129, 201, 203, 204, 211, 216, 217, 221, 222, 223, 224, 225, 241, 242, 243, 244, 245, 246, 251,
+        261, 283, 284, 301, 302, 303, 351, 352, 353, 354]);
 
     function isSceneCommand(cmd) {
         if (SCENE_COMMANDS.has(cmd.code)) return true;
-        // un combate para todos (el combate aparte no le importa a nadie mas)
-        if (cmd.code === 301) return !Net.separate;
         // un personaje del mapa que camina un rato mientras el evento espera
         if (cmd.code === 205) {
             const route = cmd.parameters[1];
@@ -2101,100 +2101,220 @@
         return false;
     }
 
-    // de quien es el evento que ahora solo ve un jugador (0: lo ven todos). Solo mira lo que es igual
-    // en todos los PC: de esto dependen las teclas que cuentan
-    function privateEventOwner() {
-        if (!Net.active || inSub || inBattleCtx || !(SceneManager._scene instanceof Scene_Map)) return 0;
-        const it = $gameMap._interpreter;
-        if (!it.isRunning() || it._coopPublic) return 0;
-        const n = it._coopStarter || 0;
-        if (!n || Net.left[n] || !coop.player(n) || coop.isAway(n) || isAutorunRoot(it)) return 0;
-        const ev = it._eventId > 0 && it._mapId === $gameMap.mapId() ? $gameMap.event(it._eventId) : null;
-        if (ev && ev.page() && ev.page().trigger === 2) return 0;
-        return n;
+    // lo que saca del mapa a todos: espera a que los demas terminen lo suyo
+    function needsEveryone(cmd) {
+        return cmd.code === 201 || cmd.code === 352 || cmd.code === 353 || cmd.code === 354 || (cmd.code === 301 && !Net.separate);
     }
 
-    function hiddenFromMe() {
-        const n = privateEventOwner();
-        return n && n !== Net.player ? n : 0;
+    function sessionList() {
+        return Object.keys(sessions).map(Number).sort((x, y) => x - y).map(n => sessions[n]);
     }
 
-    Net.privateEventOwner = privateEventOwner; // (para pruebas)
+    function canStartSession(n) {
+        return !!coop.player(n) && !sessions[n] && !subs[n] && !Net.left[n] && !coop.isAway(n) && !inSeparateBattle(n);
+    }
 
-    // las teclas: mientras hay dialogo, solo las de quien lo ve (y el mapa no se para si no lo hay)
-    coop.setMessageOwner(() => ($gameMessage && $gameMessage.isBusy() ? privateEventOwner() : 0), () => {
-        const n = hiddenFromMe();
-        return n && $gameMessage.isBusy() ? { owner: n, text: coop.tr('P' + n + ' is reading or talking') } : null;
-    });
+    function startEventSession(n, list, eventId) {
+        const it = new Game_Interpreter();
+        it.setup(list, eventId);
+        it._coopStarter = n;
+        const s = {
+            isSession: true, n: n, interp: it, message: new Game_Message(), screen: new Game_Screen(),
+            input: newVirtualInput(Net.raw[n] || 0), scope: { sw: {}, vars: {} }, wantsMap: false, windows: null, pictures: null
+        };
+        sessions[n] = s;
+        return s;
+    }
 
-    const _Game_Interpreter_clear_private = Game_Interpreter.prototype.clear;
-    Game_Interpreter.prototype.clear = function() {
-        _Game_Interpreter_clear_private.call(this);
-        this._coopPublic = false;
-    };
-
-    const _Game_Interpreter_executeCommand_private = Game_Interpreter.prototype.executeCommand;
-    Game_Interpreter.prototype.executeCommand = function() {
-        if (Net.active && !inSub && !inBattleCtx && !$gameMap._interpreter._coopPublic) {
-            const cmd = this.currentCommand();
-            if (cmd && isSceneCommand(cmd)) {
-                for (let x = $gameMap._interpreter; x; x = x._childInterpreter) {
-                    if (x !== this) continue;
-                    $gameMap._interpreter._coopPublic = true;
-                    // lo que ya estaba escondido tambien se ve
-                    $gameScreen._pictures.forEach(p => { if (p) p._coopOwner = 0; });
-                    break;
-                }
+    // lo que un jugador acaba de empezar en el mapa pasa a su propio interprete
+    function startEventSessions() {
+        if (!Net.active || inSub || inBattleCtx || !(SceneManager._scene instanceof Scene_Map)) return;
+        $gameMap.events().forEach(ev => {
+            if (!ev.isStarting() || !ev.page() || ev.page().trigger > 1) return;
+            const n = ev._coopStarter || 1;
+            const taken = sessionList().some(s => s.interp.eventId() === ev.eventId()) ||
+                ($gameMap._interpreter.isRunning() && $gameMap._interpreter.eventId() === ev.eventId());
+            if (taken) {
+                // (lo esta usando otro: el cofre no se abre dos veces)
+                ev.clearStartingFlag();
+                return;
             }
+            if (!canStartSession(n)) return;
+            ev.clearStartingFlag();
+            startEventSession(n, ev.list(), ev.eventId());
+        });
+        const by = $gameTemp._coopReservedBy || 0;
+        if (by && $gameTemp.isCommonEventReserved() && canStartSession(by)) {
+            const ce = $gameTemp.reservedCommonEvent();
+            $gameTemp.clearCommonEvent();
+            $gameTemp._coopReservedBy = 0;
+            if (ce) startEventSession(by, ce.list, 0);
         }
-        return _Game_Interpreter_executeCommand_private.call(this);
+    }
+
+    const _Game_Map_setupStartingMapEvent_session = Game_Map.prototype.setupStartingMapEvent;
+    Game_Map.prototype.setupStartingMapEvent = function() {
+        startEventSessions();
+        return _Game_Map_setupStartingMapEvent_session.call(this);
     };
 
-    // sus sonidos, solo en su PC
-    const _Game_Interpreter_update_private = Game_Interpreter.prototype.update;
-    Game_Interpreter.prototype.update = function() {
-        if (this === $gameMap._interpreter && hiddenFromMe()) {
-            return quietMenu(privateEventOwner(), () => _Game_Interpreter_update_private.call(this));
+    // sus ventanas: las crea la escena, como las del juego; se actualizan solo dentro del evento
+    function sessionWindows(s, scene) {
+        if (s.windows !== null) return s.windows;
+        s.windows = [];
+        if (!scene._windowLayer || !scene._messageWindow) return s.windows;
+        const cache = scene._coopEventWindows || (scene._coopEventWindows = {});
+        if (!cache[s.n]) {
+            const main = scene._messageWindow;
+            scene.createMessageWindow();
+            const created = scene._messageWindow;
+            scene._messageWindow = main;
+            cache[s.n] = { main: created, all: [created].concat(created.subWindows()).map(w => ({ w: w, update: w.update })) };
+            cache[s.n].all.forEach(x => {
+                x.w.update = function() {};
+                x.w.renderable = s.n === Net.player;
+            });
         }
-        return _Game_Interpreter_update_private.call(this);
-    };
+        s.windows = cache[s.n].all;
+        s.mainWindow = cache[s.n].main;
+        return s.windows;
+    }
 
-    // sus imagenes (el libro, la moneda...): existen en todos los PC, pero se dibujan solo en el suyo
-    const _Game_Screen_showPicture = Game_Screen.prototype.showPicture;
-    Game_Screen.prototype.showPicture = function(pictureId) {
-        _Game_Screen_showPicture.apply(this, arguments);
-        const picture = this.picture(pictureId);
-        if (picture) picture._coopOwner = privateEventOwner();
-    };
+    function closeSessionWindows(s) {
+        (s.windows || []).forEach(x => {
+            x.w.openness = 0;
+            if (x.w.deactivate) x.w.deactivate();
+        });
+        if (s.mainWindow) {
+            s.mainWindow.initMembers();
+            s.mainWindow.pause = false;
+        }
+        const pictures = s.pictures;
+        if (pictures && pictures.parent) pictures.parent.removeChild(pictures);
+        s.pictures = null;
+    }
 
-    const _Sprite_Picture_update_private = Sprite_Picture.prototype.update;
-    Sprite_Picture.prototype.update = function() {
-        _Sprite_Picture_update_private.call(this);
-        const picture = this.picture();
-        this.renderable = !(Net.active && picture && picture._coopOwner && picture._coopOwner !== Net.player);
-    };
+    // sus imagenes, solo en su PC
+    function updateSessionPictures(s, scene) {
+        if (s.n !== Net.player || !scene._windowLayer) return;
+        const used = s.screen._pictures;
+        if (!s.pictures) {
+            if (!used.some(p => p)) return;
+            s.pictures = new Sprite();
+            s.pictures.update = function() {};
+            s.pictures._coopIds = {};
+            scene.addChildAt(s.pictures, scene.getChildIndex(scene._windowLayer));
+        }
+        used.forEach((p, id) => {
+            if (!p || s.pictures._coopIds[id]) return;
+            s.pictures._coopIds[id] = true;
+            s.pictures.addChild(new Sprite_Picture(id));
+        });
+        s.pictures.children.forEach(c => c.update());
+    }
 
-    // sus ventanas: solo no se dibujan (siguen abriendose y cerrandose igual en todos los PC)
-    const MESSAGE_WINDOWS = ['_goldWindow', '_choiceWindow', '_numberWindow', '_itemWindow', '_nameWindow'];
-    function updateMessageVisibility(scene) {
-        const main = scene._messageWindow;
-        if (!main) return;
-        const hide = !!hiddenFromMe();
-        const windows = MESSAGE_WINDOWS.map(name => main[name]).concat([main, scene._scrollTextWindow]);
-        quietMessage = hide ? privateEventOwner() : 0;
-        windows.forEach(w => {
-            if (!w) return;
-            if (hide) w.renderable = false;
-            // (al terminar, la ventana escondida no se ve cerrarse)
-            else if (!w.renderable && (w.openness === 0 || $gameMessage.isBusy())) w.renderable = true;
+    // ejecuta fn como si el evento del jugador fuera lo unico que pasa
+    function withSession(s, scene, fn) {
+        const saved = { message: $gameMessage, screen: $gameScreen, owner: coop.menuOwner(), window: scene._messageWindow, input: {} };
+        INPUT_FIELDS.forEach(f => {
+            saved.input[f] = Input[f];
+            Input[f] = s.input[f];
+        });
+        $gameMessage = s.message;
+        $gameScreen = s.screen;
+        session = s;
+        inEventCtx = true;
+        inSub = true;
+        coop.setMenuOwner(s.n);
+        if (s.mainWindow) scene._messageWindow = s.mainWindow;
+        try {
+            quietMenu(s.n, fn);
+        } finally {
+            INPUT_FIELDS.forEach(f => {
+                s.input[f] = Input[f];
+                Input[f] = saved.input[f];
+            });
+            $gameMessage = saved.message;
+            $gameScreen = saved.screen;
+            session = null;
+            inEventCtx = false;
+            inSub = false;
+            coop.setMenuOwner(saved.owner);
+            scene._messageWindow = saved.window;
+        }
+    }
+
+    function dropEventSession(s) {
+        delete sessions[s.n];
+        closeSessionWindows(s);
+        releaseScope(s);
+        Net.mask[s.n] = Net.raw[s.n] || 0;
+    }
+
+    function closeEventSession(s) {
+        dropEventSession(s);
+        if (s.interp.eventId() > 0) $gameMap.unlockEvent(s.interp.eventId());
+    }
+
+    function closeAllEventSessions() {
+        sessionList().forEach(closeEventSession);
+    }
+
+    // el evento hace algo de escena: pasa a ser el evento del mapa (cuando este libre)
+    function sessionToMap(s) {
+        dropEventSession(s);
+        s.screen._pictures.forEach((p, id) => { if (p) $gameScreen._pictures[id] = p; });
+        $gameMap._interpreter = s.interp;
+    }
+
+    function updateEventSessions(scene) {
+        sessionList().forEach(s => {
+            if (Net.left[s.n] || coop.isAway(s.n)) {
+                closeEventSession(s);
+                return;
+            }
+            sessionWindows(s, scene);
+            try {
+                withSession(s, scene, () => {
+                    updateVirtualInput(Net.raw[s.n] || 0);
+                    s.interp.update();
+                    s.screen.update();
+                    s.windows.forEach(x => x.update.call(x.w));
+                    updateSessionPictures(s, scene);
+                });
+            } catch (e) {
+                logError('the event of P' + s.n, e);
+                closeEventSession(s);
+                return;
+            }
+            if (s.wantsMap) {
+                if (!$gameMap._interpreter.isRunning() && !$gameMessage.isBusy() && !s.message.isBusy()) sessionToMap(s);
+            } else if (!s.interp.isRunning() && !s.message.isBusy() && (!s.mainWindow || s.mainWindow.isClosed())) {
+                closeEventSession(s);
+            }
         });
     }
 
-    let quietMessage = 0;
-    const _Window_Message_update_private = Window_Message.prototype.update;
-    Window_Message.prototype.update = function() {
-        if (quietMessage) return quietMenu(quietMessage, () => _Window_Message_update_private.call(this));
-        return _Window_Message_update_private.call(this);
+    const _Game_Interpreter_executeCommand_session = Game_Interpreter.prototype.executeCommand;
+    Game_Interpreter.prototype.executeCommand = function() {
+        if (Net.active) {
+            const cmd = this.currentCommand();
+            if (cmd && inEventCtx) {
+                if (isSceneCommand(cmd)) {
+                    session.wantsMap = true;
+                    return false; // (el mismo comando otra vez, ya como evento del mapa)
+                }
+            } else if (cmd && !inSub && !inBattleCtx && needsEveryone(cmd) && sessionList().length) {
+                return false;
+            }
+        }
+        return _Game_Interpreter_executeCommand_session.call(this);
+    };
+
+    const _Scene_Map_terminate_session = Scene_Map.prototype.terminate;
+    Scene_Map.prototype.terminate = function() {
+        if (!inSub) closeAllEventSessions();
+        _Scene_Map_terminate_session.apply(this, arguments);
     };
 
     // los avisos de abajo ("has encontrado..."): solo se dibujan, no cuentan para la partida
@@ -2202,10 +2322,12 @@
         const original = Scene_Base.prototype[name];
         if (!original) return;
         Scene_Base.prototype[name] = function() {
-            if (hiddenFromMe()) return;
+            if (inEventCtx && session.n !== Net.player) return;
             return original.apply(this, arguments);
         };
     });
+
+    Net.eventSessions = () => sessions; // (para pruebas)
 
     // El enemigo del combate ni se mueve en el mapa: algunos persiguen con rutas que les pone otro
     // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan

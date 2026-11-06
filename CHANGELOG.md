@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **Online: what one player does only that player sees.** Talking, reading a book or picking something up: the text, pictures and sounds are on that player's PC, and only that player passes them; the others see "P2 is reading or talking". Everybody still sees scenes (automatic events, events an enemy starts by touching a player, and everything after a transfer, fade, tint, shake, music change, movie or a battle for everybody).
+- **Online: players no longer stop each other.** Talking, reading a book or opening a chest runs as that player's own event: its text, pictures and sounds are only on their PC, and only their character stands still. The others walk and start their own events, so everybody can loot at once. Two players can't use the same thing at once. Everybody sees scenes, from the moment the event reaches one (transfer, fade, tint, shake, camera, music change, movie, battle, shop, party change); automatic events and events an enemy starts by touching a player are for everybody from the start. A transfer, a battle for everybody and the end of the game wait for the others to finish reading.
 - **Fixed (online): the game crashed after about an hour, out of memory, usually when changing maps.** The online game kept thousands of objects for its desync log, and each of them held old scenes in memory with all their pictures. In a stress test it now uses about half the memory and no longer crashes in 8 minutes (it crashed in under 5).
 - New log: `www/coop_memory.log`, one line a minute with the memory the game uses.
 - **Both games: P2-P4 without a leg can no longer run**, like the protagonist (in Termina the running animation also broke).

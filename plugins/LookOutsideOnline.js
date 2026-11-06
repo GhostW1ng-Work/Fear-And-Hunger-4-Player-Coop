@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.9.8-test1';
+    const COOP_VERSION = '1.9.8-test2';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
@@ -292,9 +292,6 @@
 
     // otro plugin (el juego en red) puede decir que un jugador esta ocupado (en su menu): no se mueve
     let externalBusy = null;
-    // ... de quien es el dialogo que solo ve un jugador (modo en red), y el aviso para los demas
-    let externalMessageOwner = null;
-    let externalMessageLabel = null;
     function busyElsewhere(n) {
         return !!externalBusy && externalBusy(n);
     }
@@ -548,7 +545,7 @@
         [/^(.+) vs (.+) - from behind: (.+) loses the first turn$/, '$1 против $2 — сзади: $3 пропускает первый ход'],
         [/^(.+) - to the death$/, '$1 — насмерть'], [/^(.+) ends their own life$/, '$1 обрывает свою жизнь'], [/^(.+) ends their own life\.$/, '$1 обрывает свою жизнь.'],
         [/^(.+) walks on alone$/, '$1 идёт дальше один'], [/^(.+) joins the fight$/, '$1 вступает в бой'], [/^helping P(\d+)$/, 'помогает P$1'],
-        [/^P(\d+) is reading or talking$/, 'P$1 читает или разговаривает'], [/^(.+) is down$/, '$1 выбыл(а)'], [/^(\d+) sides still fighting$/, 'Ещё дерутся сторон: $1'], [/^(.+): (.+) cut off!$/, '$1: $2 — отрублено!'],
+        [/^(.+) is down$/, '$1 выбыл(а)'], [/^(\d+) sides still fighting$/, 'Ещё дерутся сторон: $1'], [/^(.+): (.+) cut off!$/, '$1: $2 — отрублено!'],
         [/^(.+) runs away$/, '$1 убегает'], [/^You killed (.+) - you play P1: (.+)$/, 'Вы убили: $1 — теперь вы P1: $2'],
         [/^(.+) is dead$/, '$1 мёртв(а)'], [/^(.+) is the protagonist now\. You are P(\d+): wait for a character, or a soul stone$/, 'Теперь герой — $1. Вы — P$2: ждите персонажа или камень душ'],
         [/^(.+) is the protagonist now$/, 'Теперь главный герой — $1'], [/^(.+) killed (.+)$/, '$1 убил(а): $2'],
@@ -952,7 +949,7 @@
             return actor ? battleOwnerOf(actor) : 1;
         }
         if (CoopState.menuOwner && !inScene(Scene_Map) && !inScene(Scene_Battle)) return CoopState.menuOwner;
-        return choiceOwner() || (externalMessageOwner ? externalMessageOwner() : 0);
+        return choiceOwner();
     }
 
     // =========================================================================
@@ -1569,8 +1566,6 @@
             const actor = n === 1 ? $gameParty.leader() : (p && p.actor());
             return { owner: n, text: 'P' + n + ' MENU' + (actor ? ' - ' + actor.name() : '') };
         }
-        const label = externalMessageLabel ? externalMessageLabel() : null;
-        if (label) return label;
         // en el mapa: quien elige la respuesta del dialogo
         const n = choiceOwner();
         if (!n) return null;
@@ -2564,10 +2559,6 @@
         },
         setBusy(fn) {
             externalBusy = fn || null;
-        },
-        setMessageOwner(owner, label) {
-            externalMessageOwner = owner || null;
-            externalMessageLabel = label || null;
         },
         isAway(n) {
             return !!CoopState.away[n];

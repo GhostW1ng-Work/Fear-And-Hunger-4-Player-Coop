@@ -529,49 +529,90 @@ tick(net, [host, g2], 40)
 g2.ev('CoopNet.localKeys = 0')
 tick(net, [host, g2], 10)
 check('P2 walks again after the menu', host.ev('$gamePlayer2.x') != p2x0, '%s -> %s' % (p2x0, host.ev('$gamePlayer2.x')))
-# --- what one player does only that player sees ---
+# --- each player with their own event: the others go on walking and starting their own ---
 SAY = "{code:101,indent:0,parameters:['',0,0,2]},{code:401,indent:0,parameters:['hello']}"
+END = "{code:0,indent:0,parameters:[]}"
 DESYNC_LEN = 'String(__files["/game/www/coop_net_desync.log"] || "").length'
 desync0 = [host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)]
-PIC = "{code:231,indent:0,parameters:[7,'empty',0,0,0,0,100,100,255,0]}"
-def run_event(starter, cmds):
-    aligned_worlds(net, [host, g2])
-    for p_ in (host, g2):
-        p_.ev("$gameMap._interpreter.setup([%s,{code:0,indent:0,parameters:[]}],0); $gameMap._interpreter._coopStarter=%d" % (cmds, starter))
-    tick(net, [host, g2], 6)
 both = lambda js: [host.ev(js), g2.ev(js)]
-OWNER = 'CoopNet.privateEventOwner()'
-run_event(2, SAY + ',' + PIC + ',' + SAY)
-check("private: P2's dialog belongs to P2 on both PCs", both(OWNER) == [2, 2], both(OWNER))
-check("private: the keys of the dialog are P2's", both('CoopLocal.inputOwner()') == [2, 2], both('CoopLocal.inputOwner()'))
-text0 = both('$gameMessage._texts.join()')
-host.ev('CoopNet.localKeys = 16')
-tick(net, [host, g2], 10)
-host.ev('CoopNet.localKeys = 0')
-tick(net, [host, g2], 6)
-check("private: P1's Ok does not pass P2's dialog", both('$gameMessage._texts.join()') == text0 and text0[0] == 'hello', both('$gameMessage._texts.join()'))
-for p_ in (host, g2):
-    p_.ev('$gameMessage.clear()')
-tick(net, [host, g2], 6)
-check('private: the picture of the event belongs to P2 on both PCs', both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1') == [2, 2], both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1'))
-for p_ in (host, g2):
-    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear(); $gameScreen.erasePicture(7)')
-tick(net, [host, g2], 6)
-check('private: no event, nobody owns the keys', both('CoopLocal.inputOwner()') == [0, 0] and both(OWNER) == [0, 0], both('CoopLocal.inputOwner()'))
-run_event(2, PIC + ",{code:223,indent:0,parameters:[[0,0,0,0],1,false]}," + SAY)
-check('private: a scene command makes the event public on both PCs', both(OWNER) == [0, 0], both(OWNER))
-check('private: what was hidden is shown', both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1') == [0, 0], both('$gameScreen.picture(7) ? $gameScreen.picture(7)._coopOwner : -1'))
-for p_ in (host, g2):
-    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear(); $gameScreen.erasePicture(7); $gameScreen.startTint([0,0,0,0],1)')
-tick(net, [host, g2], 6)
-run_event(0, SAY)
-check('private: an event nobody started is public', both(OWNER) == [0, 0], both(OWNER))
-for p_ in (host, g2):
-    p_.ev('$gameMessage.clear(); $gameMap._interpreter.clear()')
-tick(net, [host, g2], 6)
 aligned_worlds(net, [host, g2])
+# (two events of the map that a player starts with the button)
+FIND = "$gameMap.events().filter(function(e){ return e.page() && e.page().trigger === 0 && e.list().length > 1; }).slice(0, 2).map(function(e){ return e.eventId(); })"
+ids = host.ev(FIND)
+def start_as(n, event_id, cmds):
+    for p_ in (host, g2):
+        p_.ev("var e = $gameMap.event(%d); e.page().list = [%s,%s]; e.start(); e._starting = true; e._coopStarter = %d" % (event_id, cmds, END, n))
+SESS = "Object.keys(CoopNet.eventSessions()).join()"
+RUNNING = "$gameMap.isEventRunning()"
+if len(ids) == 2:
+    start_as(2, ids[0], SAY)
+    tick(net, [host, g2], 6)
+    check("sessions: what P2 starts is P2's own event, on both PCs", both(SESS) == ['2', '2'], both(SESS))
+    check('sessions: the map is free for the others', both(RUNNING) == [False, False], both(RUNNING))
+    check('sessions: the dialog is not in the message of the map', both('$gameMessage.isBusy()') == [False, False], both('$gameMessage.isBusy()'))
+    check("sessions: P2's dialog is in P2's event", both('CoopNet.eventSessions()[2].message.isBusy()') == [True, True], both('CoopNet.eventSessions()[2].message.isBusy()'))
+    x0 = host.ev('$gamePlayer.x + "," + $gamePlayer.y')
+    p2x0 = host.ev('$gamePlayer2.x')
+    host.ev('CoopNet.localKeys = 4')
+    g2.ev('CoopNet.localKeys = 4')
+    tick(net, [host, g2], 40)
+    host.ev('CoopNet.localKeys = 0')
+    g2.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], 10)
+    check('sessions: P1 walks while P2 reads', host.ev('$gamePlayer.x + "," + $gamePlayer.y') != x0, x0)
+    check('sessions: P2 stands still while reading', host.ev('$gamePlayer2.x') == p2x0, p2x0)
+    start_as(1, ids[1], "{code:122,indent:0,parameters:[14,14,0,0,7]}," + SAY + ",{code:111,indent:0,parameters:[1,14,0,7,0]},{code:122,indent:0,parameters:[15,15,0,0,1]},{code:412,indent:0,parameters:[]}")
+    for p_ in (host, g2):
+        p_.ev("$gameVariables.setValue(15, 0)")
+        p_.ev("CoopNet.eventSessions()[2].interp._list.splice(CoopNet.eventSessions()[2].interp._index + 1, 0, {code:122,indent:0,parameters:[14,14,0,0,9]})")
+    tick(net, [host, g2], 6)
+    check('sessions: two players, two events at the same time', both(SESS) == ['1,2', '1,2'], both(SESS))
+    for p_ in (host, g2):
+        p_.ev("CoopNet.eventSessions()[2].message.clear()")
+    tick(net, [host, g2], 6)
+    for p_ in (host, g2):
+        p_.ev("CoopNet.eventSessions()[1].message.clear()")
+    tick(net, [host, g2], 10)
+    check("sessions: what P2's event sets does not touch the variable P1's event is using", both('$gameVariables.value(15)') == [1, 1], both('$gameVariables.value(15)'))
+    check('sessions: both ended', both(SESS) == ['', ''], both(SESS))
+    tick(net, [host, g2], 10)
+    # nobody opens the same chest twice
+    start_as(2, ids[0], SAY)
+    tick(net, [host, g2], 3)
+    for p_ in (host, g2):
+        p_.ev("var e = $gameMap.event(%d); e._starting = true; e._coopStarter = 1" % ids[0])
+    tick(net, [host, g2], 6)
+    check('sessions: the same event cannot be started twice', both(SESS) == ['2', '2'], both(SESS))
+    for p_ in (host, g2):
+        p_.ev("CoopNet.eventSessions()[2].message.clear()")
+    tick(net, [host, g2], 10)
+    # a scene command: the event becomes the event of the map and everybody sees it
+    start_as(2, ids[0], SAY + ",{code:223,indent:0,parameters:[[0,0,0,0],1,false]}," + SAY)
+    tick(net, [host, g2], 3)
+    for p_ in (host, g2):
+        p_.ev("CoopNet.eventSessions()[2].message.clear()")
+    tick(net, [host, g2], 8)
+    check('sessions: a scene command makes it the event of the map', both(SESS) == ['', ''] and both(RUNNING) == [True, True], [both(SESS), both(RUNNING)])
+    check('sessions: its dialog is in the message of the map', both('$gameMessage.isBusy()') == [True, True], both('$gameMessage.isBusy()'))
+    for p_ in (host, g2):
+        p_.ev('$gameMessage.clear()')
+    tick(net, [host, g2], 10)
+    check('sessions: it ended, the map is free', both(RUNNING) == [False, False], both(RUNNING))
+    # a transfer waits for the others to finish
+    m0 = host.ev('$gameMap.mapId()')
+    start_as(2, ids[0], SAY)
+    tick(net, [host, g2], 3)
+    start_as(1, ids[1], "{code:201,indent:0,parameters:[0,%d,%d,%d,2,0]}" % (m0, host.ev('$gamePlayer.x'), host.ev('$gamePlayer.y')))
+    tick(net, [host, g2], 8)
+    check('sessions: a transfer waits for the events of the others', both('$gamePlayer.isTransferring()') == [False, False] and both(RUNNING) == [True, True], both('$gamePlayer.isTransferring()'))
+    for p_ in (host, g2):
+        p_.ev("CoopNet.eventSessions()[2].message.clear()")
+    tick(net, [host, g2], 90)
+    check('sessions: and then it happens', both(RUNNING) == [False, False] and both(SESS) == ['', ''], [both(RUNNING), both(SESS)])
+else:
+    check('sessions: this map has events to test with', False, ids)
 tick(net, [host, g2], 130)
-check('private: the worlds stayed the same', [host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)] == desync0, desync0)
+check('sessions: the worlds stayed the same', [host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)] == desync0, [desync0, host.ev(DESYNC_LEN), g2.ev(DESYNC_LEN)])
 # --- Fear & Hunger 1: the host's ritual circle offers P2's character; P2 is asked (on both PCs) ---
 # (no message window here: the answers are given on both PCs on the same frame)
 if host.ev("/^fear & hunger$/i.test($dataSystem.gameTitle)") and host.ev('$gamePlayer2._coopActorId') == 3:
