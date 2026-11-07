@@ -1,15 +1,14 @@
 # Changelog
 
-## Unreleased
+## v1.9.8
 
+- **Fixed (online): the game crashed after about an hour, out of memory, usually when changing maps.** The online game kept thousands of objects for its desync log, and they held old scenes in memory with all their pictures. In a stress test it now uses about half the memory and no longer crashes in 8 minutes (it crashed in under 5); 1.5 hours of real play stayed around 900 MB.
+- **Online: players no longer stop each other.** Talking, reading a book or opening a chest runs as that player's own event: its text, pictures and sounds are only on their PC, and only their character stands still. The others walk and start their own events, so everybody can loot at once. Two players can't use the same thing at once. Everybody sees scenes, from the moment the event reaches one (transfer, fade, tint, shake, camera, music change, movie, battle, shop, party change); automatic events and events an enemy starts by touching a player are for everybody from the start. A transfer, a battle for everybody and the end of the game wait for the others to finish reading.
 - **Each character's knowledge works for that character.** Events ask a switch that only the protagonist turns on ("do I know this plant?"). When P2-P4 start the event and their character has that skill, it now counts: Olivia picks nettle even if the protagonist can't.
 - **Termina: each character climbs on their own.** When one player climbed or got off a ladder, the animation changed for everybody.
-- `www/coop_memory.log` also shows the frame rate and the slowest frame of each minute.
-- **Online: players no longer stop each other.** Talking, reading a book or opening a chest runs as that player's own event: its text, pictures and sounds are only on their PC, and only their character stands still. The others walk and start their own events, so everybody can loot at once. Two players can't use the same thing at once. Everybody sees scenes, from the moment the event reaches one (transfer, fade, tint, shake, camera, music change, movie, battle, shop, party change); automatic events and events an enemy starts by touching a player are for everybody from the start. A transfer, a battle for everybody and the end of the game wait for the others to finish reading.
-- **Fixed (online): the game crashed after about an hour, out of memory, usually when changing maps.** The online game kept thousands of objects for its desync log, and each of them held old scenes in memory with all their pictures. In a stress test it now uses about half the memory and no longer crashes in 8 minutes (it crashed in under 5).
-- New log: `www/coop_memory.log`, one line a minute with the memory the game uses.
 - **Both games: P2-P4 without a leg can no longer run**, like the protagonist (in Termina the running animation also broke).
 - **Fear & Hunger 1: special defeats wound everybody.** When a lost battle costs the protagonist their legs or gives them a state (the guard, the blood pit...), every player still alive gets the same on their own character, instead of staying healthy.
+- New log: `www/coop_memory.log`, one line a minute with the frame rate, the slowest frame and the memory the game uses.
 
 ## v1.9.7
 

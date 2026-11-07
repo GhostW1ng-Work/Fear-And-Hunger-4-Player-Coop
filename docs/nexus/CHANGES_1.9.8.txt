@@ -1,0 +1,12 @@
+Fear & Hunger Co-op v1.9.8 - what's new
+
+* Fixed (online): the crash after about an hour of play, usually when changing maps. The game ran out of memory because of a leak in the mod. 1.5 hours of real play stayed around 900 MB.
+* Online, players no longer stop each other. Talking, reading a book or opening a chest is seen and heard only by the player who started it, and only their character stands still. The others walk and do their own things, so you can all loot at once. Two players can't use the same thing at the same time.
+* Everybody still sees scenes: automatic events, events an enemy starts by touching a player, and everything from the moment an event reaches a transfer, fade, tint, shake, camera move, music change, movie, battle, shop or party change. A transfer, a battle for everybody and the end of the game wait for the others to finish reading.
+* Each character's knowledge works for that character. Olivia picks nettle even if the protagonist can't.
+* Termina: each character climbs on their own. One player climbing or getting off a ladder no longer changes the animation of the others.
+* Both games: P2-P4 without a leg can no longer run, like the protagonist.
+* Fear & Hunger 1: special defeats (the guard, the blood pit...) wound every player still alive, not only the protagonist.
+* New log: www/coop_memory.log, with the frame rate and the memory the game uses.
+
+Update: unpack the new version over the old one. Online, every player needs the same version.

@@ -95,6 +95,7 @@ Numpad keys work with NumLock on or off. In the online game each PC has only one
 - **Your own character.** Player N plays party member N. Characters that nobody plays follow P1 like normal companions; in battle a player of the host's choice or the AI plays them.
 - **Camera.** While everybody fits on the screen, the camera is shared. When someone walks away, the screen splits (2 halves, 3 views or 2x2) and joins again when you regroup. `G` switches the camera by hand.
 - **Events know who started them.** If P2 talks to someone, opens a chest, solves a puzzle, steps on a trap or uses an item from their menu, the game treats **P2** as the hero: it happens where P2 stands and P2 picks the answers.
+- **Online, nobody stops anybody.** A talk, a book or a chest is seen and heard only by the player who started it, and only their character stands still; the others walk and do their own things. Everybody sees scenes. Details: [docs/NETPLAY.md](docs/NETPLAY.md).
 - **Own menu.** P2-P4 open the game menu for themselves: Skill / Equip / Status go straight to their character. Options, Save, Game End and Formation stay with P1.
 - **Battles.** Everybody takes the turns of their own character; at the top you see whose turn it is.
 - **Scenes.** If a scene moves P1 far away, P2-P4 follow. Short steps (a door, a push) don't drag them along. If somebody ends up inside a wall, they are put back next to P1.
