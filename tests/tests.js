@@ -2324,6 +2324,64 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     for (k = 0; k < 5; k++) frame();
 })();
 
+// --- T73: lo que sabe cada personaje, y la escalera de cada uno ---
+(function() {
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 5; k++) frame();
+    var keepParty = $gameParty._actors.slice();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    if (!$gamePlayer3) { check('T73 setup: P3 joined', false); return; }
+    var termina = /termina/i.test($dataSystem.gameTitle);
+    var swId = termina ? 1946 : 1187, skillId = termina ? 460 : $dataSkills.filter(function(s) { return s && /^steal$/i.test(s.name); })[0].id;
+    var actor = $gamePlayer3.actor(), keepSw = $gameSwitches.value(swId), hadSkill = actor.isLearnedSkill(skillId);
+    function asks(starter) {
+        var it = new Game_Interpreter();
+        it.setup([{ code: 111, indent: 0, parameters: [0, swId, 0] }, { code: 122, indent: 1, parameters: [15, 15, 0, 0, 9] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }, { code: 0, indent: 0, parameters: [] }], 0);
+        it._coopStarter = starter;
+        $gameVariables.setValue(15, 0);
+        for (var i = 0; i < 4 && it.isRunning(); i++) it.update();
+        return $gameVariables.value(15) === 9;
+    }
+    $gameSwitches.setValue(swId, false);
+    actor.forgetSkill(skillId);
+    check('T73 a player without the knowledge does not know', asks(3) === false);
+    actor.learnSkill(skillId);
+    check("T73b a player's character with the knowledge knows, though the protagonist does not", asks(3) === true && $gameSwitches.value(swId) === false);
+    check('T73c the protagonist still does not', asks(1) === false);
+    if (!hadSkill) actor.forgetSkill(skillId);
+    $gameSwitches.setValue(swId, true);
+    check('T73d what the protagonist knows still counts for everybody', asks(3) === true);
+    $gameSwitches.setValue(swId, keepSw);
+    if (termina) {
+        var SW = 203, lead = $gameParty.leader().actorId(), id3 = $gamePlayer3._coopActorId;
+        function set(starter, on) {
+            var it = new Game_Interpreter();
+            it._mapId = $gameMap.mapId();
+            it.setup([{ code: 121, indent: 0, parameters: [SW, SW, on ? 0 : 1] }, { code: 0, indent: 0, parameters: [] }], 0);
+            it._coopStarter = starter;
+            it.update();
+        }
+        $gameSwitches.setValue(SW, false);
+        $gameSystem._coopClimb = {};
+        set(3, true);
+        check('T73e P3 climbs: only P3', CoopLocal.isClimbing(id3) && !CoopLocal.isClimbing(lead));
+        check('T73f the switch of the game is on while somebody climbs', $gameSwitches.value(SW) === true);
+        var outfit = $dataCommonEvents.filter(function(c) { return c && /outfit/i.test(c.name) && c.list.some(function(x) { return x.code === 111 && x.parameters[0] === 4 && x.parameters[1] === id3 && x.parameters[2] === 0; }); })[0];
+        var outfitLead = $dataCommonEvents.filter(function(c) { return c && /outfit/i.test(c.name) && c.list.some(function(x) { return x.code === 111 && x.parameters[0] === 4 && x.parameters[1] === lead && x.parameters[2] === 0; }); })[0];
+        check("T73g the outfit event of each character looks at that character", (!outfit || CoopLocal.climbViewerOf(outfit.id) === id3) && (!outfitLead || CoopLocal.climbViewerOf(outfitLead.id) === lead), [outfit && outfit.id, outfitLead && outfitLead.id]);
+        set(1, true);
+        check('T73h P1 climbs too', CoopLocal.isClimbing(lead) && CoopLocal.isClimbing(id3));
+        set(1, false);
+        check('T73i P1 gets off: P3 goes on climbing', !CoopLocal.isClimbing(lead) && CoopLocal.isClimbing(id3) && $gameSwitches.value(SW) === true);
+        set(3, false);
+        check('T73j nobody climbs: the switch is off', !CoopLocal.isClimbing(id3) && $gameSwitches.value(SW) === false);
+        $gameSystem._coopClimb = {};
+    }
+    $gameParty._actors = keepParty;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 // --- T70: FH1, lo que el juego le hace "al protagonista" ---
 (function() {
     if (!/fear/i.test($dataSystem.gameTitle || '') || /termina/i.test($dataSystem.gameTitle || '')) return;

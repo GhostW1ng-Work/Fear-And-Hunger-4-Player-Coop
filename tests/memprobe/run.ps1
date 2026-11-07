@@ -2,7 +2,7 @@
 # The games close by themselves. Results: tests\memprobe\out\<Name>.*
 param(
     [string]$Name, [string]$Mode, [int]$Seconds = 480, [int]$Dwell = 3, [int]$BattleEvery = 4,
-    [int]$NoAudio = 0, [int]$Clean = 0, [string]$WalkAt = '', [int]$NoLights = 0,
+    [int]$NoAudio = 0, [int]$Clean = 0, [string]$WalkAt = '', [int]$NoLights = 0, [int]$Reads = 0,
     [string]$HostDir = 'C:\Games\Fear2', [string]$SoloDir = 'C:\Games\Fear2MP'
 )
 $Here = Split-Path $MyInvocation.MyCommand.Path -Parent
@@ -17,7 +17,7 @@ foreach ($g in $games) {
     $html = [IO.File]::ReadAllText("$www\index.html.memprobe.bak")
     $html = $html.Replace('<script type="text/javascript" src="js/main.js"></script>', '<script type="text/javascript" src="js/coop_memprobe.js"></script><script type="text/javascript" src="js/main.js"></script>')
     [IO.File]::WriteAllText("$www\index.html", $html)
-    $json = '{"mode":"' + $Mode + '","role":"' + $g.Role + '","seconds":' + $Seconds + ',"dwell":' + $Dwell + ',"battleEvery":' + $BattleEvery + ',"noAudio":' + $NoAudio + ',"clean":' + $Clean + ',"walkAt":"' + $WalkAt + '","noLights":' + $NoLights + '}'
+    $json = '{"mode":"' + $Mode + '","role":"' + $g.Role + '","seconds":' + $Seconds + ',"dwell":' + $Dwell + ',"battleEvery":' + $BattleEvery + ',"noAudio":' + $NoAudio + ',"clean":' + $Clean + ',"walkAt":"' + $WalkAt + '","noLights":' + $NoLights + ',"reads":' + $Reads + '}'
     [IO.File]::WriteAllText("$www\coop_memprobe.json", $json)
 }
 $samples = "$OutDir\$Name.samples.csv"

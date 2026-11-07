@@ -3062,6 +3062,168 @@
         return _Game_Interpreter_command111_defeat.call(this);
     };
 
+    // ---- lo que sabe cada personaje, y quien esta en una escalera --------------------------------
+    // Los juegos guardan lo que sabe el protagonista en interruptores comunes (SKILL_...): el de saber de
+    // plantas lo enciende solo el protagonista. Si el evento lo empezo P2-P4 y su personaje tiene ese
+    // conocimiento, para ese evento esta encendido: Olivia recoge la ortiga aunque Daan no sepa.
+    // (interruptor -> habilidades; igual en todas las traducciones. Correr tiene sus propias reglas.)
+    const SKILL_SWITCHES = {
+        termina:
+        { 1185: [72, 480], 1207: [56, 313], 1221: [294], 1223: [56, 313], 1225: [21, 124, 396], 1227: [314, 318,
+        319, 320, 321, 400, 401, 402, 403, 605, 606], 1229: [315], 1231: [55], 1233: [238], 1235: [199], 1237:
+        [190, 200, 341, 644], 1239: [12, 43, 44, 127, 128, 300, 424, 800], 1241: [51], 1246: [335, 607], 1248:
+        [337, 442], 1267: [519], 1541: [367], 1545: [386, 387, 388, 389, 390, 544, 545, 546, 547, 548, 549, 550,
+        551, 552, 553, 554, 555], 1547: [373], 1551: [372], 1924: [323], 1926: [441], 1928: [445], 1932: [487],
+        1934: [486], 1938: [454], 1940: [456], 1942: [455], 1944: [461], 1946: [460], 1950: [482], 1952: [72,
+        480], 1954: [291], 1958: [285, 496], 1960: [80, 495], 1962: [78, 494], 1964: [146], 1966: [468], 1968:
+        [465], 1970: [466], 1972: [467], 1978: [1, 100, 121, 126, 207, 211, 281, 282, 283, 293, 806], 1986:
+        [357, 420, 578], 1992: [511], 1994: [512], 1996: [75, 450], 1998: [451], 2002: [444], 2006: [338], 2010:
+        [470], 2012: [31, 70, 210, 473], 2022: [500, 560], 2024: [150, 175, 602], 2030: [504], 2032: [505, 608],
+        2036: [507], 2038: [508], 2045: [512], 2085: [151, 218], 2089: [516], 2095: [519], 2206: [49, 408, 525]
+        },
+        fh1:
+        { 1185: [72], 1187: [31, 70, 210], 1189: [68], 1190: [67], 1191: [136, 206], 1192: [78, 307], 1193:
+        [283], 1194: [79, 213], 1195: [115], 1196: [74], 1197: [12, 43, 44, 127, 128], 1198: [51], 1199: [21,
+        124], 1200: [197, 199, 245], 1201: [150, 175], 1202: [55], 1203: [238], 1204: [151], 1205: [148], 1206:
+        [122, 123], 1207: [56], 1208: [48, 49], 1209: [149, 161], 1211: [66], 2845: [294] }
+    };
+    let switchKnown = 0;
+    const _Game_Switches_value_known = Game_Switches.prototype.value;
+    Game_Switches.prototype.value = function(id) {
+        if (id === switchKnown && this === $gameSwitches) return true;
+        if (id === SW_CLIMBING && climbViewer && this === $gameSwitches) return !!climbState()[climbViewer];
+        return _Game_Switches_value_known.call(this, id);
+    };
+
+    function starterKnows(interpreter, switchId) {
+        const n = interpreter._coopStarter || 0;
+        if (n < 2 || $gameParty.inBattle()) return false;
+        const table = isTermina() ? SKILL_SWITCHES.termina : fh1() ? SKILL_SWITCHES.fh1 : null;
+        const skills = table && table[switchId];
+        const actor = skills && coop.player(n) ? coop.actorOf(coop.player(n)) : null;
+        return !!actor && skills.some(id => actor.isLearnedSkill(id));
+    }
+
+    const _Game_Interpreter_command111_known = Game_Interpreter.prototype.command111;
+    Game_Interpreter.prototype.command111 = function() {
+        const p = this._params;
+        if (p[0] !== 0 || !starterKnows(this, p[1])) return _Game_Interpreter_command111_known.call(this);
+        switchKnown = p[1];
+        try {
+            return _Game_Interpreter_command111_known.call(this);
+        } finally {
+            switchKnown = 0;
+        }
+    };
+
+    // Termina: CLIMBING era uno para todos: uno sube y todos se ponian la imagen de escalar, uno baja y
+    // todos se la quitaban. Ahora cada personaje lleva lo suyo. El interruptor del juego esta encendido
+    // mientras alguien escala (de el dependen las paginas de la escalera), y los sucesos de ropa de
+    // cada personaje y los de P1 (velocidad, correr) leen lo de su personaje.
+    const SW_CLIMBING = 203;
+    let climbViewer = 0;
+    function climbState() {
+        if (!$gameSystem._coopClimb) {
+            $gameSystem._coopClimb = {};
+            // (una partida guardada en la escalera)
+            if (_Game_Switches_value_known.call($gameSwitches, SW_CLIMBING) && $gameParty.leader()) {
+                $gameSystem._coopClimb[$gameParty.leader().actorId()] = true;
+            }
+        }
+        return $gameSystem._coopClimb;
+    }
+    function climbersPlayed() {
+        return coop.players().map(pl => pl._coopActorId).concat($gameParty.leader() ? [$gameParty.leader().actorId()] : []);
+    }
+    function refreshClimbing() {
+        const st = climbState();
+        const played = climbersPlayed();
+        Object.keys(st).forEach(id => { if (played.indexOf(Number(id)) < 0) delete st[id]; });
+        $gameSwitches.setValue(SW_CLIMBING, Object.keys(st).some(id => st[id]));
+    }
+    function climbOwnedHere() {
+        return isTermina() && $gameSwitches && !$gameParty.inBattle() && coop.players().length > 0;
+    }
+    function climbActorOf(interpreter) {
+        const n = interpreter._coopStarter || 1;
+        if (n === 1) return $gameParty.leader() ? $gameParty.leader().actorId() : 0;
+        const pl = coop.player(n);
+        return pl ? pl._coopActorId : 0;
+    }
+    // el evento de la escalera esta en su "pagina de bajar" porque otro escala: quien llega mirando
+    // hacia donde se sube (lo que pide su otra pagina) empieza a escalar en vez de bajarse
+    function climbsHere(interpreter) {
+        const ev = interpreter._eventId > 0 ? $gameMap.event(interpreter._eventId) : null;
+        const n = interpreter._coopStarter || 1;
+        const pl = n === 1 ? $gamePlayer : coop.player(n);
+        if (!ev || !pl) return false;
+        return ev.event().pages.some(page => {
+            const first = page.list[0];
+            return page.trigger === 0 && first && first.code === 111 && first.parameters[0] === 6 &&
+                first.parameters[1] === -1 && first.parameters[2] === pl.direction();
+        });
+    }
+    const _Game_Interpreter_command121_climb = Game_Interpreter.prototype.command121;
+    Game_Interpreter.prototype.command121 = function() {
+        const p = this._params;
+        if (!climbOwnedHere() || p[0] > SW_CLIMBING || p[1] < SW_CLIMBING) return _Game_Interpreter_command121_climb.call(this);
+        for (let id = p[0]; id <= p[1]; id++) {
+            if (id !== SW_CLIMBING) $gameSwitches.setValue(id, p[2] === 0);
+        }
+        const st = climbState();
+        const ev = this._eventId > 0 && this._mapId === $gameMap.mapId() ? $gameMap.event(this._eventId) : null;
+        const page = ev ? ev.page() : null;
+        if (!this._coopStarter || (page && page.trigger >= 2) || (!page && this._eventId > 0)) {
+            // (una escena o un evento del juego, no un jugador: para todos)
+            climbersPlayed().forEach(id => { st[id] = p[2] === 0; });
+        } else {
+            const actorId = climbActorOf(this);
+            if (actorId) st[actorId] = p[2] === 0 || (!st[actorId] && climbsHere(this));
+        }
+        refreshClimbing();
+        return true;
+    };
+    // a otro mapa: nadie sigue en aquella escalera (lo que siga el propio evento lo dice despues)
+    const _Game_Interpreter_command201_climb = Game_Interpreter.prototype.command201;
+    Game_Interpreter.prototype.command201 = function() {
+        const p = this._params;
+        if (climbOwnedHere() && !$gameParty.inBattle() && p[0] === 0 && p[1] !== $gameMap.mapId() && !$gamePlayer.isTransferring()) {
+            const st = climbState();
+            const keep = climbActorOf(this);
+            Object.keys(st).forEach(id => { if (Number(id) !== keep) delete st[id]; });
+            refreshClimbing();
+        }
+        return _Game_Interpreter_command201_climb.call(this);
+    };
+    // quien mira: los sucesos de ropa, su personaje; los demas que leen CLIMBING son de P1
+    const outfitActors = {};
+    function climbViewerOf(commonEventId) {
+        if (!(commonEventId in outfitActors)) {
+            const ce = $dataCommonEvents[commonEventId];
+            const reads = ce && ce.list.some(c => c.code === 111 && c.parameters[0] === 0 && c.parameters[1] === SW_CLIMBING);
+            let actorId = -1;
+            if (reads && /outfit/i.test(ce.name)) {
+                const own = ce.list.find(c => c.code === 111 && c.parameters[0] === 4 && c.parameters[2] === 0);
+                actorId = own ? own.parameters[1] : -1;
+            }
+            outfitActors[commonEventId] = reads ? actorId : 0;
+        }
+        const v = outfitActors[commonEventId];
+        return v === -1 ? ($gameParty.leader() ? $gameParty.leader().actorId() : 0) : v;
+    }
+    const _Game_CommonEvent_update_climb = Game_CommonEvent.prototype.update;
+    Game_CommonEvent.prototype.update = function() {
+        if (!climbOwnedHere() || !this._interpreter) return _Game_CommonEvent_update_climb.call(this);
+        climbViewer = climbViewerOf(this._commonEventId);
+        try {
+            return _Game_CommonEvent_update_climb.call(this);
+        } finally {
+            climbViewer = 0;
+        }
+    };
+    coop.isClimbing = actorId => !!climbState()[actorId]; // (para pruebas)
+    coop.climbViewerOf = climbViewerOf;                   // (para pruebas)
+
     // Pisar un clavo y parecidos: el juego se lo hace al protagonista, porque es el unico que anda.
     // Si lo ha activado otro jugador, le pasa a ese.
     ['command311', 'command312', 'command313', 'command314'].forEach(name => {

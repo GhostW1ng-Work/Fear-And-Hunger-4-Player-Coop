@@ -1391,6 +1391,21 @@
         }
     }, 2000);
 
+    // (cuanto tarda cada cuadro de verdad, para el diario: solo mide)
+    const frameTimes = { last: 0, count: 0, worst: 0, slow: 0 };
+    const _SceneManager_requestUpdate_times = SceneManager.requestUpdate;
+    SceneManager.requestUpdate = function() {
+        const now = performance.now();
+        if (frameTimes.last) {
+            const gap = now - frameTimes.last;
+            frameTimes.count++;
+            if (gap > frameTimes.worst) frameTimes.worst = gap;
+            if (gap > 100) frameTimes.slow++;
+        }
+        frameTimes.last = now;
+        return _SceneManager_requestUpdate_times.call(this);
+    };
+
     // el diario de la memoria: el juego es de 32 bits y se cierra solo si llega a unos 4 GB; una
     // linea por minuto dice cuando y con que crece (solo lee: nada de esto va a la partida)
     setInterval(() => {
@@ -1406,7 +1421,14 @@
             });
             const manager = Graphics._renderer && Graphics._renderer.textureManager;
             const scene = SceneManager._scene;
-            const line = new NativeDate().toISOString() + '  ram ' + mb(m.rss) + ' MB  js ' + mb(m.heapUsed) + '/' + mb(m.heapTotal) +
+            const fps = Math.round(frameTimes.count / 60);
+            const worst = Math.round(frameTimes.worst);
+            const slow = frameTimes.slow;
+            frameTimes.count = 0;
+            frameTimes.worst = 0;
+            frameTimes.slow = 0;
+            const line = new NativeDate().toISOString() + '  fps ' + fps + '  worst frame ' + worst + ' ms  over 100 ms: ' + slow +
+                '  ram ' + mb(m.rss) + ' MB  js ' + mb(m.heapUsed) + '/' + mb(m.heapTotal) +
                 ' MB  images ' + keys.length + ' (' + Math.round(pixels / 1e6) + ' Mpx)  textures ' +
                 (manager && manager._managedTextures ? manager._managedTextures.length : '-') +
                 '  map ' + (window.$gameMap ? $gameMap.mapId() : '-') + '  ' + (scene ? scene.constructor.name : '-') +

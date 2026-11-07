@@ -32,7 +32,7 @@
         this.bgmVolume = this.bgsVolume = this.meVolume = this.seVolume = 0;
     };
 
-    var counts = { audio: 0, audioMB: 0, bitmaps: 0, bitmapMpx: 0, cleans: 0, exc: 0 };
+    var counts = { audio: 0, audioMB: 0, bitmaps: 0, bitmapMpx: 0, cleans: 0, exc: 0, frameMs: 0, frames: 0, reads: 0 };
     var initAudio = WebAudio.prototype.initialize;
     WebAudio.prototype.initialize = function() { counts.audio++; return initAudio.apply(this, arguments); };
     var initBitmap = Bitmap.prototype.initialize;
@@ -87,6 +87,7 @@
             ' reuse ' + (Bitmap._reuseImages ? Bitmap._reuseImages.length : -1) +
             ' pixiCache ' + (utils && utils.BaseTextureCache ? Object.keys(utils.BaseTextureCache).length : -1) +
             ' bitmaps ' + counts.bitmaps + ' ' + counts.bitmapMpx.toFixed(0) + 'Mpx audio ' + counts.audio + ' ' + counts.audioMB.toFixed(0) + 'MB' +
+            ' mapMs ' + (counts.frames ? (counts.frameMs / counts.frames).toFixed(2) : '-') + ' reads ' + counts.reads +
             ' transfers ' + transfers + ' battles ' + battles + ' cleans ' + counts.cleans + ' exc ' + counts.exc +
             ' map ' + (window.$gameMap ? $gameMap.mapId() : '-') + ' ' + sc +
             (N && N.active ? ' frame ' + N.frame : ''));
@@ -216,7 +217,10 @@
         if (cfg.mode === 'online') {
             var update = Scene_Map.prototype.update;
             Scene_Map.prototype.update = function() {
+                var t = performance.now();
                 update.call(this);
+                counts.frameMs += performance.now() - t;
+                counts.frames++;
                 onlineStep();
             };
             // a battle of everybody is the scene itself (no map under it)
@@ -260,6 +264,22 @@
         }
         battleSince = -1;
         var step = cfg.dwell * 60;
+        // both players keep reading a real book (its picture, sounds and windows), on the same frames
+        if (cfg.reads) {
+            var S = N.eventSessions();
+            Object.keys(S).forEach(function(k) { if (S[k].message.isBusy() && N.frame % 20 === 0) S[k].message.clear(); });
+            if (N.frame % 90 === 0 && !$gameTemp.isCommonEventReserved()) {
+                var who = (N.frame / 90) % 2 ? 1 : 2;
+                if (!S[who]) {
+                    var book = $dataCommonEvents.filter(function(c) { return c && /handbook|note/i.test(c.name) && c.list.length > 5; })[0];
+                    if (book) {
+                        $gameTemp.reserveCommonEvent(book.id);
+                        $gameTemp._coopReservedBy = who;
+                        counts.reads++;
+                    }
+                }
+            }
+        }
         var f = N.frame - (N.frame % step);
         if (f <= 0 || f === lastStep || $gamePlayer.isTransferring() || !SceneManager._sceneStarted) return;
         lastStep = f;
