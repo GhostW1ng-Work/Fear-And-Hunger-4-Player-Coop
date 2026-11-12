@@ -403,6 +403,17 @@ tick(net, [host, g2], 20)
 host.ev('CoopNet.localKeys = 0')
 tick(net, [host, g2], 20)
 check('P1 closed their menu (and it did not reopen)', not host.ev('!!CoopNet.menus[1]') and host.ev('!!CoopNet.menus[2]'))
+# (two in their menus, one comes out: that one walks while the other is still in the menu)
+x1 = host.ev('$gamePlayer.x + "," + $gamePlayer.y')
+for key in (4, 8):
+    host.ev('CoopNet.localKeys = %d' % key)
+    tick(net, [host, g2], 24)
+    host.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], 6)
+    if host.ev('$gamePlayer.x + "," + $gamePlayer.y') != x1:
+        break
+check('P1 walks while P2 is still in their menu', host.ev('$gamePlayer.x + "," + $gamePlayer.y') != x1 and host.ev('!!CoopNet.menus[2]'),
+      [x1, host.ev('$gamePlayer.x + "," + $gamePlayer.y'), host.ev('$gameMap.isEventRunning()'), host.ev('$gamePlayer.canMove()'), host.ev('JSON.stringify(Object.keys(CoopNet.menus))')])
 same, frames = aligned_worlds(net, [host, g2])
 check('same world after closing a menu', same, frames)
 
@@ -554,12 +565,15 @@ if len(ids) == 2:
     check("sessions: P2's dialog is in P2's event", both('CoopNet.eventSessions()[2].message.isBusy()') == [True, True], both('CoopNet.eventSessions()[2].message.isBusy()'))
     x0 = host.ev('$gamePlayer.x + "," + $gamePlayer.y')
     p2x0 = host.ev('$gamePlayer2.x')
-    host.ev('CoopNet.localKeys = 4')
-    g2.ev('CoopNet.localKeys = 4')
-    tick(net, [host, g2], 40)
-    host.ev('CoopNet.localKeys = 0')
-    g2.ev('CoopNet.localKeys = 0')
-    tick(net, [host, g2], 10)
+    for key in (4, 8, 2, 1):
+        host.ev('CoopNet.localKeys = %d' % key)
+        g2.ev('CoopNet.localKeys = %d' % key)
+        tick(net, [host, g2], 40)
+        host.ev('CoopNet.localKeys = 0')
+        g2.ev('CoopNet.localKeys = 0')
+        tick(net, [host, g2], 10)
+        if host.ev('$gamePlayer.x + "," + $gamePlayer.y') != x0:
+            break
     check('sessions: P1 walks while P2 reads', host.ev('$gamePlayer.x + "," + $gamePlayer.y') != x0, x0)
     check('sessions: P2 stands still while reading', host.ev('$gamePlayer2.x') == p2x0, p2x0)
     start_as(1, ids[1], "{code:122,indent:0,parameters:[14,14,0,0,7]}," + SAY + ",{code:111,indent:0,parameters:[1,14,0,7,0]},{code:122,indent:0,parameters:[15,15,0,0,1]},{code:412,indent:0,parameters:[]}")
@@ -613,6 +627,12 @@ if len(ids) == 2:
     # a silent event on the floor (the maps are full of them) must not stop whoever holds a direction
     tick(net, [host, g2], 10)
     aligned_worlds(net, [host, g2])
+    SPOT = "(function(){var p=$gamePlayer;for(var r=0;r<8;r++)for(var dx=-r;dx<=r;dx++)for(var dy=-r;dy<=r;dy++){var x=p.x+dx,y=p.y+dy,n=0;while(n<6&&$gameMap.isPassable(x+n,y,6)&&$gameMap.isPassable(x+n+1,y,4)&&!$gameMap.eventsXy(x+n+1,y).length)n++;if(n>=6&&!$gameMap.eventsXy(x,y).length)return [x,y]}return null})()"
+    spot = host.ev(SPOT)
+    if spot:
+        for p_ in (host, g2):
+            p_.ev('$gamePlayer2.locate(%d, %d)' % (spot[0], spot[1]))
+        tick(net, [host, g2], 4)
     FREE = "(function(){var p=$gamePlayer2,x=p.x,y=p.y,best=[0,0];[[6,1,0],[4,-1,0],[2,0,1],[8,0,-1]].forEach(function(d){var n=0,cx=x,cy=y;while(n<6&&$gameMap.isPassable(cx,cy,d[0])&&$gameMap.isPassable(cx+d[1],cy+d[2],10-d[0])&&!$gameMap.eventsXy(cx+d[1],cy+d[2]).length){cx+=d[1];cy+=d[2];n++}if(n>best[0])best=[n,d[0]]});return best})()"
     free_n, free_d = host.ev(FREE)
     if free_n >= 4:
@@ -633,6 +653,47 @@ if len(ids) == 2:
         check('sessions: and it was over at once', both(SESS) == ['', ''], both(SESS))
     else:
         check('sessions: room to walk for the floor event test', False, [free_n, free_d])
+    # an automatic event turned on by what P2's event just did ("the locker is empty now") stays P2's
+    tick(net, [host, g2], 10)
+    aligned_worlds(net, [host, g2])
+    SWF = 1999
+    for p_ in (host, g2):
+        p_.ev("$gameSwitches.setValue(%d, false); var e = $gameMap.event(%d), pg = e.page(); pg.trigger = 3; pg.conditions.switch1Valid = true; pg.conditions.switch1Id = %d; pg.list = [%s,{code:121,indent:0,parameters:[%d,%d,1]},%s]; e.setThrough(true); e.locate($gamePlayer.x, $gamePlayer.y); e.refresh()" % (SWF, ids[1], SWF, SAY, SWF, SWF, END))
+    start_as(2, ids[0], "{code:121,indent:0,parameters:[%d,%d,0]}" % (SWF, SWF))
+    tick(net, [host, g2], 6)
+    # (the harness has no automatic events: it starts it the way the game does each frame)
+    for p_ in (host, g2):
+        p_.ev("var e = $gameMap.event(%d); if (e.page() && e.page().trigger === 3) e.start()" % ids[1])
+    tick(net, [host, g2], 6)
+    check("sessions: an automatic event turned on by P2's event is P2's too", both(SESS) == ['2', '2'] and both(RUNNING) == [False, False], [both(SESS), both(RUNNING)])
+    for p_ in (host, g2):
+        p_.ev("var S = CoopNet.eventSessions(); if (S[2]) S[2].message.clear()")
+    tick(net, [host, g2], 10)
+    check('sessions: and it ended', both(SESS) == ['', ''] and both('$gameSwitches.value(%d)' % SWF) == [False, False], [both(SESS), both('$gameSwitches.value(%d)' % SWF)])
+    for p_ in (host, g2):
+        p_.ev("var e = $gameMap.event(%d), pg = e.page(); if (pg) { pg.trigger = 0; pg.conditions.switch1Valid = false; } e.refresh()" % ids[1])
+    tick(net, [host, g2], 6)
+    # an object used from P2's menu waits for P2 to close it, and is P2's
+    CEID = host.ev("$dataCommonEvents.filter(function(c){ return c && c.trigger === 0 && c.list.length < 30 && c.list.some(function(x){ return x.code === 101; }) && !c.list.some(function(x){ return [201, 221, 223, 225, 231, 301, 353, 354].indexOf(x.code) >= 0; }); })[0].id")
+    g2.ev('CoopNet.localKeys = 32')
+    tick(net, [host, g2], 20)
+    g2.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], 20)
+    for p_ in (host, g2):
+        p_.ev("$gameTemp.reserveCommonEvent(%d); $gameTemp._coopReservedBy = 2" % CEID)
+    tick(net, [host, g2], 10)
+    check("sessions: an object from P2's menu does not stop the map while P2 is in the menu", both(RUNNING) == [False, False] and both('$gameTemp.isCommonEventReserved()') == [True, True], [both(RUNNING), both('$gameTemp.isCommonEventReserved()'), both('!!CoopNet.menus[2]')])
+    g2.ev('CoopNet.localKeys = 32')
+    tick(net, [host, g2], 20)
+    g2.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], 20)
+    check("sessions: it is P2's own event once P2 closed the menu", both(SESS) == ['2', '2'] and both(RUNNING) == [False, False], [both(SESS), both(RUNNING), both('!!CoopNet.menus[2]')])
+    for _ in range(40):
+        for p_ in (host, g2):
+            p_.ev("var S = CoopNet.eventSessions(); if (S[2]) { S[2].message.clear(); }")
+        tick(net, [host, g2], 4)
+        if both(SESS) == ['', '']:
+            break
 else:
     check('sessions: this map has events to test with', False, ids)
 tick(net, [host, g2], 130)

@@ -2382,6 +2382,74 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     for (k = 0; k < 5; k++) frame();
 })();
 
+// --- T74: el personaje de cada jugador es suyo en los eventos ---
+(function() {
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 5; k++) frame();
+    var keepParty = $gameParty._actors.slice();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    if (!$gamePlayer3) { check('T74 setup: P3 joined', false); return; }
+    var termina = /termina/i.test($dataSystem.gameTitle);
+    var lead = $gameParty.leader().actorId(), id3 = $gamePlayer3._coopActorId;
+    var sel3 = CoopLocal.heroSwitchOf(id3), selLead = CoopLocal.heroSwitchOf(lead);
+    if (!sel3 || !selLead) { check('T74 setup: both have a protagonist switch', false, [lead, id3, sel3, selLead]); return; }
+    var keep3 = $gameSwitches.value(sel3), keepLead = $gameSwitches.value(selLead);
+    $gameSwitches.setValue(sel3, false);
+    $gameSwitches.setValue(selLead, true);
+    function run(starter, list) {
+        var it = new Game_Interpreter();
+        it.setup(list.concat([{ code: 0, indent: 0, parameters: [] }]), 0);
+        it._coopStarter = starter;
+        $gameVariables.setValue(15, 0);
+        $gameVariables.setValue(16, 0);
+        for (var i = 0; i < 6 && it.isRunning(); i++) it.update();
+        return [$gameVariables.value(15), $gameVariables.value(16)];
+    }
+    var leaves = [{ code: 111, indent: 0, parameters: [0, sel3, 1] }, { code: 122, indent: 1, parameters: [15, 15, 0, 0, 1] }, { code: 129, indent: 1, parameters: [id3, 1, false] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }];
+    var talks = [{ code: 111, indent: 0, parameters: [0, sel3, 1] }, { code: 122, indent: 1, parameters: [15, 15, 0, 0, 1] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }];
+    var party0 = $gameParty._actors.slice();
+    check("T74 a player's character is not a companion who leaves: that branch is skipped", run(1, leaves)[0] === 0 && $gameParty._actors.indexOf(id3) >= 0);
+    $gameParty._actors = party0;
+    check("T74a other 'not the protagonist' branches are as in the game", run(1, talks)[0] === 1);
+    var hurt = [
+        { code: 111, indent: 0, parameters: [0, selLead, 0] }, { code: 122, indent: 1, parameters: [15, 15, 0, 0, 1] }, { code: 0, indent: 1, parameters: [] },
+        { code: 411, indent: 0, parameters: [] },
+        { code: 111, indent: 1, parameters: [0, sel3, 0] }, { code: 122, indent: 2, parameters: [16, 16, 0, 0, 1] }, { code: 0, indent: 2, parameters: [] },
+        { code: 412, indent: 1, parameters: [] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }];
+    var byP3 = run(3, hurt), byP1 = run(1, hurt);
+    if (termina) {
+        check("T74b what the trap does 'to the protagonist' it does to the character of who stepped on it", byP3[0] === 0 && byP3[1] === 1, byP3);
+    }
+    check('T74c started by P1: the protagonist, as in the game', byP1[0] === 1 && byP1[1] === 0, byP1);
+    var talk = [{ code: 111, indent: 0, parameters: [0, selLead, 0] }, { code: 101, indent: 1, parameters: ['', 0, 0, 2] }, { code: 401, indent: 1, parameters: ['x'] }, { code: 122, indent: 1, parameters: [15, 15, 0, 0, 1] }, { code: 0, indent: 1, parameters: [] }, { code: 412, indent: 0, parameters: [] }];
+    var it2 = new Game_Interpreter();
+    it2.setup(talk.concat([{ code: 0, indent: 0, parameters: [] }]), 0);
+    it2._coopStarter = 3;
+    $gameVariables.setValue(15, 0);
+    it2.update();
+    $gameMessage.clear();
+    for (k = 0; k < 4 && it2.isRunning(); k++) it2.update();
+    $gameMessage.clear();
+    check("T74d a branch with dialog stays the protagonist's", $gameVariables.value(15) === 1);
+    $gameSwitches.setValue(sel3, keep3);
+    $gameSwitches.setValue(selLead, keepLead);
+    if (termina) {
+        var actor = $gameActors.actor(id3), had = actor.isLearnedSkill(372), item = $dataItems[248], n0 = $gameParty.numItems(item);
+        $gameSystem._coopSchematics = {};
+        $gameParty.loseItem(item, 99);
+        actor.learnSkill(372);
+        CoopLocal.giveSchematics();
+        check("T74e a player's character who can make weapons brings the weapon schematics", $gameParty.numItems(item) === 1);
+        if (!had) actor.forgetSkill(372);
+        $gameParty.loseItem(item, 99);
+        if (n0) $gameParty.gainItem(item, n0);
+        $gameSystem._coopSchematics = {};
+    }
+    $gameParty._actors = keepParty;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 // --- T70: FH1, lo que el juego le hace "al protagonista" ---
 (function() {
     if (!/fear/i.test($dataSystem.gameTitle || '') || /termina/i.test($dataSystem.gameTitle || '')) return;

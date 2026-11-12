@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **A character a player plays is not a companion who leaves.** In Termina Marina left the party in the morning (and at the mayor's house); the mod put her back and the message came at every change of map. Branches that take a player's living character out of the party as a companion are skipped now.
+- **Termina: what happens "to the protagonist" in an event a player started happens to that player's character**, when it only changes the character (a bear trap took the protagonist's legs instead of the legs of who stepped on it).
+- **Termina, Hexen:** the branch of a contestant a player plays teaches that player's character; what that character already knows shows as learned; the soul stones counter updates again (online it was not shown to anybody).
+- **Termina: a player's character who knows a craft (Weaponcraft, Trapcraft, Explosives, Botanism, Toxicology) brings its schematics**, so crafting works as for the protagonist.
+- **Online: an automatic event turned on by a player's own event is that player's too** (the lockers of tunnel 7 showed "The locker is empty now" to everybody).
+- **Online: an object used from a player's menu waits for that player to close the menu** and is their own event; it no longer stopped everybody while somebody was still in a menu.
+
 ## v1.9.8
 
 - **Fixed (online): the game crashed after about an hour, out of memory, usually when changing maps.** The online game kept thousands of objects for its desync log, and they held old scenes in memory with all their pictures. In a stress test it now uses about half the memory and no longer crashes in 8 minutes (it crashed in under 5); 1.5 hours of real play stayed around 900 MB.

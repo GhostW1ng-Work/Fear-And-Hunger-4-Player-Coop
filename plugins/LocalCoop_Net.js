@@ -2136,7 +2136,23 @@
     }
 
     function canStartSession(n) {
-        return !!coop.player(n) && !sessions[n] && !subs[n] && !Net.left[n] && !coop.isAway(n) && !inSeparateBattle(n);
+        return !!coop.player(n) && !sessions[n] && !subs[n] && !Net.left[n] && !coop.isAway(n) && !inSeparateBattle(n) &&
+            !isMenuMap();
+    }
+
+    // Hexen (Termina) es un menu hecho con el mapa: su contador de piedras y sus imagenes son de todos
+    function isMenuMap() {
+        const info = $dataMapInfos && $dataMapInfos[$gameMap.mapId()];
+        return !!info && /^hexen$/i.test(info.name);
+    }
+
+    // un evento automatico que se enciende por lo que acaba de hacer el evento de un jugador ("el
+    // armario ya esta vacio" de los armarios del tunel 7) sigue siendo de ese jugador
+    let followUps = { frame: -10, switches: {} };
+    function followUpOwner(ev) {
+        if (Net.frame - followUps.frame > 120) return 0;
+        const c = ev.page().conditions;
+        return (c.switch1Valid && followUps.switches[c.switch1Id]) || (c.switch2Valid && followUps.switches[c.switch2Id]) || 0;
     }
 
     function startEventSession(n, list, eventId) {
@@ -2155,8 +2171,10 @@
     function startEventSessions() {
         if (!Net.active || inSub || inBattleCtx || !(SceneManager._scene instanceof Scene_Map)) return;
         $gameMap.events().forEach(ev => {
-            if (!ev.isStarting() || !ev.page() || ev.page().trigger > 1) return;
-            const n = ev._coopStarter || 1;
+            if (!ev.isStarting() || !ev.page()) return;
+            const trigger = ev.page().trigger;
+            const n = trigger === 3 ? followUpOwner(ev) : ev._coopStarter || 1;
+            if (trigger > 1 && !(trigger === 3 && n)) return;
             const taken = sessionList().some(s => s.interp.eventId() === ev.eventId()) ||
                 ($gameMap._interpreter.isRunning() && $gameMap._interpreter.eventId() === ev.eventId());
             if (taken) {
@@ -2176,6 +2194,19 @@
             if (ce) updateEventSession(startEventSession(by, ce.list, 0), SceneManager._scene);
         }
     }
+
+    // un objeto usado desde el menu de un jugador: espera a que cierre su menu y es suyo (no del mapa:
+    // si no, el evento era de todos y nadie andaba mientras alguien seguia en su menu)
+    const _Game_Interpreter_setupReservedCommonEvent_session = Game_Interpreter.prototype.setupReservedCommonEvent;
+    Game_Interpreter.prototype.setupReservedCommonEvent = function() {
+        const by = $gameTemp._coopReservedBy || 0;
+        if (Net.active && this === $gameMap._interpreter && by && $gameTemp.isCommonEventReserved() && coop.player(by) &&
+            !isMenuMap() && !Net.left[by] && !coop.isAway(by)) {
+            if (canStartSession(by)) startEventSessions();
+            return false;
+        }
+        return _Game_Interpreter_setupReservedCommonEvent_session.call(this);
+    };
 
     const _Game_Map_setupStartingMapEvent_session = Game_Map.prototype.setupStartingMapEvent;
     Game_Map.prototype.setupStartingMapEvent = function() {
@@ -2278,6 +2309,9 @@
 
     function dropEventSession(s) {
         delete sessions[s.n];
+        // (lo que encendio: los eventos automaticos que dependen de ello siguen siendo suyos)
+        followUps = { frame: Net.frame, switches: {} };
+        Object.keys(s.scope.sw).forEach(id => { if (s.scope.sw[id]) followUps.switches[id] = s.n; });
         closeSessionWindows(s);
         releaseScope(s);
         // lo que sigue pulsado no vuelve a contar como pulsacion (Aceptar empezaria otra vez el mismo
@@ -2373,6 +2407,7 @@
     });
 
     Net.eventSessions = () => sessions; // (para pruebas)
+    Net.followUps = () => followUps;    // (para pruebas)
 
     // El enemigo del combate ni se mueve en el mapa: algunos persiguen con rutas que les pone otro
     // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan

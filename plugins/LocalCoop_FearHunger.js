@@ -3088,9 +3088,13 @@
         [122, 123], 1207: [56], 1208: [48, 49], 1209: [149, 161], 1211: [66], 2845: [294] }
     };
     let switchKnown = 0;
+    let switchForced = 0, switchForcedValue = false;
+    let skillView = false;
     const _Game_Switches_value_known = Game_Switches.prototype.value;
     Game_Switches.prototype.value = function(id) {
         if (id === switchKnown && this === $gameSwitches) return true;
+        if (id === switchForced && this === $gameSwitches) return switchForcedValue;
+        if (skillView && this === $gameSwitches && playedKnows(id)) return true;
         if (id === SW_CLIMBING && climbViewer && this === $gameSwitches) return !!climbState()[climbViewer];
         return _Game_Switches_value_known.call(this, id);
     };
@@ -3107,14 +3111,154 @@
     const _Game_Interpreter_command111_known = Game_Interpreter.prototype.command111;
     Game_Interpreter.prototype.command111 = function() {
         const p = this._params;
-        if (p[0] !== 0 || !starterKnows(this, p[1])) return _Game_Interpreter_command111_known.call(this);
-        switchKnown = p[1];
+        if (p[0] !== 0) return _Game_Interpreter_command111_known.call(this);
+        let forced = null;
+        if (starterKnows(this, p[1])) forced = true;
+        else forced = heroSwitchFor(this, p[1], p[2] === 0);
+        if (forced === null) return _Game_Interpreter_command111_known.call(this);
+        switchForced = p[1];
+        switchForcedValue = forced;
         try {
             return _Game_Interpreter_command111_known.call(this);
         } finally {
-            switchKnown = 0;
+            switchForced = 0;
         }
     };
+
+    // ---- el personaje de cada jugador es "suyo" en los eventos -------------------------------------
+    // Los juegos preguntan "el protagonista es X" con un interruptor por personaje (OCCULTIST_SELECT...).
+    // 1) Un personaje que lleva P2-P4 no es un acompanante: las ramas "si X no es el protagonista" (el
+    //    acompanante que se va del grupo, que no quiere entrar en un sitio...) no le pasan. Marina se
+    //    iba del grupo por la manana, el mod la volvia a poner y el aviso salia en cada cambio de mapa.
+    // 2) Lo que le pasa "al protagonista" en un evento que empezo P2-P4 (el cepo le corta las piernas),
+    //    le pasa a su personaje: solo en las ramas que solo cambian cosas del personaje (sin dialogos).
+    // 3) En Hexen la rama de un concursante que lleva un jugador ensena sus habilidades a ese personaje.
+    const TERMINA_HERO_SWITCH = { 246: 1, 242: 3, 243: 4, 244: 5, 2401: 6, 2402: 15, 2403: 13, 2404: 14, 2405: 35,
+        2406: 36, 2407: 31, 2408: 32, 2409: 33, 2410: 34, 375: 9 };
+    function heroSwitches() {
+        return isTermina() ? TERMINA_HERO_SWITCH : fh1() ? FH1_HERO_SWITCH : null;
+    }
+    // los personajes de P2-P4 (no el protagonista)
+    function playedActorIds() {
+        const leader = $gameParty.leader() ? $gameParty.leader().actorId() : 0;
+        return coop.players().map(pl => pl._coopActorId).filter(id => id && id !== leader);
+    }
+    // la rama saca del grupo a ese personaje
+    function branchRemoves(interpreter, actorId) {
+        const list = interpreter._list;
+        const cmd = list && list[interpreter._index];
+        if (!cmd) return false;
+        for (let k = interpreter._index + 1; k < list.length && list[k].indent > cmd.indent; k++) {
+            const c = list[k];
+            if (c.code === 129 && c.parameters[0] === actorId && c.parameters[1] === 1) return true;
+        }
+        return false;
+    }
+    function isSacrificeList(list) {
+        return ($dataCommonEvents || []).some(ce => ce && ce.list === list && SACRIFICE_CE.test(ce.name));
+    }
+    // ordenes que solo cambian algo de un personaje (o nada que se vea)
+    const OWN_EFFECT_CODES = [0, 108, 111, 121, 122, 123, 126, 212, 213, 230, 250, 311, 312, 313, 314, 318, 319, 411, 412];
+    function branchIsOwnEffect(interpreter) {
+        const list = interpreter._list;
+        const cmd = list && list[interpreter._index];
+        if (!cmd) return false;
+        let any = false;
+        for (let k = interpreter._index + 1; k < list.length && list[k].indent > cmd.indent; k++) {
+            if (OWN_EFFECT_CODES.indexOf(list[k].code) < 0) return false;
+            if (list[k].code) any = true;
+        }
+        return any;
+    }
+    function isHexenMap() {
+        const info = $dataMapInfos && $dataMapInfos[$gameMap.mapId()];
+        return !!info && /^hexen$/i.test(info.name);
+    }
+    // el concursante de la rama de Hexen de este evento (su interruptor de alma), si lo lleva P2-P4
+    function hexenBranchActor(interpreter) {
+        if (!isHexenMap() || !interpreter._list) return 0;
+        if (!contestantList) contestantList = contestants();
+        const played = playedActorIds();
+        for (const c of interpreter._list) {
+            if (c.code !== 111 || c.parameters[0] !== 0 || c.parameters[2] !== 0) continue;
+            const who = contestantList.find(x => x.soul === c.parameters[1]);
+            if (who) return played.indexOf(who.actorId) >= 0 ? who.actorId : 0;
+        }
+        return 0;
+    }
+    // valor que debe tener el interruptor de protagonista switchId en esta condicion (null: el del juego)
+    function heroSwitchFor(interpreter, switchId, askOn) {
+        const table = heroSwitches();
+        const actorId = table && table[switchId];
+        if (!actorId || $gameParty.inBattle() || coop.players().length === 0) return null;
+        if (!askOn) {
+            // "X no es el protagonista" y la rama le saca del grupo: si X lo lleva un jugador (y vive),
+            // no es un acompanante que se va. (Los sacrificios del circulo y el protagonista muerto
+            // siguen como en el juego: los lleva el mod por su lado.)
+            const actor = $gameActors.actor(actorId);
+            if (playedActorIds().indexOf(actorId) < 0 || !actor || !actor.isAlive()) return null;
+            if (isSacrificeList(interpreter._list) || !branchRemoves(interpreter, actorId)) return null;
+            return true;
+        }
+        if (!isTermina()) return null; // (Fear & Hunger 1: el clavo y las derrotas tienen lo suyo)
+        let who = hexenBranchActor(interpreter);
+        if (!who) {
+            const n = interpreter._coopStarter || 0;
+            const pl = n >= 2 ? coop.player(n) : null;
+            who = pl ? pl._coopActorId : 0;
+        }
+        if (!who || !branchIsOwnEffect(interpreter)) return null;
+        return actorId === who;
+    }
+
+    // Hexen: lo que ya sabe el personaje de un jugador se ve aprendido en su rama
+    function playedKnows(switchId) {
+        const skills = isTermina() && SKILL_SWITCHES.termina[switchId];
+        if (!skills) return false;
+        const ids = playedActorIds();
+        return ids.some(id => {
+            const actor = $gameActors.actor(id);
+            return actor && skills.some(s => actor.isLearnedSkill(s));
+        });
+    }
+    const _Game_Event_meetsConditions_known = Game_Event.prototype.meetsConditions;
+    Game_Event.prototype.meetsConditions = function(page) {
+        if (!isTermina() || !isHexenMap() || coop.players().length === 0) return _Game_Event_meetsConditions_known.call(this, page);
+        skillView = true;
+        try {
+            return _Game_Event_meetsConditions_known.call(this, page);
+        } finally {
+            skillView = false;
+        }
+    };
+
+    // Termina: los planos de fabricar los da el juego solo al protagonista que sabe hacerlo. Si el
+    // personaje de un jugador sabe (Abella y fabricar armas), el grupo tiene sus planos.
+    const SCHEMATICS = { 372: 248, 371: 249, 461: 331, 459: 332, 472: 250 };
+    function giveSchematics() {
+        if (!isTermina() || !$gameSystem || coop.players().length === 0) return;
+        const given = $gameSystem._coopSchematics = $gameSystem._coopSchematics || {};
+        playedActorIds().forEach(id => {
+            const actor = $gameActors.actor(id);
+            if (!actor) return;
+            Object.keys(SCHEMATICS).forEach(skillId => {
+                const item = $dataItems[SCHEMATICS[skillId]];
+                if (!item || given[skillId] || !actor.isLearnedSkill(Number(skillId))) return;
+                given[skillId] = true;
+                if ($gameParty.numItems(item) === 0) $gameParty.gainItem(item, 1);
+            });
+        });
+    }
+    const _Game_Map_update_schematics = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        _Game_Map_update_schematics.apply(this, arguments);
+        if (Graphics.frameCount % 60 === 0) giveSchematics();
+    };
+    coop.heroSwitchOf = actorId => {                      // (para pruebas)
+        const table = heroSwitches() || {};
+        return Number(Object.keys(table).find(k => table[k] === actorId)) || 0;
+    };
+    coop.giveSchematics = giveSchematics;                 // (para pruebas)
 
     // Termina: CLIMBING era uno para todos: uno sube y todos se ponian la imagen de escalar, uno baja y
     // todos se la quitaban. Ahora cada personaje lleva lo suyo. El interruptor del juego esta encendido
