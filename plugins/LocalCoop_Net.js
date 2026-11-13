@@ -2710,7 +2710,12 @@
         Object.keys(Net.frames).forEach(f => { if (Number(f) < meta.f) delete Net.frames[f]; });
         closeSceneNow();
         DataManager.createGameObjects();
-        DataManager.extractSaveContents(JsonEx.parse(saveJson));
+        const contents = JsonEx.parse(saveJson);
+        DataManager.extractSaveContents(contents);
+        if (contents.coopMessage instanceof Game_Message) {
+            $gameMessage = contents.coopMessage;
+            rebindChoice();
+        }
         Net.player = slotOf(Net.seat); // (la partida dice a quien lleva cada PC)
         $gameSystem.onAfterLoad(); // musica de la partida (si sigue siendo la misma, no se corta)
         syncTerraxClock();
@@ -2728,6 +2733,18 @@
             banner('Network game: you are P' + Net.player, meta.reason || ('Players: ' + meta.players.map(p => 'P' + p).join(', ')), COLOR_NET, 240);
         } else if (meta.reason) {
             banner(meta.reason, '', COLOR_NET, 160);
+        }
+    }
+
+    // la eleccion que espera respuesta vuelve a ir a su evento (la funcion no se guarda)
+    function rebindChoice() {
+        if (!$gameMessage.isChoice() || !$gameMap) return;
+        for (let it = $gameMap._interpreter; it; it = it._childInterpreter) {
+            const prev = it._list && it._list[it._index - 1];
+            if (it._waitMode === 'message' && prev && prev.code === 102) {
+                $gameMessage.setChoiceCallback(n => { it._branch[it._indent] = n; });
+                return;
+            }
         }
     }
 
@@ -3055,7 +3072,12 @@
             actors: actors,
             config: ConfigManager.makeData()
         };
-        const saveJson = JsonEx.stringify(DataManager.makeSaveContents());
+        const contents = DataManager.makeSaveContents();
+        // (el dialogo que esta en pantalla: la partida guardada no lo lleva. Sin el, una eleccion a
+        // medias - el menu de Per'kele en la torre del sueno - se saltaba y la escena automatica
+        // volvia a empezar: otra vez despertar y otra vez pasaba el tiempo)
+        contents.coopMessage = $gameMessage;
+        const saveJson = JsonEx.stringify(contents);
         Net.inputs = {};
         Net.late = {};
         Net.waitSince = {};

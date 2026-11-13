@@ -833,6 +833,36 @@ g3.ev('CoopNet.localKeys = 0')
 same, frames = aligned_worlds(net, [host, g2, g3])
 check('three PCs in the same world', same, frames)
 
+# --- the host starts the game while a scene waits for a choice (the dream tower after loading a
+# save): the choice stays, and the scene goes on from it (it used to start again from the beginning)
+CHOICE = ("$gameVariables.setValue(17, 0); $gameMap._interpreter.setup(["
+          "{code:101,indent:0,parameters:['',0,0,2]},{code:401,indent:0,parameters:['?']},"
+          "{code:102,indent:0,parameters:[['a','b'],-1,0,2,0]},"
+          "{code:402,indent:0,parameters:[0,'a']},{code:122,indent:1,parameters:[17,17,0,0,1]},{code:0,indent:1,parameters:[]},"
+          "{code:402,indent:0,parameters:[1,'b']},{code:122,indent:1,parameters:[17,17,0,0,2]},{code:0,indent:1,parameters:[]},"
+          "{code:404,indent:0,parameters:[]},{code:0,indent:0,parameters:[]}], 0)")
+ch = Peer(41, 'host')
+cg = Peer(42, 'join')
+cnet = Net(ch, [cg])
+ch.ev(HOST_SETUP)
+ch.ev(CHOICE)
+for _ in range(10):
+    ch.ev('__tick(16)')
+ch.ev("CoopNet.open('host')")
+cg.ev("CoopNet.open('join')")
+tick(cnet, [ch, cg], 5)
+ch.ev('CoopNet.startRequested = true')
+tick(cnet, [ch, cg], 60)
+check('a choice on screen when the host starts is still there on both PCs',
+      all(p.ev('CoopNet.active && $gameMessage.isChoice() && $gameMap._interpreter.isRunning()') for p in (ch, cg)),
+      [p.ev('CoopNet.active && $gameMessage.isChoice()') for p in (ch, cg)])
+aligned_worlds(cnet, [ch, cg])
+for p_ in (ch, cg):
+    p_.ev('$gameMessage.onChoice(1); $gameMessage.clear()')
+tick(cnet, [ch, cg], 20)
+check('...and answering it runs its branch', all(p.ev('$gameVariables.value(17) === 2 && !$gameMap._interpreter.isRunning()') for p in (ch, cg)),
+      [p.ev('$gameVariables.value(17)') for p in (ch, cg)])
+
 # --- who may come in: password and versions ---
 ph = Peer(11, 'host')
 pnet = Net(ph, [])

@@ -1824,9 +1824,17 @@
         return Object.keys(set).length ? set : null;
     }
     const soloHides = new WeakMap();
+    const DOPPEL_TROOP = /d[ou]p+e?l/i;
     function soloHideSwitches(data) {
         if (soloHides.has(data)) return soloHides.get(data);
         const out = [];
+        // (los dobles malvados - "Marina_duppel"... - no son el concursante: siguen como en el juego)
+        const doppel = data.pages.some(pg => pg.list.some(c => c.code === 301 && c.parameters[0] === 0 &&
+            DOPPEL_TROOP.test((($dataTroops || [])[c.parameters[1]] || {}).name || '')));
+        if (doppel) {
+            soloHides.set(data, out);
+            return out;
+        }
         data.pages.forEach(pg => {
             const c = pg.conditions;
             if (!isHidePage(pg) || !c.switch1Valid || c.switch2Valid || c.variableValid || c.selfSwitchValid || c.itemValid || c.actorValid) return;

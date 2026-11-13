@@ -2483,7 +2483,16 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         $gameSwitches.setValue(sel3, false);
         frame();
         var dbl = new Game_Event($gameMap.mapId(), id);
-        check("T74g the double of a player's character is hidden", dbl._pageIndex === 1, dbl._pageIndex);
+        check("T74g the moonscorched form of a player's character is hidden", dbl._pageIndex === 1, dbl._pageIndex);
+        var dopTroop = $dataTroops.findIndex(function(t) { return t && /duppel|doppel/i.test(t.name); });
+        if (dopTroop > 0) {
+            var dd = JSON.parse(JSON.stringify(data)), id2 = id + 1;
+            dd.id = id2;
+            dd.pages[0].list = [{ code: 301, indent: 0, parameters: [0, dopTroop, false, false] }, { code: 0, indent: 0, parameters: [] }];
+            $dataMap.events[id2] = dd;
+            var dop = new Game_Event($gameMap.mapId(), id2);
+            check('T74g2 an evil double (doppelganger) stays, as in the game', dop._pageIndex === 0, dop._pageIndex);
+        }
         var keepHide = CoopLocal.setting('hideNpcs');
         CoopLocal.setSetting('hideNpcs', false);
         frame();
