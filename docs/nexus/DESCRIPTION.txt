@@ -14,6 +14,7 @@ FEATURES
 • Join any time - press a button on the map and pick a character from the party. Online, a guest can also bring the main character of their own save (level, skills, equipment).
 • Battles together or apart - fight the same enemy together, or each one their own battle at the same time. Walk up to a friend's battle and join in. If separate battles give you trouble, the host can switch to battles together.
 • Don't stop each other online - every player talks, reads and loots on their own - only they see it and only their character stands still, the others go on walking and doing their own things. Everybody sees the scenes.
+• Your character is yours in events - a player's character is never treated as a companion who leaves the party; a trap hurts whoever stepped on it; in Termina each character learns their own Hexen branch and can craft with their own skills.
 • Your own light and stamina - every player carries their own torch and has their own running stamina.
 • Death and soul stones - a fallen player leaves a body; bring them back with a soul stone. A dead player watches the others' battles.
 • The protagonist can change - if the protagonist dies, the next player takes over and the story goes on.

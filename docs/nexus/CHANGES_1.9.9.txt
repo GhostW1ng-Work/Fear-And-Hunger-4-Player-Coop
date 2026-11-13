@@ -1,0 +1,12 @@
+Fear & Hunger Co-op v1.9.9 - what's new
+
+* A character a player plays is no longer treated as a companion who leaves. In Termina Marina left the party every morning and the message came at every change of map.
+* Termina: what happens "to the protagonist" in an event a player started happens to that player's character. A bear trap now takes the legs of whoever stepped on it.
+* Termina, Hexen: each player's character learns from their own branch; skills they already know show as learned, new ones show their stone at once; the soul stones counter updates again.
+* Termina: a player's character who knows a craft (Weaponcraft, Trapcraft, Explosives, Botanism, Toxicology) brings its schematics, so crafting works for them too.
+* A player's character's moonscorched form and companion scenes are left out, as if they were the protagonist (setting "Played characters' NPCs"). The evil doubles stay.
+* Online: automatic events that follow a player's own event (the lockers of tunnel 7) stay that player's own.
+* Online: an item used from a player's menu waits until they close the menu; it no longer stopped everybody while somebody was in a menu.
+* Online: starting the game in the dream tower after loading a save no longer replays the wake-up scene and moves time on a second time.
+
+Update: unpack the new version over the old one. Online, every player needs the same version.

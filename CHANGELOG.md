@@ -1,14 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.9.9
 
 - **A character a player plays is not a companion who leaves.** In Termina Marina left the party in the morning (and at the mayor's house); the mod put her back and the message came at every change of map. Branches that take a player's living character out of the party as a companion are skipped now.
 - **Termina: what happens "to the protagonist" in an event a player started happens to that player's character**, when it only changes the character (a bear trap took the protagonist's legs instead of the legs of who stepped on it).
-- **Termina, Hexen:** the branch of a contestant a player plays teaches that player's character; what that character already knows shows as learned; the soul stones counter updates again (online it was not shown to anybody).
+- **Termina, Hexen:** the branch of a contestant a player plays teaches that player's character; what that character already knows shows as learned, and what they learn shows its stone at once; the soul stones counter updates again (online it was not shown to anybody).
 - **Termina: a player's character who knows a craft (Weaponcraft, Trapcraft, Explosives, Botanism, Toxicology) brings its schematics**, so crafting works as for the protagonist.
 - **Online: an automatic event turned on by a player's own event is that player's too** (the lockers of tunnel 7 showed "The locker is empty now" to everybody).
 - **Online: an object used from a player's menu waits for that player to close the menu** and is their own event; it no longer stopped everybody while somebody was still in a menu.
-- **Termina, Hexen: a skill a player's character learns shows its stone at once**, like the protagonist's (it showed only after leaving and coming back).
 - **A player's character's moonscorched form is not there either.** Where the game leaves out a contestant's moonscorched form or scene when that contestant is the protagonist, it now leaves it out while a player plays them too (setting *Played characters' NPCs*). The evil doubles (doppelgangers) stay, as in the game.
 - **Online: when the host starts the game in the middle of a choice, the choice stays.** Started in the dream tower after loading a save, the menu of Per'kele was skipped, the tower scene started again and time went on a second time. (The message windows are made with an empty dialog first: with a choice on screen they crashed.)
 
