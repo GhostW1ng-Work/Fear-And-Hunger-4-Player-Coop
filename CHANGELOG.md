@@ -10,7 +10,7 @@
 - **Online: an object used from a player's menu waits for that player to close the menu** and is their own event; it no longer stopped everybody while somebody was still in a menu.
 - **Termina, Hexen: a skill a player's character learns shows its stone at once**, like the protagonist's (it showed only after leaving and coming back).
 - **A player's character's moonscorched form is not there either.** Where the game leaves out a contestant's moonscorched form or scene when that contestant is the protagonist, it now leaves it out while a player plays them too (setting *Played characters' NPCs*). The evil doubles (doppelgangers) stay, as in the game.
-- **Online: when the host starts the game in the middle of a choice, the choice stays.** Started in the dream tower after loading a save, the menu of Per'kele was skipped, the tower scene started again and time went on a second time.
+- **Online: when the host starts the game in the middle of a choice, the choice stays.** Started in the dream tower after loading a save, the menu of Per'kele was skipped, the tower scene started again and time went on a second time. (The message windows are made with an empty dialog first: with a choice on screen they crashed.)
 
 ## v1.9.8
 

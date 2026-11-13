@@ -2736,6 +2736,21 @@
         }
     }
 
+    // La lista de respuestas se mide al crearla, y el juego la crea siempre sin dialogo abierto: con
+    // una eleccion en pantalla (la que viene en la instantanea) se colgaba ("bitmap of undefined").
+    // Se crea con un dialogo vacio; despues se abre como siempre.
+    const _Window_Message_createSubWindows_net = Window_Message.prototype.createSubWindows;
+    Window_Message.prototype.createSubWindows = function() {
+        const message = $gameMessage;
+        if (!message || !message.isBusy()) return _Window_Message_createSubWindows_net.call(this);
+        $gameMessage = new Game_Message();
+        try {
+            _Window_Message_createSubWindows_net.call(this);
+        } finally {
+            $gameMessage = message;
+        }
+    };
+
     // la eleccion que espera respuesta vuelve a ir a su evento (la funcion no se guarda)
     function rebindChoice() {
         if (!$gameMessage.isChoice() || !$gameMap) return;

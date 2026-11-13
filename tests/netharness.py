@@ -856,6 +856,17 @@ tick(cnet, [ch, cg], 60)
 check('a choice on screen when the host starts is still there on both PCs',
       all(p.ev('CoopNet.active && $gameMessage.isChoice() && $gameMap._interpreter.isRunning()') for p in (ch, cg)),
       [p.ev('CoopNet.active && $gameMessage.isChoice()') for p in (ch, cg)])
+MAKE = r'''(function(){
+    var keep = [Window_Gold, Window_ChoiceList, Window_NumberInput, Window_EventItem], busy = null;
+    function Stub() { this.x = 0; this.y = 0; this.width = 0; this.height = 0; this.openness = 0; }
+    Window_Gold = Window_NumberInput = Window_EventItem = Stub;
+    Window_ChoiceList = function() { busy = $gameMessage.isBusy(); Stub.call(this); };
+    try { Window_Message.prototype.createSubWindows.call({}); } catch (e) { busy = String(e); }
+    Window_Gold = keep[0]; Window_ChoiceList = keep[1]; Window_NumberInput = keep[2]; Window_EventItem = keep[3];
+    return busy === false && $gameMessage.isChoice();
+})()'''
+made = [p.ev(MAKE) for p in (ch, cg)]
+check('...and the message windows can be made with it on screen (they used to crash: bitmap of undefined)', made == [True, True], made)
 aligned_worlds(cnet, [ch, cg])
 for p_ in (ch, cg):
     p_.ev('$gameMessage.onChoice(1); $gameMessage.clear()')
