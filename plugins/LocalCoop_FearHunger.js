@@ -1786,14 +1786,17 @@
         const by = npcSwitchesByActor();
         const roles = {};
         const near = {};
+        const solo = {};
+        const table = heroSwitches() || {};
         (coop.setting('hideNpcs') === false ? [] : playedActors()).forEach(a => {
+            Object.keys(table).forEach(s => { if (table[s] === Number(a)) solo[s] = true; });
             const e = by[a];
             if (!e) return;
             e.roles.forEach(s => { roles[s] = true; });
             if (Object.keys(e.near).length) near[a] = e.near;
         });
-        const key = Object.keys(roles).join(',') + '|' + Object.keys(near).join(',');
-        npcHidden = key !== '|' ? { roles: roles, near: near } : null;
+        const key = Object.keys(roles).join(',') + '|' + Object.keys(near).join(',') + '|' + Object.keys(solo).join(',');
+        npcHidden = key !== '||' ? { roles: roles, near: near, solo: solo } : null;
         if (key !== npcHiddenKey) {
             npcHiddenKey = key;
             $gameMap.requestRefresh();
@@ -1814,7 +1817,23 @@
         const set = Object.assign({}, h.roles);
         const owners = npcActorsOf(data);
         Object.keys(h.near).forEach(a => { if (owners[a]) Object.assign(set, h.near[a]); });
+        // un evento que el juego esconde cuando el protagonista es X (pagina vacia con solo
+        // "X_SELECT"): el doble / la forma "moonscorched" de X, X esperando... Si X lo lleva un
+        // jugador, tampoco esta (aunque en ese mapa nadie contrate a X)
+        soloHideSwitches(data).forEach(s => { if (h.solo[s]) set[s] = true; });
         return Object.keys(set).length ? set : null;
+    }
+    const soloHides = new WeakMap();
+    function soloHideSwitches(data) {
+        if (soloHides.has(data)) return soloHides.get(data);
+        const out = [];
+        data.pages.forEach(pg => {
+            const c = pg.conditions;
+            if (!isHidePage(pg) || !c.switch1Valid || c.switch2Valid || c.variableValid || c.selfSwitchValid || c.itemValid || c.actorValid) return;
+            if (out.indexOf(c.switch1Id) < 0) out.push(c.switch1Id);
+        });
+        soloHides.set(data, out);
+        return out;
     }
 
     const _Game_Event_findProperPageIndex = Game_Event.prototype.findProperPageIndex;
@@ -3230,6 +3249,13 @@
         } finally {
             skillView = false;
         }
+    };
+    // (en cuanto lo aprende se ve, como el protagonista: su interruptor refresca el mapa, esto no)
+    const _Game_Actor_learnSkill_hexen = Game_Actor.prototype.learnSkill;
+    Game_Actor.prototype.learnSkill = function(skillId) {
+        const isNew = !this.isLearnedSkill(skillId);
+        _Game_Actor_learnSkill_hexen.call(this, skillId);
+        if (isNew && $gameMap && isTermina() && isHexenMap()) $gameMap.requestRefresh();
     };
 
     // Termina: los planos de fabricar los da el juego solo al protagonista que sabe hacerlo. Si el

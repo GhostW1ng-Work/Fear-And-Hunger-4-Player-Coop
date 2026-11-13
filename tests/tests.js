@@ -2446,6 +2446,95 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         if (n0) $gameParty.gainItem(item, n0);
         $gameSystem._coopSchematics = {};
     }
+    // Termina, al subir al tren: "me siento un rato" (el companero sale del grupo y espera en el tren)
+    if (termina && typeof __train !== 'undefined') {
+        var sit = __train.events[74].pages[0].list;
+        var waitSw = [2650, 3418, 3573, 3608, 3665, 4008, 2241, 3707], keepWait = waitSw.map(function(s) { return $gameSwitches.value(s); });
+        var party1 = $gameParty._actors.slice(), dir = $gamePlayer.direction();
+        $gameSwitches.setValue(sel3, false);
+        $gameSwitches.setValue(selLead, true);
+        $gamePlayer.setDirection(6);
+        var it3 = new Game_Interpreter();
+        it3.setup(sit, 0);
+        it3._coopStarter = 1;
+        for (k = 0; k < 200 && it3.isRunning(); k++) { it3.update(); $gameMessage.clear(); }
+        check("T74f a player's character does not sit down to wait in the train", $gameParty._actors.indexOf(id3) >= 0 &&
+            waitSw.every(function(s, i) { return $gameSwitches.value(s) === keepWait[i]; }), [$gameParty._actors.join(), id3]);
+        $gameParty._actors = party1;
+        waitSw.forEach(function(s, i) { $gameSwitches.setValue(s, keepWait[i]); });
+        $gamePlayer.setDirection(dir);
+        $gameSwitches.setValue(sel3, keep3);
+        $gameSwitches.setValue(selLead, keepLead);
+    }
+    // el doble / la forma "moonscorched" de un personaje que lleva un jugador no esta (el juego lo
+    // esconde con una pagina vacia "X_SELECT" cuando X es el protagonista)
+    var src = $dataMap.events.filter(function(e) { return e && e.pages[0].image.characterName; })[0];
+    if (src) {
+        var data = JSON.parse(JSON.stringify(src)), id = $dataMap.events.length;
+        data.id = id;
+        data.x = 0; data.y = 0;
+        var hide = JSON.parse(JSON.stringify(data.pages[0]));
+        hide.image.characterName = ''; hide.image.tileId = 0; hide.list = [{ code: 0, indent: 0, parameters: [] }];
+        hide.conditions.switch1Valid = true; hide.conditions.switch1Id = sel3;
+        data.pages = [data.pages[0], hide];
+        data.pages[0].conditions = JSON.parse(JSON.stringify(hide.conditions));
+        data.pages[0].conditions.switch1Valid = false;
+        $dataMap.events[id] = data;
+        $gameSwitches.setValue(sel3, false);
+        frame();
+        var dbl = new Game_Event($gameMap.mapId(), id);
+        check("T74g the double of a player's character is hidden", dbl._pageIndex === 1, dbl._pageIndex);
+        var keepHide = CoopLocal.setting('hideNpcs');
+        CoopLocal.setSetting('hideNpcs', false);
+        frame();
+        dbl.refresh();
+        check("T74h ...and shown with Played characters' NPCs: Shown", dbl._pageIndex === 0, dbl._pageIndex);
+        CoopLocal.setSetting('hideNpcs', keepHide);
+        $dataMap.events.length = id;
+        $gameSwitches.setValue(sel3, keep3);
+        frame();
+    }
+    // Termina: un companero que ya se sento a esperar en el tren (antes de que lo llevara un
+    // jugador) no esta ademas sentado alli mientras lo lleva un jugador
+    if (termina && typeof __train !== 'undefined') {
+        var dm = $dataMap, mid = $gameMap._mapId, waits = { 3: [84, 3665], 5: [72, 2650], 6: [85, 4008] }, shown = [];
+        var keepP3 = $gamePlayer3._coopActorId, keepParty2 = $gameParty._actors.slice(), evs = $gameMap._events;
+        $gameMap._events = [];
+        $dataMap = __train;
+        $gameMap._mapId = 14;
+        Object.keys(waits).forEach(function(a) {
+            a = Number(a);
+            var w = waits[a], had = $gameSwitches.value(w[1]);
+            if ($gameParty._actors.indexOf(a) < 0) $gameParty._actors.push(a);
+            if (!CoopLocal.allPlayers().some(function(pl) { return pl && pl._coopActorId === a; })) $gamePlayer3._coopActorId = a;
+            $gameSwitches.setValue(w[1], true);
+            frame();
+            var e = new Game_Event(14, w[0]);
+            if (e._pageIndex >= 0 && !isHidePageT(e.event().pages[e._pageIndex])) shown.push(a + ':' + e._pageIndex);
+            $gameSwitches.setValue(w[1], had);
+        });
+        $gamePlayer3._coopActorId = keepP3;
+        $gameParty._actors = keepParty2;
+        $dataMap = dm;
+        $gameMap._mapId = mid;
+        $gameMap._events = evs;
+        frame();
+        check("T74j a player's character who sat down in the train before is not also sitting there", shown.length === 0, shown.join());
+    }
+    function isHidePageT(pg) { return !pg.image.characterName && !pg.image.tileId && pg.list.length <= 1; }
+    // Hexen: lo que aprende el personaje de un jugador se ve en seguida (el mapa se refresca)
+    if (termina) {
+        var hexId = $dataMapInfos.findIndex(function(m) { return m && /^hexen$/i.test(m.name); });
+        var a3 = $gameActors.actor(id3), sk = $dataSkills.findIndex(function(s, i) { return i > 0 && s && !a3.isLearnedSkill(i); });
+        var mapId0 = $gameMap._mapId;
+        $gameMap._mapId = hexId;
+        $gameMap._needsRefresh = false;
+        a3.learnSkill(sk);
+        var refreshed = $gameMap._needsRefresh;
+        $gameMap._mapId = mapId0;
+        a3.forgetSkill(sk);
+        check('T74i Hexen: a skill learned by a player\'s character shows at once', hexId > 0 && refreshed, [hexId, sk]);
+    }
     $gameParty._actors = keepParty;
     for (k = 0; k < 5; k++) frame();
 })();
