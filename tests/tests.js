@@ -2575,6 +2575,25 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
         frame();
         check("T75a a player's character does not turn into their moonscorched form (Daan: the pocket cat)", blocked && !$gameSwitches.value(sw), [blocked, $gameSwitches.value(sw)]);
         $gameSwitches._data[sw] = keep;
+        // una forma que esta siempre en el mapa (Chaugnar en el bunker): ganarle mata al concursante
+        var cat = $dataTroops.findIndex(function(t) { return t && t.name === 'Pocketcat2'; });
+        var daanDead = $dataSystem.switches.indexOf('Daan1');
+        var src = $dataMap.events.filter(function(e) { return e && e.pages[0].image.characterName; })[0];
+        if (cat > 0 && daanDead > 0 && src) {
+            var data = JSON.parse(JSON.stringify(src)), id = $dataMap.events.length;
+            data.id = id;
+            data.pages = [data.pages[0]];
+            data.pages[0].conditions = { actorId: 1, actorValid: false, itemId: 1, itemValid: false, selfSwitchCh: 'A', selfSwitchValid: false,
+                switch1Id: 1, switch1Valid: false, switch2Id: 1, switch2Valid: false, variableId: 1, variableValid: false, variableValue: 0 };
+            data.pages[0].list = [{ code: 301, indent: 0, parameters: [0, cat, false, false] }, { code: 601, indent: 0, parameters: [] },
+                { code: 121, indent: 1, parameters: [daanDead, daanDead, 0] }, { code: 0, indent: 1, parameters: [] }, { code: 604, indent: 0, parameters: [] },
+                { code: 0, indent: 0, parameters: [] }];
+            $dataMap.events[id] = data;
+            frame();
+            var form = new Game_Event($gameMap.mapId(), id);
+            check("T75d a form that is always on the map (Chaugnar) is not there while a player plays that contestant", form._pageIndex === -1, form._pageIndex);
+            $dataMap.events.length = id;
+        }
         var mp = pl.actor().mmp;
         pl.actor().setMp(0);
         CoopLocal.calmMind({ _coopStarter: pl.coopIndex(), setWaitMode: function() {} });

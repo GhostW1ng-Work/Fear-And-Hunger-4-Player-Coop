@@ -3869,17 +3869,50 @@
     // Un concursante que lleva un jugador (vivo) no se transforma: los interruptores con los que el
     // juego le transforma (Abella_gone -> Chaugnar en el bunker...) no se encienden, y si ya estaban
     // encendidos (una partida de antes) se apagan. El mundo queda como si no se hubiera transformado.
-    function playedFormSwitches() {
-        if (!isTermina() || !$gameParty || coop.players().length === 0) return {};
-        const out = {};
+    // (los concursantes que lleva un jugador y estan vivos)
+    function playedForms() {
+        if (!isTermina() || !$gameParty || coop.players().length === 0) return [];
         const played = coop.allPlayers().filter(pl => pl && pl.actor && pl.actor()).map(pl => pl.actor())
             .concat($gameParty.leader() ? [$gameParty.leader()] : []);
-        FORMS.forEach(f => {
-            const actor = played.find(a => a.isAlive() && $dataActors[a.actorId()] && $dataActors[a.actorId()].name === f.name);
-            if (actor) f.turn.forEach(name => { const id = switchNamed(name); if (id > 0) out[id] = true; });
-        });
+        return FORMS.filter(f => played.some(a => a.isAlive() && $dataActors[a.actorId()] && $dataActors[a.actorId()].name === f.name));
+    }
+    function playedFormSwitches() {
+        const out = {};
+        playedForms().forEach(f => f.turn.forEach(name => { const id = switchNamed(name); if (id > 0) out[id] = true; }));
         return out;
     }
+    // Algunas formas estan en el mapa siempre, sin interruptor (Chaugnar en el bunker 7: ganarle mata
+    // a Abella - enciende Abella1 - y da su alma). Un suceso con un combate que al ganarlo enciende el
+    // interruptor de muerte de un concursante es una forma suya: no esta mientras lo lleva un jugador.
+    const formOfEventData = new WeakMap();
+    function formOfEvent(data) {
+        if (formOfEventData.has(data)) return formOfEventData.get(data);
+        let key = '';
+        // (el combate es contra la tropa de su forma - Chaugnar, Giant, Cocoon... - y ganarlo le mata:
+        // no su cuerpo, su doble o una cama donde aparece)
+        data.pages.forEach(pg => {
+            pg.list.forEach((cmd, at) => {
+                if (key || cmd.code !== 301 || cmd.parameters[0] !== 0) return;
+                const troop = ($dataTroops[cmd.parameters[1]] || {}).name;
+                const f = FORMS.find(x => x.troop === troop);
+                const deadId = f ? switchNamed(f.dead) : 0;
+                if (deadId > 0 && pg.list.slice(at + 1).some(c => c.code === 121 && c.parameters[2] === 0 &&
+                    c.parameters[0] <= deadId && deadId <= c.parameters[1])) key = f.key;
+            });
+        });
+        formOfEventData.set(data, key);
+        return key;
+    }
+    let playedFormsKey = '';
+    const _Game_Event_findProperPageIndex_playedForms = Game_Event.prototype.findProperPageIndex;
+    Game_Event.prototype.findProperPageIndex = function() {
+        const data = this.event();
+        if (data && playedFormsKey && isTermina()) {
+            const key = formOfEvent(data);
+            if (key && playedFormsKey.split(',').indexOf(key) >= 0) return -1;
+        }
+        return _Game_Event_findProperPageIndex_playedForms.call(this);
+    };
     const _Game_Switches_setValue_playedForms = Game_Switches.prototype.setValue;
     Game_Switches.prototype.setValue = function(switchId, value) {
         if (value && this === $gameSwitches && playedFormSwitches()[switchId]) return;
@@ -3888,6 +3921,11 @@
     const _Game_Map_update_playedForms = Game_Map.prototype.update;
     Game_Map.prototype.update = function(sceneActive) {
         _Game_Map_update_playedForms.apply(this, arguments);
+        const key = playedForms().map(f => f.key).join(',');
+        if (key !== playedFormsKey) {
+            playedFormsKey = key;
+            this.requestRefresh();
+        }
         if (Graphics.frameCount % 60 !== 0 || !$gameSwitches) return;
         const ids = playedFormSwitches();
         Object.keys(ids).forEach(id => {
@@ -3927,7 +3965,8 @@
     };
     // Termina: en los sitios seguros (el tren, el bar) unas velas en un sitio libre. Sentarse junto a
     // ellas devuelve toda la mente (el rato que hay que esperar alli para recuperarla es largo).
-    const CALM_SPOTS = { Train_cabins: [[11, 43], [14, 21]], Speakeasy: [[29, 14]] };
+    // (junto a la pared, sin tapar camas, asientos ni el paso)
+    const CALM_SPOTS = { Train_cabins: [[5, 20], [23, 44]], Speakeasy: [[29, 14]] };
     function calmEventData(at, id) {
         const d = formEventData({ key: 'calm', at: [0, at[0], at[1]], look: [2, 0] }, id);
         d.name = 'coop_calm';
