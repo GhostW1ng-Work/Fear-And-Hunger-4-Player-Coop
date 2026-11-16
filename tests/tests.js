@@ -2548,6 +2548,48 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     for (k = 0; k < 5; k++) frame();
 })();
 
+// --- T75: curar lo malo, los personajes de los jugadores no se transforman, las velas, la diagonal ---
+(function() {
+    SceneManager._scene = scene;
+    var k;
+    for (k = 0; k < 3; k++) frame();
+    var termina = /termina/i.test($dataSystem.gameTitle);
+    var a = $gameParty.leader();
+    var poison = $dataStates.findIndex(function(s) { return s && s.name === 'Poisoned'; });
+    var heroin = $dataSystem.variables.findIndex(function(n) { return n && /_heroin$/i.test(n); });
+    if (poison > 0) a.addState(poison);
+    if (heroin > 0) $gameVariables.setValue(heroin, 4);
+    CoopLocal.cureAll();
+    check('T75 the cheat cures what is bad (poison, heroin addiction)', (poison < 0 || !a.isStateAffected(poison)) && (heroin < 0 || $gameVariables.value(heroin) === 0), [poison, heroin]);
+    if (!termina) return;
+    var keepParty = $gameParty._actors.slice();
+    if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }
+    var pl = [$gamePlayer2, $gamePlayer3].filter(function(p) { return p && p.actor() && p.actor().actorId() === 4; })[0];
+    var sw = $dataSystem.switches.indexOf('Pocketdaan_appear');
+    if (pl && sw > 0) {
+        var keep = $gameSwitches.value(sw);
+        $gameSwitches.setValue(sw, true);
+        var blocked = !$gameSwitches.value(sw);
+        $gameSwitches._data[sw] = true;
+        Graphics.frameCount = 600;
+        frame();
+        check("T75a a player's character does not turn into their moonscorched form (Daan: the pocket cat)", blocked && !$gameSwitches.value(sw), [blocked, $gameSwitches.value(sw)]);
+        $gameSwitches._data[sw] = keep;
+        var mp = pl.actor().mmp;
+        pl.actor().setMp(0);
+        CoopLocal.calmMind({ _coopStarter: pl.coopIndex(), setWaitMode: function() {} });
+        check('T75b the candles in the safe places give the mind back to who sits by them', pl.actor().mp === mp, [pl.actor().mp, mp]);
+        $gameMessage.clear();
+    } else {
+        check('T75a setup: Daan is played', false, [!!pl, sw]);
+    }
+    if (typeof $gamePlayer.isDiagonalEnabled === 'function') {
+        check('T75c P2 walks diagonally like the protagonist (VE_DiagonalMovement)', $gamePlayer2.isDiagonalEnabled() === $gamePlayer.isDiagonalEnabled() && $gamePlayer2.isDiagonalEnabled());
+    }
+    $gameParty._actors = keepParty;
+    for (k = 0; k < 5; k++) frame();
+})();
+
 // --- T70: FH1, lo que el juego le hace "al protagonista" ---
 (function() {
     if (!/fear/i.test($dataSystem.gameTitle || '') || /termina/i.test($dataSystem.gameTitle || '')) return;

@@ -365,6 +365,54 @@ check('back in sync after the snapshot', same, frames)
 p2after = [p.ev('[$gamePlayer2.x, $gamePlayer2.y].join(",")') for p in (host, g2)]
 check('P2 kept its place after the snapshot', p2after == [p2before, p2before], '%s %s' % (p2before, p2after))
 
+# --- the things of the party count too: a weapon only one PC has is found and fixed ---
+g2.ev('$gameParty.gainItem($dataWeapons.filter(function(w){ return w && w.name; })[1], 1)')
+tick(net, [host, g2], 200)
+same, frames = aligned_worlds(net, [host, g2])
+WEAPONS = 'JSON.stringify($gameParty._weapons)'
+check('a weapon only on one PC is found and fixed (the host world for both)', same and host.ev(WEAPONS) == g2.ev(WEAPONS), [host.ev(WEAPONS), g2.ev(WEAPONS)])
+
+# --- saving is the host's: the save screen runs on every PC, only the host writes the file ---
+FILES = 'Object.keys(__files).filter(function(k){ return /file77/.test(k); }).length'
+for p_ in (host, g2):
+    p_.ev('$gameSystem.onBeforeSave(); DataManager.saveGame(77)')
+check('a save is written only on the host PC (the guests keep their own slots)', host.ev(FILES) > 0 and g2.ev(FILES) == 0, [host.ev(FILES), g2.ev(FILES)])
+
+# --- a group of enemies (same troop): while one fights a player the others stand still, and the one
+# that touches another player brings them into that battle (not a second battle with the same enemies)
+aligned_worlds(net, [host, g2])
+GROUP = r"""(function(){
+    var evs = $gameMap.events().filter(function(e){ return e && e.page(); });
+    var a = evs[0], b = evs[1], pg = b.page();
+    window.__grp = { b: b, keep: { list: pg.list, moveType: pg.moveType, sep: CoopNet.separate } };
+    CoopNet.separate = true;
+    pg.list = [{code:301,indent:0,parameters:[0,3,false,false]},{code:0,indent:0,parameters:[]}];
+    pg.moveType = 1; b._moveType = 1; b._moveFrequency = 5; b._moveSpeed = 4;
+    b._coopTries = 0;
+    b.isNearTheScreen = function() { return true; };
+    b.moveTypeRandom = function() { this._coopTries++; };
+    for (var i = 0; i < 5; i++) { b._stopCount = 9999; b.updateSelfMovement(); }
+    window.__grp.free = b._coopTries;
+    b._coopTries = 0;
+    CoopNet.battles().push({ __fake: true, involved: [1], joins: [], inputs: {}, mapId: $gameMap.mapId(), foe: a, troopId: 3, started: true });
+    return [b.x, b.y].join(',');
+})()"""
+gpos = [p.ev(GROUP) for p in (host, g2)]
+MOVES = "(function(){ var b = __grp.b; for (var i = 0; i < 5; i++) { b._stopCount = 9999; b.updateSelfMovement(); } var n = b._coopTries; delete b.isNearTheScreen; delete b.moveTypeRandom; return n; })()"
+check('a group: while one of them fights, the others stand still (without a battle it walks)',
+      [p.ev(MOVES) for p in (host, g2)] == [0, 0] and all(p.ev('__grp.free') > 0 for p in (host, g2)), [p.ev('__grp.free') for p in (host, g2)])
+JOIN = r"""(function(){
+    var b = __grp.b, it = new Game_Interpreter(), n = CoopNet.battles().length;
+    it.setup(b.page().list, b.eventId()); it._coopStarter = 2; it.update();
+    var f = CoopNet.battles().filter(function(x){ return x.__fake; })[0];
+    return [f.joins.join(','), CoopNet.battles().length === n, it.isRunning()].join(' ');
+})()"""
+gj = [p.ev(JOIN) for p in (host, g2)]
+check('a group: one of them touching P2 brings P2 into that battle (no second battle)', gj == ['2 true false'] * 2, gj)
+for p_ in (host, g2):
+    p_.ev("(function(){ var a = CoopNet.battles(); for (var i = a.length - 1; i >= 0; i--) if (a[i].__fake) a.splice(i, 1); var pg = __grp.b.page(); pg.list = __grp.keep.list; pg.moveType = __grp.keep.moveType; __grp.b._moveType = __grp.keep.moveType; CoopNet.separate = __grp.keep.sep; })()")
+tick(net, [host, g2], 5)
+
 # --- P2 opens their menu: the game goes on for everybody, P2 stands still ---
 g2.ev('CoopNet.localKeys = 32')  # cancel = menu
 tick(net, [host, g2], 6)
@@ -602,7 +650,7 @@ if len(ids) == 2:
         p_.ev("CoopNet.eventSessions()[2].message.clear()")
     tick(net, [host, g2], 10)
     # a scene command: the event becomes the event of the map and everybody sees it
-    start_as(2, ids[0], SAY + ",{code:223,indent:0,parameters:[[0,0,0,0],1,false]}," + SAY)
+    start_as(2, ids[0], SAY + ",{code:224,indent:0,parameters:[[255,255,255,170],1,false]}," + SAY)
     tick(net, [host, g2], 3)
     for p_ in (host, g2):
         p_.ev("CoopNet.eventSessions()[2].message.clear()")
@@ -613,6 +661,22 @@ if len(ids) == 2:
         p_.ev('$gameMessage.clear()')
     tick(net, [host, g2], 10)
     check('sessions: it ended, the map is free', both(RUNNING) == [False, False], both(RUNNING))
+    # a tint that comes back (sawing off a head) is only on that player's screen; one that stays goes to the map
+    TONE = "$gameScreen._toneTarget.join(',')"
+    tone0 = both(TONE)
+    start_as(2, ids[0], "{code:223,indent:0,parameters:[[-255,-255,-255,0],5,true]},{code:230,indent:0,parameters:[5]},{code:223,indent:0,parameters:[[0,0,0,0],5,true]}")
+    tick(net, [host, g2], 4)
+    check('sessions: a tint in P2\'s event stays their own (the map is not stopped, its screen not tinted)',
+          both(SESS) == ['2', '2'] and both(RUNNING) == [False, False] and both(TONE) == tone0 and
+          both("CoopNet.eventSessions()[2].screen._toneTarget[0]") == [-255, -255], [both(SESS), both(TONE)])
+    tick(net, [host, g2], 30)
+    check('sessions: ...and it ended, the map tone as before', both(SESS) == ['', ''] and both(TONE) == tone0, [both(SESS), both(TONE)])
+    start_as(2, ids[0], "{code:223,indent:0,parameters:[[-68,-68,-68,0],1,true]}")
+    tick(net, [host, g2], 10)
+    check('sessions: a tint that stays (a dark room) goes to the map for everybody', both(TONE) == ['-68,-68,-68,0'] * 2, both(TONE))
+    for p_ in (host, g2):
+        p_.ev('$gameScreen.startTint([0,0,0,0], 1)')
+    tick(net, [host, g2], 5)
     # a transfer waits for the others to finish
     m0 = host.ev('$gameMap.mapId()')
     start_as(2, ids[0], SAY)

@@ -1963,11 +1963,41 @@
             actorName + ', active ' + win);
     }
 
+    // Un grupo de enemigos (los tres de la misma tropa por el mapa): mientras uno lucha con un jugador,
+    // los otros se quedan quietos, y si alguno toca a otro jugador, este se une a ese combate (antes
+    // empezaba otro igual: los mismos tres enemigos otra vez).
+    const troopOfList = new WeakMap();
+    function troopsOfList(list) {
+        if (!list) return [];
+        if (!troopOfList.has(list)) {
+            troopOfList.set(list, list.filter(c => c.code === 301 && c.parameters[0] <= 1).map(c => c.parameters));
+        }
+        return troopOfList.get(list).map(p => p[0] === 0 ? p[1] : $gameVariables.value(p[1]));
+    }
+    function groupBattleOf(ev) {
+        if (!ev || !battles.length || !(ev instanceof Game_Event) || !ev.page()) return null;
+        const troops = troopsOfList(ev.list());
+        if (!troops.length) return null;
+        return battles.find(b => b.mapId === $gameMap.mapId() && b.foe && b.foe !== ev && troops.indexOf(b.troopId) >= 0) || null;
+    }
+    const _Game_Event_updateSelfMovement_group = Game_Event.prototype.updateSelfMovement;
+    Game_Event.prototype.updateSelfMovement = function() {
+        if (Net.active && battles.length && groupBattleOf(this)) return;
+        _Game_Event_updateSelfMovement_group.call(this);
+    };
+
     // "Procesar combate" de un evento que empezo un jugador: combate aparte
     const _Game_Interpreter_command301 = Game_Interpreter.prototype.command301;
     Game_Interpreter.prototype.command301 = function() {
         if (!Net.active || !Net.separate || inSub) return _Game_Interpreter_command301.call(this);
         const starter = this._coopStarter;
+        const group = starter && this._eventId > 0 && this._mapId === $gameMap.mapId() ? groupBattleOf($gameMap.event(this._eventId)) : null;
+        if (group) {
+            // (el grupo ya lucha: se une a ese combate; este enemigo no empieza otro)
+            if (!inSeparateBattle(starter) || group.involved.indexOf(starter) < 0) queueJoin(starter, 'attacked by the same group', group);
+            this.command115();
+            return true;
+        }
         if (starter && inSeparateBattle(starter)) return false; // (ya lucha: espera)
         const map = SceneManager._scene;
         if (!(map instanceof Scene_Map) || !starter || (starter !== 1 && !coop.player(starter)) || $gameParty.inBattle()) {
@@ -2019,6 +2049,8 @@
         const foe = this._eventId > 0 && this._mapId === $gameMap.mapId() ? $gameMap.event(this._eventId) : null;
         if (foe) foe._locked = true;
         b.foe = foe;
+        b.mapId = $gameMap.mapId();
+        b.troopId = b.troop ? b.troop._troopId : 0;
         Net.battleSeq = b.seq;
         battles.push(b);
         // PvP: todos los jugadores de los bandos luchan en el mismo combate, con sus turnos
@@ -2110,7 +2142,8 @@
     // algo de escena (traslado, fundido, tono, temblor, camara, musica, video, combate, tienda...)
     // pasa a ser el evento del mapa de siempre, y lo ven todos, sin poder andar. Los eventos automaticos
     // y los que empieza un enemigo al tocarte son del mapa desde el principio.
-    const SCENE_COMMANDS = new Set([129, 201, 203, 204, 211, 216, 217, 221, 222, 223, 224, 225, 241, 242, 243, 244, 245, 246, 251,
+    // (el tono - 223 - no: oscurecer la pantalla un momento, al serrar una cabeza..., es de quien lo hace)
+    const SCENE_COMMANDS = new Set([129, 201, 203, 204, 211, 216, 217, 221, 222, 224, 225, 241, 242, 243, 244, 245, 246, 251,
         261, 283, 284, 301, 302, 303, 351, 352, 353, 354]);
 
     function isSceneCommand(cmd) {
@@ -2161,8 +2194,12 @@
         it._coopStarter = n;
         const s = {
             isSession: true, n: n, interp: it, message: new Game_Message(), screen: new Game_Screen(),
-            input: newVirtualInput(Net.raw[n] || 0), scope: { sw: {}, vars: {} }, wantsMap: false, windows: null, pictures: null
+            input: newVirtualInput(Net.raw[n] || 0), scope: { sw: {}, vars: {} }, wantsMap: false, windows: null, pictures: null,
+            toneTouched: false, tone0: $gameScreen._tone.slice()
         };
+        // (el tono de su pantalla empieza como el del mapa)
+        s.screen._tone = $gameScreen._tone.slice();
+        s.screen._toneTarget = $gameScreen._toneTarget.slice();
         sessions[n] = s;
         return s;
     }
@@ -2309,6 +2346,12 @@
 
     function dropEventSession(s) {
         delete sessions[s.n];
+        // el tono que deja (una habitacion que se oscurece) pasa al mapa; si vuelve a como estaba, nada
+        if (s.toneTouched && s.screen._toneTarget.some((v, i) => v !== s.tone0[i])) {
+            $gameScreen._tone = s.screen._tone.slice();
+            $gameScreen._toneTarget = s.screen._toneTarget.slice();
+            $gameScreen._toneDuration = s.screen._toneDuration;
+        }
         // (lo que encendio: los eventos automaticos que dependen de ello siguen siendo suyos)
         followUps = { frame: Net.frame, switches: {} };
         Object.keys(s.scope.sw).forEach(id => { if (s.scope.sw[id]) followUps.switches[id] = s.n; });
@@ -2390,6 +2433,25 @@
         return _Game_Interpreter_executeCommand_session.call(this);
     };
 
+    // el tono en el evento de un jugador: en su pantalla (y solo se ve en su PC)
+    const _Game_Interpreter_command223_session = Game_Interpreter.prototype.command223;
+    Game_Interpreter.prototype.command223 = function() {
+        if (inEventCtx && session) session.toneTouched = true;
+        return _Game_Interpreter_command223_session.apply(this, arguments);
+    };
+    const _Spriteset_Base_updateToneChanger_session = Spriteset_Base.prototype.updateToneChanger;
+    Spriteset_Base.prototype.updateToneChanger = function() {
+        const s = Net.active && !inSub && !inBattleCtx ? sessions[Net.player] : null;
+        if (!s || !s.toneTouched) return _Spriteset_Base_updateToneChanger_session.call(this);
+        const screen = $gameScreen;
+        $gameScreen = s.screen;
+        try {
+            _Spriteset_Base_updateToneChanger_session.call(this);
+        } finally {
+            $gameScreen = screen;
+        }
+    };
+
     const _Scene_Map_terminate_session = Scene_Map.prototype.terminate;
     Scene_Map.prototype.terminate = function() {
         if (!inSub) closeAllEventSessions();
@@ -2466,9 +2528,14 @@
         const party = $gameParty ? $gameParty._actors.join('.') + ':' + $gameParty.members().map(a => a.hp + '/' + a.mp).join('.') : '';
         const switches = $gameSwitches ? $gameSwitches._data.map((v, i) => v ? i : '').join(',') : '';
         const vars = $gameVariables ? $gameVariables._data.join(',') : '';
-        return [scene + ':' + ($gameMap ? $gameMap.mapId() : 0), players, events, party, switches, vars, String(rngState)];
+        // (lo que lleva el grupo y lo que lleva puesto cada uno: si no, una diferencia aqui no se veia
+        // y no se arreglaba - el arma fabricada solo estaba en el PC del anfitrion)
+        const bag = o => Object.keys(o || {}).map(k => k + 'x' + o[k]).join(',');
+        const items = $gameParty ? [$gameParty._gold, bag($gameParty._items), bag($gameParty._weapons), bag($gameParty._armors)].join('|') + ':' +
+            $gameParty.members().map(a => (a._equips || []).map(e => e ? e._dataClass[0] + e._itemId : '').join('.')).join('|') : '';
+        return [scene + ':' + ($gameMap ? $gameMap.mapId() : 0), players, events, party, switches, vars, String(rngState), items];
     }
-    const PART_NAMES = ['scene/map', 'players', 'events', 'party', 'switches', 'variables', 'random'];
+    const PART_NAMES = ['scene/map', 'players', 'events', 'party', 'switches', 'variables', 'random', 'items'];
 
     // ---- diario para el registro de desync: que estaba haciendo el juego en cada cuadro ------------
     // La huella solo se compara cada segundo. Para ver DONDE se separan dos PC se guarda lo que cambia
@@ -2650,6 +2717,15 @@
         }
         ConfigManager.applyData(merged);
     }
+
+    // Guardar es del anfitrion: la pantalla de guardar va en todos los PC a la vez (como todo), y cada
+    // invitado escribia la partida del anfitrion encima de sus propias ranuras. En los invitados no se
+    // escribe nada (y todo sigue igual que si se hubiera guardado, para que no se separen).
+    const _DataManager_saveGame_net = DataManager.saveGame;
+    DataManager.saveGame = function(savefileId) {
+        if (Net.active && Net.role === 'join') return true;
+        return _DataManager_saveGame_net.apply(this, arguments);
+    };
 
     const _ConfigManager_save = ConfigManager.save;
     ConfigManager.save = function() {

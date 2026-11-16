@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Online: the things of the party are checked too.** The check that keeps all PCs in the same world did not look at items, gold and equipment: when they went apart (a crafted weapon only on the host's PC, equipment gone on the guests), nothing fixed it. Now it is found and fixed like any other difference (everybody gets the host's world), and `coop_net_desync.log` shows it.
+- **Online: only the host writes saves.** The save screen runs on every PC at once, and each guest wrote the host's save over their own slot with the same number.
+- **Online: a tint in a player's own event is only on their screen** (sawing off a head, planting a flower): the others are not stopped and their screen does not go dark. A tint that stays (a room that gets darker) goes to everybody when the event ends.
+- **Online, separate battles: a group of enemies fights as one.** While one of them fights a player, the others of the same group stand still; if one of them touches another player, that player joins the battle that is going on instead of starting the same battle again.
+- **Termina: a character a player plays never turns into their moonscorched form** (Abella - Chaugnar in the bunker, Daan - the pocket cat...). The switches that turn them do not go on, and if they already were on (an older save), they go off.
+- **Termina: candles in the safe places** (two in the train, one in the bar): sitting by them gives the mind back at once.
+- New cheat: **cure everything bad** - addiction to heroin and withdrawal, infections, poison, bleeding, phobias and the like (not lost arms or legs).
+- **P2-P4 walk diagonally like the protagonist**, with the diagonal pictures.
+
 ## v1.9.9
 
 - **A character a player plays is not a companion who leaves.** In Termina Marina left the party in the morning (and at the mayor's house); the mod put her back and the message came at every change of map. Branches that take a player's living character out of the party as a companion are skipped now.

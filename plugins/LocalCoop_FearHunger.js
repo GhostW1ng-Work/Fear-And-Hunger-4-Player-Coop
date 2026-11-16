@@ -1171,6 +1171,32 @@
         }
     });
 
+    // quitar lo malo: estados (veneno, sangrado, infecciones, fobias, abstinencia...) y la adiccion a la
+    // heroina y las infecciones que el juego lleva en variables. No devuelve brazos ni piernas.
+    const BAD_STATE = /^(Nausea|Bleeding|Silence|Confused|Fascination|Sleep|Blind|Blindness2?|Terror|Concussion|Poisoned|Fracture|Critical state|Vulnerable|Depressed|Infection (leg|arm)|Parasites|Weakness2?|Weakness_temp(_invisible)?|Phobia|\w+phobia|Burns|Burning(_small)?|Curse2?|Face rip|Toxic|Paralyzed|HEROIN|Heroin|Withdrawal symptom|black_vomit|Head_pressure[12]|Head pressure|Mild poisoning|Irritation|mind_crumble|Light[ _]sensitive2?|Hesitation2?|Fear LVL \d|Defence down|Attack debuff|Defence debuff|Evasion debuff|attack_drop|defence_drop|Stunned!|Soul sucked|ACID|death_incoming)$/;
+    const BAD_VARIABLE = /(_heroin|_withdrawal|_infection_(arm|leg))$/i;
+    function cureAll() {
+        const bad = ($dataStates || []).filter(st => st && st.id > 1 && BAD_STATE.test(st.name)).map(st => st.id);
+        $gameParty.members().forEach(a => {
+            if (a.isDead()) return;
+            bad.forEach(id => { if (a.isStateAffected(id)) a.removeState(id); });
+        });
+        ($dataSystem.variables || []).forEach((name, id) => {
+            if (name && BAD_VARIABLE.test(name) && $gameVariables.value(id)) $gameVariables.setValue(id, 0);
+        });
+    }
+    coop.addAssignAction({
+        cheat: true,
+        name() {
+            return 'Cheat: cure everything bad (addiction, infections, poison...)';
+        },
+        run() {
+            cureAll();
+            SoundManager.playRecovery();
+        }
+    });
+    coop.cureAll = cureAll;                               // (para pruebas)
+
     // ---- trucos para probar el final B de Termina (la torre) ----------------------------------
     // La puerta de la torre (Temple_site_2) solo se abre si en el grupo hay uno solo y quedan
     // vivos como mucho 1 concursante (CHARACTERS_LEFT; empieza en 14). Al morir un concursante el
@@ -3840,6 +3866,36 @@
         _Game_Switches_setValue_forms.apply(this, arguments);
     };
 
+    // Un concursante que lleva un jugador (vivo) no se transforma: los interruptores con los que el
+    // juego le transforma (Abella_gone -> Chaugnar en el bunker...) no se encienden, y si ya estaban
+    // encendidos (una partida de antes) se apagan. El mundo queda como si no se hubiera transformado.
+    function playedFormSwitches() {
+        if (!isTermina() || !$gameParty || coop.players().length === 0) return {};
+        const out = {};
+        const played = coop.allPlayers().filter(pl => pl && pl.actor && pl.actor()).map(pl => pl.actor())
+            .concat($gameParty.leader() ? [$gameParty.leader()] : []);
+        FORMS.forEach(f => {
+            const actor = played.find(a => a.isAlive() && $dataActors[a.actorId()] && $dataActors[a.actorId()].name === f.name);
+            if (actor) f.turn.forEach(name => { const id = switchNamed(name); if (id > 0) out[id] = true; });
+        });
+        return out;
+    }
+    const _Game_Switches_setValue_playedForms = Game_Switches.prototype.setValue;
+    Game_Switches.prototype.setValue = function(switchId, value) {
+        if (value && this === $gameSwitches && playedFormSwitches()[switchId]) return;
+        _Game_Switches_setValue_playedForms.apply(this, arguments);
+    };
+    const _Game_Map_update_playedForms = Game_Map.prototype.update;
+    Game_Map.prototype.update = function(sceneActive) {
+        _Game_Map_update_playedForms.apply(this, arguments);
+        if (Graphics.frameCount % 60 !== 0 || !$gameSwitches) return;
+        const ids = playedFormSwitches();
+        Object.keys(ids).forEach(id => {
+            if ($gameSwitches.value(Number(id))) _Game_Switches_setValue_playedForms.call($gameSwitches, Number(id), false);
+        });
+    };
+    coop.playedFormSwitches = playedFormSwitches;          // (para pruebas)
+
     // la figura: un suceso mas en los datos del mapa (al cargarlo; siempre el mismo numero)
     let formsLoadingMap = 0;
     const _DataManager_loadMapData_forms = DataManager.loadMapData;
@@ -3869,6 +3925,37 @@
             object.events.push(formEventData(f, object.events.length));
         });
     };
+    // Termina: en los sitios seguros (el tren, el bar) unas velas en un sitio libre. Sentarse junto a
+    // ellas devuelve toda la mente (el rato que hay que esperar alli para recuperarla es largo).
+    const CALM_SPOTS = { Train_cabins: [[11, 43], [14, 21]], Speakeasy: [[29, 14]] };
+    function calmEventData(at, id) {
+        const d = formEventData({ key: 'calm', at: [0, at[0], at[1]], look: [2, 0] }, id);
+        d.name = 'coop_calm';
+        delete d._coopForm;
+        d.pages[0].image.characterName = '$candles1';
+        d.pages[0].image.direction = 2;
+        d.pages[0].stepAnime = true;
+        d.pages[0].list = [{ code: 355, indent: 0, parameters: ['CoopLocal.calmMind(this)'] }, { code: 0, indent: 0, parameters: [] }];
+        return d;
+    }
+    coop.calmMind = function(it) {
+        const n = it._coopStarter || 1;
+        const pl = n >= 2 ? coop.player(n) : null;
+        const actor = pl && pl.actor ? pl.actor() : $gameParty.leader();
+        if (!actor || actor.isDead()) return;
+        actor.setMp(actor.mmp);
+        SoundManager.playRecovery();
+        $gameMessage.add(coop.tr('You sit by the candles for a while. Your mind is clear again.'));
+        it.setWaitMode('message');
+    };
+    const _DataManager_onLoad_calm = DataManager.onLoad;
+    DataManager.onLoad = function(object) {
+        _DataManager_onLoad_calm.apply(this, arguments);
+        if (object !== $dataMap || !object || !object.events || !isTermina()) return;
+        const info = $dataMapInfos && $dataMapInfos[formsLoadingMap];
+        (CALM_SPOTS[info ? info.name : ''] || []).forEach(at => object.events.push(calmEventData(at, object.events.length)));
+    };
+
     const _Game_Event_findProperPageIndex_forms = Game_Event.prototype.findProperPageIndex;
     Game_Event.prototype.findProperPageIndex = function() {
         const data = this.event();

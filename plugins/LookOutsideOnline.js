@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.9.9';
+    const COOP_VERSION = '1.9.10-test1';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
@@ -418,7 +418,7 @@
         'Play over the local network, each player on their own PC.': 'Игра по локальной сети, каждый игрок на своём ПК.', 'Who controls each character in combat': 'Кто управляет каждым персонажем в бою',
         'Left / Right or OK: change    Cancel: back    (P2-P4 main: away / take it;  "Pn plays it": for who waits)':
             'Влево/Вправо, OK: сменить   Отмена: назад   (P2–P4: отошёл / забрать; «Pn играет» — ожидающему)',
-        'Cheat: restore HP, mind and hunger': 'Чит: восстановить здоровье, рассудок и голод', 'Cheat: get torches and fire': 'Чит: факелы и огонь',
+        'Cheat: restore HP, mind and hunger': 'Чит: восстановить здоровье, рассудок и голод', 'Cheat: cure everything bad (addiction, infections, poison...)': 'Чит: вылечить всё плохое (зависимость, инфекции, яд...)', 'You sit by the candles for a while. Your mind is clear again.': 'Вы сидите у свечей какое-то время. Рассудок снова ясен.','Cheat: get torches and fire': 'Чит: факелы и огонь',
         'Cheat: kill all contestants not in the party': 'Чит: убить всех участников не в отряде', 'Cheat: teleport to the tower door': 'Чит: телепорт к двери башни',
         'PARTY': 'ОТРЯД', 'G: camera': 'G: камера', 'measuring...': 'измеряю...',
         // menu de red
@@ -2142,6 +2142,11 @@
         if (this.isMovementSucceeded()) {
             this.checkEventTriggerHere([1, 2]);
         }
+    };
+
+    // (VE_DiagonalMovement: P2-P4 andan en diagonal con su imagen diagonal, como el protagonista)
+    Game_CoopPlayer.prototype.isDiagonalEnabled = function() {
+        return !!$gamePlayer && typeof $gamePlayer.isDiagonalEnabled === 'function' && $gamePlayer.isDiagonalEnabled();
     };
 
     Game_CoopPlayer.prototype.moveDiagonally = function(horz, vert) {
