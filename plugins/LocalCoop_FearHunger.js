@@ -3869,12 +3869,14 @@
     // Un concursante que lleva un jugador (vivo) no se transforma: los interruptores con los que el
     // juego le transforma (Abella_gone -> Chaugnar en el bunker...) no se encienden, y si ya estaban
     // encendidos (una partida de antes) se apagan. El mundo queda como si no se hubiera transformado.
+    const FORM_ACTOR = { levi: 1, marina: 3, daan: 4, abella: 5, osaa: 6, marcoh: 13, karin: 14, olivia: 15, henryk: 33, samarie: 36 };
     // (los concursantes que lleva un jugador y estan vivos)
     function playedForms() {
         if (!isTermina() || !$gameParty || coop.players().length === 0) return [];
         const played = coop.allPlayers().filter(pl => pl && pl.actor && pl.actor()).map(pl => pl.actor())
             .concat($gameParty.leader() ? [$gameParty.leader()] : []);
-        return FORMS.filter(f => played.some(a => a.isAlive() && $dataActors[a.actorId()] && $dataActors[a.actorId()].name === f.name));
+        // (por numero de personaje: el nombre cambia con la traduccion - "Абелла")
+        return FORMS.filter(f => played.some(a => a.isAlive() && a.actorId() === FORM_ACTOR[f.key]));
     }
     function playedFormSwitches() {
         const out = {};

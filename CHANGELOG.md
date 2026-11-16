@@ -6,10 +6,11 @@
 - **Online: only the host writes saves.** The save screen runs on every PC at once, and each guest wrote the host's save over their own slot with the same number.
 - **Online: a tint in a player's own event is only on their screen** (sawing off a head, planting a flower): the others are not stopped and their screen does not go dark. A tint that stays (a room that gets darker) goes to everybody when the event ends.
 - **Online, separate battles: a group of enemies fights as one.** While one of them fights a player, the others of the same group stand still; if one of them touches another player, that player joins the battle that is going on instead of starting the same battle again.
-- **Termina: a character a player plays never turns into their moonscorched form** (Abella - Chaugnar in the bunker, Daan - the pocket cat...). The switches that turn them do not go on, and if they already were on (an older save), they go off. Forms that are on the map from the start (Chaugnar in bunker 7: beating it kills Abella) are not there while a player plays that contestant.
+- **Termina: a character a player plays never turns into their moonscorched form** (Abella - Chaugnar in the bunker, Daan - the pocket cat...). The switches that turn them do not go on, and if they already were on (an older save), they go off. Forms that are on the map from the start (Chaugnar in bunker 7: beating it kills Abella) are not there while a player plays that contestant. (Works with the Russian translation too: characters are recognised by number, not by name.)
 - **Termina: candles in the safe places** (two in the train, against a wall; one in the bar): sitting by them gives the mind back at once.
 - New cheat: **cure everything bad** - addiction to heroin and withdrawal, infections, poison, bleeding, phobias and the like (not lost arms or legs).
 - **P2-P4 walk diagonally like the protagonist**, with the diagonal pictures.
+- **Termina, online: the circle of sight covers the whole screen of every PC.** When the protagonist was far from a player, part of that player's screen had no darkness / fog at all.
 
 ## v1.9.9
 

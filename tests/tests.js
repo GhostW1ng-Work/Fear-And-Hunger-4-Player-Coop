@@ -2567,6 +2567,9 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     var pl = [$gamePlayer2, $gamePlayer3].filter(function(p) { return p && p.actor() && p.actor().actorId() === 4; })[0];
     var sw = $dataSystem.switches.indexOf('Pocketdaan_appear');
     if (pl && sw > 0) {
+        // (con la traduccion rusa los nombres de los personajes cambian: "Даан")
+        var name4 = $dataActors[4].name;
+        $dataActors[4].name = 'Даан';
         var keep = $gameSwitches.value(sw);
         $gameSwitches.setValue(sw, true);
         var blocked = !$gameSwitches.value(sw);
@@ -2594,6 +2597,7 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             check("T75d a form that is always on the map (Chaugnar) is not there while a player plays that contestant", form._pageIndex === -1, form._pageIndex);
             $dataMap.events.length = id;
         }
+        $dataActors[4].name = name4;
         var mp = pl.actor().mmp;
         pl.actor().setMp(0);
         CoopLocal.calmMind({ _coopStarter: pl.coopIndex(), setWaitMode: function() {} });

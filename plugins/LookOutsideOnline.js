@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.9.10-test2';
+    const COOP_VERSION = '1.9.10-test3';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
@@ -2839,12 +2839,16 @@
                 st.sprites.push(s);
             }
 
-            players.forEach((p, i) => {
+            // (el 1.o, el mas cercano al centro de la pantalla: su imagen la cubre entera. Si era P1 y
+            // estaba lejos - en red cada PC mira a su personaje - parte de la pantalla quedaba sin nada)
+            const order = players.map(p => ({ p: p, at: d.pos(p) }))
+                .sort((a, b) => Math.hypot(a.at[0] - W / 2, a.at[1] - H / 2) - Math.hypot(b.at[0] - W / 2, b.at[1] - H / 2));
+            order.forEach((o, i) => {
                 const s = st.sprites[i];
                 s.texture = l.texture;
                 s.anchor.set(l.anchor.x, l.anchor.y);
                 s.scale.set(l.scale.x, l.scale.y);
-                s.position.set.apply(s.position, d.pos(p));
+                s.position.set(o.at[0], o.at[1]);
                 r.render(s, st.rt, i === 0);
             });
 
