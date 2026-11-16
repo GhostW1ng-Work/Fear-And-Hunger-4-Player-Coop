@@ -1,0 +1,7 @@
+Fear & Hunger Co-op v1.9.11 - what's new
+
+* Termina: while a player plays Abella, Chaugnar no longer breaks the wall of bunker 7 - no sounds, no broken wall. The scenes that bring a hidden moonscorched form on stage do not play.
+* P2-P4 can shoot even when the protagonist can't. If the protagonist had lost a leg, nobody could shoot; now each shot is checked for whoever shoots.
+* Termina, online: each player sees the ammo of their own gun, next to the game's counter (that one belongs to the protagonist).
+
+Update: unpack the new version over the old one. Online, every player needs the same version.
