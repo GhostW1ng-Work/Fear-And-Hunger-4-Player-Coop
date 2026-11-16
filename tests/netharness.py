@@ -372,6 +372,17 @@ same, frames = aligned_worlds(net, [host, g2])
 WEAPONS = 'JSON.stringify($gameParty._weapons)'
 check('a weapon only on one PC is found and fixed (the host world for both)', same and host.ev(WEAPONS) == g2.ev(WEAPONS), [host.ev(WEAPONS), g2.ev(WEAPONS)])
 
+# --- Termina: each PC shows the ammo of its own character's gun (the game's counter is the protagonist's) ---
+if host.ev('/termina/i.test($dataSystem.gameTitle)'):
+    for p_ in (host, g2):
+        p_.ev('$gameActors.actor($gamePlayer2._coopActorId).forceChangeEquip(0, $dataWeapons[13]); $gameParty.gainItem($dataItems[75], 7)')
+    AMMO = 'JSON.stringify(CoopLocal.ownAmmo())'
+    check("the guest PC shows its own character's ammo, the host PC the game's", g2.ev(AMMO) == '{"type":"pistol","count":7}' and host.ev(AMMO) == 'null',
+          [g2.ev(AMMO), host.ev(AMMO)])
+    for p_ in (host, g2):
+        p_.ev('$gameActors.actor($gamePlayer2._coopActorId).forceChangeEquip(0, null); $gameParty.loseItem($dataItems[75], 7); $gameParty.loseItem($dataWeapons[13], 9)')
+    tick(net, [host, g2], 5)
+
 # --- saving is the host's: the save screen runs on every PC, only the host writes the file ---
 FILES = 'Object.keys(__files).filter(function(k){ return /file77/.test(k); }).length'
 for p_ in (host, g2):

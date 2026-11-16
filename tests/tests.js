@@ -754,6 +754,20 @@ check('T28k invalid values are ignored', (ConfigManager.applyData({ coopSettings
     var shotEv2 = $gameMap.events().filter(function(e) { return e && e.event().name === 'arrow_check'; })[0];
     if (shotEv2 && shotEv2._interpreter) check('T29i after the shot, shots belong to nobody again (shots of P1 stay with P1)', !shotEv2._interpreter._coopStarter, shotEv2._interpreter._coopStarter);
     check('T29d after the shot the switches are restored', $gameSwitches.value(242) === false && [2252, 2253, 2254].map(function(id) { return $gameSwitches.value(id); }).join(',') === story.join(','));
+    // el protagonista sin pierna (el juego enciende CANNOTUSE_BOW!): P2 dispara igual
+    var legPair = isTermina ? [246, 39] : null;
+    if (legPair) {
+        $gameSwitches.setValue(legPair[0], true); $gameSwitches.setValue(legPair[1], true); $gameSwitches.setValue(410, true);
+        for (k = 0; k < 30; k++) frame();
+        down('ShiftRight', 16, 2); frame(); frame();
+        var during = [$gameSwitches.value(242), $gameSwitches.value(410), $gameSwitches.value(legPair[0])];
+        up('ShiftRight', 16, 2);
+        for (k = 0; k < 40; k++) frame();
+        check("T29j the protagonist has no legs (can't shoot): P2 still shoots (the game sees P2, CANNOTUSE_BOW off during the shot)",
+            during.join(',') === 'true,false,false', during.join(','));
+        check('T29k ...and afterwards it is the protagonist\'s again', $gameSwitches.value(410) === true && $gameSwitches.value(legPair[0]) === true && $gameSwitches.value(242) === false);
+        $gameSwitches.setValue(legPair[0], false); $gameSwitches.setValue(legPair[1], false); $gameSwitches.setValue(410, false);
+    }
     p2a.forceChangeEquip(0, null);
 })();
 

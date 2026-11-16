@@ -3,6 +3,8 @@
 ## Unreleased
 
 - **Termina: without the form, no arrival scene either.** While a player plays Abella, Chaugnar no longer breaks the wall of bunker 7 (sounds and the broken wall): the scenes that bring a hidden form on stage do not play.
+- **P2-P4 shoot even if the protagonist can't.** When the protagonist had lost a leg (the game turns "can't shoot" on for them), nobody could shoot. Now each shot is checked for whoever shoots.
+- **Termina, online: each player sees the ammo of their own gun**, next to the game's counter (that one is the protagonist's).
 
 ## v1.9.10
 

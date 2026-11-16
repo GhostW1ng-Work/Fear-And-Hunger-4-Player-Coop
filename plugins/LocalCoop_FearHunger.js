@@ -100,6 +100,53 @@
         return null;
     }
 
+    // Termina, en red: las balas del arma de TU personaje (el contador del juego es el del
+    // protagonista: P2-P4 con un arma no veian cuantas les quedaban). Solo dibujo.
+    const AMMO_ITEM = { rifle: 78, shotgun: 77, pistol: 75 };
+    function ownAmmo() {
+        const net = window.CoopNet;
+        if (!gameProfile() || gameProfile() !== GAME_PROFILES.termina || !net || !net.active || !(net.player >= 2)) return null;
+        const pl = coop.player(net.player);
+        const type = pl ? gunTypeOf(coop.actorOf(pl)) : null;
+        const item = type && $dataItems[AMMO_ITEM[type]];
+        return item ? { type: type, count: $gameParty.numItems(item) } : null;
+    }
+    function Sprite_CoopAmmo() {
+        Sprite.call(this);
+        this._bg = new Sprite(ImageManager.loadPicture('ammo_background'));
+        this._bg.x = -6; this._bg.y = 430; this._bg.scale.set(1.4, 1.2); this._bg.opacity = 60;
+        this._icon = new Sprite();
+        this._icon.x = -7; this._icon.y = 416; this._icon.scale.set(0.8, 0.8); this._icon.opacity = 190;
+        this._num = new Sprite(new Bitmap(90, 40));
+        this._num.x = 40; this._num.y = 436;
+        [this._bg, this._icon, this._num].forEach(s => this.addChild(s));
+        this._key = '';
+        this.visible = false;
+    }
+    Sprite_CoopAmmo.prototype = Object.create(Sprite.prototype);
+    Sprite_CoopAmmo.prototype.constructor = Sprite_CoopAmmo;
+    Sprite_CoopAmmo.prototype.update = function() {
+        const a = ownAmmo();
+        this.visible = !!a;
+        if (!a) return;
+        const key = a.type + ':' + a.count;
+        if (key === this._key) return;
+        this._key = key;
+        this._icon.bitmap = ImageManager.loadPicture('icon_small_' + a.type);
+        const b = this._num.bitmap;
+        b.clear();
+        b.fontSize = 26;
+        b.drawText(String(Math.min(a.count, 99)), 0, 0, 90, 40, 'left');
+    };
+    const _Scene_Map_createDisplayObjects_ammo = Scene_Map.prototype.createDisplayObjects;
+    Scene_Map.prototype.createDisplayObjects = function() {
+        _Scene_Map_createDisplayObjects_ammo.apply(this, arguments);
+        if (gameProfile() !== GAME_PROFILES.termina || !this._windowLayer) return;
+        this._coopAmmo = new Sprite_CoopAmmo();
+        this.addChildAt(this._coopAmmo, this.children.indexOf(this._windowLayer));
+    };
+    coop.ownAmmo = ownAmmo;                               // (para pruebas)
+
     // Con un arma de fuego equipada, la tecla de correr dispara (igual que el Shift de P1)
     coop.registerHook({
         canDash(player) {
@@ -135,7 +182,7 @@
         if (!coop.isOn() || session) return null;
         if (!(SceneManager._scene instanceof Scene_Map)) return null;
         if ($gameMap.isEventRunning() || $gameMessage.isBusy()) return null;
-        if (sw(SW_CANNOT_USE_BOW) || sw(SW_ARROW) || sw(SW_ARROW_FLYING)) return null;
+        if ((sw(SW_CANNOT_USE_BOW) && !leaderLegsBlock()) || sw(SW_ARROW) || sw(SW_ARROW_FLYING)) return null;
         // por turnos: primero los que no dispararon la ultima vez
         const list = coop.players();
         const ordered = list.filter(p => p.coopIndex() > lastShooter)
@@ -143,11 +190,37 @@
         return ordered.find(canShoot) || null;
     }
 
+    // CANNOTUSE_BOW! lo enciende el juego (evento comun "CANNOTUSEBOW") cuando el PROTAGONISTA no
+    // tiene piernas: era para todos, y con O'saa sin pierna nadie podia disparar. Pares
+    // [interruptor del protagonista, el de su pierna] sacados de ese evento.
+    let legPairs = null;
+    function cannotUseBowPairs() {
+        if (legPairs) return legPairs;
+        legPairs = [];
+        const ce = ($dataCommonEvents || []).find(c => c && /^CANNOTUSE_?BOW/i.test(c.name));
+        (ce ? ce.list : []).forEach((c, i) => {
+            const next = ce.list[i + 1];
+            if (c.code === 111 && c.parameters[0] === 0 && c.parameters[2] === 0 && next && next.code === 111 &&
+                next.parameters[0] === 0 && next.parameters[2] === 0 && next.indent === c.indent + 1) {
+                legPairs.push([c.parameters[1], next.parameters[1]]);
+            }
+        });
+        return legPairs;
+    }
+    function leaderLegsBlock() {
+        return cannotUseBowPairs().some(p => sw(p[0]) && sw(p[1]));
+    }
+
     function startSession(player) {
         const actor = coop.actorOf(player);
         const type = gunTypeOf(actor);
         const profile = gameProfile();
         const saved = {};
+        // (lo de las piernas del protagonista no cuenta: el juego lo vuelve a mirar con el tirador)
+        if (leaderLegsBlock()) {
+            saved[SW_CANNOT_USE_BOW] = sw(SW_CANNOT_USE_BOW);
+            $gameSwitches.setValue(SW_CANNOT_USE_BOW, false);
+        }
 
         // el juego decide con que personaje y que arma se dispara mediante estos interruptores
         // (varios actores pueden compartir el suyo: se guarda una sola vez)
@@ -156,7 +229,11 @@
             const id = profile.select[a];
             if (!(id in saved)) saved[id] = sw(id);
         }
-        for (const id of Object.keys(saved)) $gameSwitches.setValue(Number(id), Number(id) === shooterSwitch);
+        // (tambien los de quien no dispara nunca - O'saa -: si no, el juego seguia viendo a ese protagonista)
+        cannotUseBowPairs().forEach(p => { if (!(p[0] in saved)) saved[p[0]] = sw(p[0]); });
+        for (const id of Object.keys(saved)) {
+            if (Number(id) !== SW_CANNOT_USE_BOW) $gameSwitches.setValue(Number(id), Number(id) === shooterSwitch);
+        }
         for (const t of Object.keys(profile.typeSwitch)) {
             const id = profile.typeSwitch[t];
             saved[id] = sw(id);
