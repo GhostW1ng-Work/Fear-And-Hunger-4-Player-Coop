@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Termina: without the form, no arrival scene either.** While a player plays Abella, Chaugnar no longer breaks the wall of bunker 7 (sounds and the broken wall): the scenes that bring a hidden form on stage do not play.
+
 ## v1.9.10
 
 - **Online: the things of the party are checked too.** The check that keeps all PCs in the same world did not look at items, gold and equipment: when they went apart (a crafted weapon only on the host's PC, equipment gone on the guests), nothing fixed it. Now it is found and fixed like any other difference (everybody gets the host's world), and `coop_net_desync.log` shows it.

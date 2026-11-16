@@ -2595,6 +2595,15 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
             frame();
             var form = new Game_Event($gameMap.mapId(), id);
             check("T75d a form that is always on the map (Chaugnar) is not there while a player plays that contestant", form._pageIndex === -1, form._pageIndex);
+            // la escena de su llegada (rompe la pared y la mueve): tampoco
+            var scene2 = JSON.parse(JSON.stringify(data));
+            scene2.id = id + 1;
+            scene2.pages[0].trigger = 4;
+            scene2.pages[0].list = [{ code: 250, indent: 0, parameters: [{ name: 'x', volume: 90, pitch: 100, pan: 0 }] },
+                { code: 203, indent: 0, parameters: [id, 0, 1, 1, 0] }, { code: 0, indent: 0, parameters: [] }];
+            $dataMap.events[id + 1] = scene2;
+            var arrival = new Game_Event($gameMap.mapId(), id + 1);
+            check('T75e the scene of its arrival (Chaugnar breaking the wall) does not play either', arrival._pageIndex === -1, arrival._pageIndex);
             $dataMap.events.length = id;
         }
         $dataActors[4].name = name4;

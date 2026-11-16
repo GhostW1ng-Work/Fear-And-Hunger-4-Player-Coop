@@ -3903,6 +3903,20 @@
             });
         });
         formOfEventData.set(data, key);
+        // (y la escena de su llegada: un suceso automatico / paralelo que mueve a esa forma - Chaugnar
+        // rompiendo la pared del bunker 7 -: sin la forma, tampoco)
+        // (no los del disparo: arrow_check mueve a cada enemigo para ver si le da)
+        if (!key && $dataMap && $dataMap.events && SHOT_EVENTS.indexOf(data.name) < 0) {
+            data.pages.forEach(pg => {
+                if (key || pg.trigger < 3) return;
+                pg.list.forEach(c => {
+                    if (key || (c.code !== 203 && c.code !== 205) || !(c.parameters[0] > 0) || c.parameters[0] === data.id) return;
+                    const target = $dataMap.events[c.parameters[0]];
+                    if (target && target !== data && $dataMap.events.indexOf(data) >= 0) key = formOfEvent(target);
+                });
+            });
+            formOfEventData.set(data, key);
+        }
         return key;
     }
     let playedFormsKey = '';
