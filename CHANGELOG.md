@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.9.10
 
 - **Online: the things of the party are checked too.** The check that keeps all PCs in the same world did not look at items, gold and equipment: when they went apart (a crafted weapon only on the host's PC, equipment gone on the guests), nothing fixed it. Now it is found and fixed like any other difference (everybody gets the host's world), and `coop_net_desync.log` shows it.
 - **Online: only the host writes saves.** The save screen runs on every PC at once, and each guest wrote the host's save over their own slot with the same number.

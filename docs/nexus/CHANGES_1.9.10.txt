@@ -1,0 +1,13 @@
+Fear & Hunger Co-op v1.9.10 - what's new
+
+* Online: items, gold and equipment are now part of the check that keeps every PC in the same world. When they went apart (a crafted weapon only on the host's PC, equipment gone for the guests), nothing fixed it; now it is fixed by itself.
+* Online: only the host writes saves. Guests no longer get the host's save written over their own slots.
+* Online: a short tint in your own event (sawing off a head, planting a flower) darkens only your screen and stops nobody else.
+* Online, separate battles: a group of enemies fights as one. While one of them fights a player, the rest stand still; if one of them touches another player, that player joins the same battle instead of fighting the same enemies again.
+* Termina: a character a player plays never turns into their moonscorched form, and the forms that are always on the map (Chaugnar in bunker 7) are not there while a player plays that contestant. Works with the Russian translation.
+* Termina: candles in the safe places (two in the train, one in the bar). Sit by them to get your mind back at once.
+* New cheat: cure everything bad - heroin addiction and withdrawal, infections, poison, bleeding, phobias and the like.
+* P2-P4 walk diagonally like the protagonist, with the diagonal animation.
+* Termina, online: the circle of sight covers each player's whole screen, even when the protagonist is far away.
+
+Update: unpack the new version over the old one. Online, every player needs the same version.
