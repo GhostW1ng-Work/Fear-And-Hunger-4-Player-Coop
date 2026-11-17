@@ -699,6 +699,18 @@ if len(ids) == 2:
         p_.ev("CoopNet.eventSessions()[2].message.clear()")
     tick(net, [host, g2], 90)
     check('sessions: and then it happens', both(RUNNING) == [False, False] and both(SESS) == ['', ''], [both(RUNNING), both(SESS)])
+    # two players at two doors at once: the transfer of one and the door of the other waited for each
+    # other for ever (the game hung; also the black screen after "Sit down" with the mayor)
+    tick(net, [host, g2], 10)
+    aligned_worlds(net, [host, g2])
+    m0 = host.ev('$gameMap.mapId()')
+    DOOR = "{code:201,indent:0,parameters:[0,%d,%d,%d,2,0]}" % (m0, host.ev('$gamePlayer.x'), host.ev('$gamePlayer.y'))
+    start_as(1, ids[1], DOOR)
+    start_as(2, ids[0], DOOR)
+    tick(net, [host, g2], 90)
+    check('sessions: two players at two doors at the same time: they go through (no hang)',
+          both(RUNNING) == [False, False] and both(SESS) == ['', ''] and both('$gamePlayer.isTransferring()') == [False, False],
+          [both(RUNNING), both(SESS)])
     # a silent event on the floor (the maps are full of them) must not stop whoever holds a direction
     tick(net, [host, g2], 10)
     aligned_worlds(net, [host, g2])

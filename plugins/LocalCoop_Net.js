@@ -2426,7 +2426,10 @@
                     session.wantsMap = true;
                     return false; // (el mismo comando otra vez, ya como evento del mapa)
                 }
-            } else if (cmd && !inSub && !inBattleCtx && needsEveryone(cmd) && sessionList().length) {
+            } else if (cmd && !inSub && !inBattleCtx && needsEveryone(cmd) && sessionList().some(s => !s.wantsMap)) {
+                // (espera a quien sigue leyendo lo suyo; no a quien espera al mapa: los dos se esperaban
+                // para siempre - dos jugadores a la vez en una puerta / trampilla -. Al irse todos, el
+                // evento del otro se cierra con el mapa)
                 return false;
             }
         }

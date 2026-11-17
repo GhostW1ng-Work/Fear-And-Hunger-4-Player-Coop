@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (online): the game hung for good when two players used a door / hatch at the same time**, and the black screen for ever after "Sit down" with the mayor. A transfer waited for the other players' events, and the other player's event waited for the transfer. Now a transfer only waits for players who are still reading their own things; everybody goes through, and the other door is simply not used.
+
 ## v1.9.11
 
 - **Termina: without the form, no arrival scene either.** While a player plays Abella, Chaugnar no longer breaks the wall of bunker 7 (sounds and the broken wall): the scenes that bring a hidden form on stage do not play.
