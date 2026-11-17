@@ -557,7 +557,10 @@
             // con su menu abierto, sus teclas son del menu; al cerrarlo, las que siguen pulsadas
             // no cuentan en el mapa hasta soltarlas (si no, Cancelar volveria a abrir el menu)
             Net.mask[p] = (Net.mask[p] || 0) & raw;
-            const cur = (subs[p] || inSeparateBattle(p) || sessions[p]) ? 0 : (raw & ~Net.mask[p]);
+            // (con un evento suyo sin dialogo abierto y el dialogo del mapa siendo suyo, sus teclas van al
+            // del mapa: si no, nadie podia elegir y el dialogo de todos esperaba hasta que se fuera)
+            const ownSession = sessions[p] && !(sessions[p].message.isBusy() === false && ownsMapDialog(p));
+            const cur = (subs[p] || inSeparateBattle(p) || ownSession) ? 0 : (raw & ~Net.mask[p]);
             if (prev === cur) continue;
             ACTIONS.forEach((action, i) => {
                 const was = (prev >> i) & 1;
@@ -2170,7 +2173,14 @@
 
     function canStartSession(n) {
         return !!coop.player(n) && !sessions[n] && !subs[n] && !Net.left[n] && !coop.isAway(n) && !inSeparateBattle(n) &&
-            !isMenuMap();
+            !isMenuMap() && !ownsMapDialog(n);
+    }
+
+    // el dialogo del mapa (el que ven todos) es de este jugador: mientras, nada suyo aparte (sus
+    // teclas son de ese dialogo)
+    function ownsMapDialog(n) {
+        const it = $gameMap && $gameMap._interpreter;
+        return !!it && it.isRunning() && (it._coopStarter || 1) === n && !!$gameMessage && $gameMessage.isBusy();
     }
 
     // Hexen (Termina) es un menu hecho con el mapa: su contador de piedras y sus imagenes son de todos
@@ -2280,6 +2290,24 @@
         return s.windows;
     }
 
+    // Las ventanas de los eventos de otros jugadores no se dibujan en este PC (renderable = false),
+    // pero la capa de ventanas igual "recortaba" su sitio: borraba lo que hubiera debajo. Dos
+    // jugadores leyendo / saqueando a la vez -> la ventana propia (en el mismo sitio) era invisible.
+    // Al dibujar, las que no se dibujan tampoco recortan. Solo dibujo.
+    ['renderWebGL', 'renderCanvas'].forEach(name => {
+        const original = WindowLayer.prototype[name];
+        if (!original) return;
+        WindowLayer.prototype[name] = function(renderer) {
+            const hidden = this.children.filter(c => c._isWindow && c.visible && c.renderable === false);
+            hidden.forEach(c => { c.visible = false; });
+            try {
+                return original.call(this, renderer);
+            } finally {
+                hidden.forEach(c => { c.visible = true; });
+            }
+        };
+    });
+
     function closeSessionWindows(s) {
         (s.windows || []).forEach(x => {
             x.w.openness = 0;
@@ -2352,9 +2380,13 @@
             $gameScreen._toneTarget = s.screen._toneTarget.slice();
             $gameScreen._toneDuration = s.screen._toneDuration;
         }
-        // (lo que encendio: los eventos automaticos que dependen de ello siguen siendo suyos)
-        followUps = { frame: Net.frame, switches: {} };
-        Object.keys(s.scope.sw).forEach(id => { if (s.scope.sw[id]) followUps.switches[id] = s.n; });
+        // (lo que encendio: los eventos automaticos que dependen de ello siguen siendo suyos. Solo si
+        // termino de verdad: si pasa a ser el evento del mapa, sigue alli; si no, el automatico
+        // empezaba como otro evento suyo a la vez y sus teclas ya no llegaban al dialogo del mapa)
+        if (!s.toMap) {
+            followUps = { frame: Net.frame, switches: {} };
+            Object.keys(s.scope.sw).forEach(id => { if (s.scope.sw[id]) followUps.switches[id] = s.n; });
+        }
         closeSessionWindows(s);
         releaseScope(s);
         // lo que sigue pulsado no vuelve a contar como pulsacion (Aceptar empezaria otra vez el mismo
@@ -2374,6 +2406,7 @@
 
     // el evento hace algo de escena: pasa a ser el evento del mapa (cuando este libre)
     function sessionToMap(s) {
+        s.toMap = true;
         dropEventSession(s);
         s.screen._pictures.forEach((p, id) => { if (p) $gameScreen._pictures[id] = p; });
         $gameMap._interpreter = s.interp;
@@ -2473,6 +2506,7 @@
 
     Net.eventSessions = () => sessions; // (para pruebas)
     Net.followUps = () => followUps;    // (para pruebas)
+    Net.canStartSession = canStartSession; // (para pruebas)
 
     // El enemigo del combate ni se mueve en el mapa: algunos persiguen con rutas que les pone otro
     // evento (eso no lo para el "bloqueo" del juego) e iban a por los que no luchan

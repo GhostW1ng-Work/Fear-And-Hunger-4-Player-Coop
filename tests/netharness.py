@@ -708,6 +708,35 @@ if len(ids) == 2:
     start_as(1, ids[1], DOOR)
     start_as(2, ids[0], DOOR)
     tick(net, [host, g2], 90)
+    # the dialog everybody sees is P2's and P2 also has an event of their own going on (no dialog): P2's
+    # keys go to the dialog (nobody could choose until P2 left)
+    tick(net, [host, g2], 10)
+    aligned_worlds(net, [host, g2])
+    start_as(2, ids[0], "{code:230,indent:0,parameters:[900]}")
+    tick(net, [host, g2], 3)
+    MAPCHOICE = ("$gameVariables.setValue(18, 0); $gameMap._interpreter.setup(["
+                 "{code:101,indent:0,parameters:['',0,0,2]},{code:401,indent:0,parameters:['?']},"
+                 "{code:102,indent:0,parameters:[['a','b'],-1,0,2,0]},"
+                 "{code:402,indent:0,parameters:[0,'a']},{code:122,indent:1,parameters:[18,18,0,0,1]},{code:0,indent:1,parameters:[]},"
+                 "{code:402,indent:0,parameters:[1,'b']},{code:122,indent:1,parameters:[18,18,0,0,2]},{code:0,indent:1,parameters:[]},"
+                 "{code:404,indent:0,parameters:[]},{code:0,indent:0,parameters:[]}], 0); $gameMap._interpreter._coopStarter = 2")
+    for p_ in (host, g2):
+        p_.ev(MAPCHOICE)
+    tick(net, [host, g2], 40)
+    g2.ev('CoopNet.localKeys = 16')  # ok
+    tick(net, [host, g2], 6)
+    # (aqui no hay ventanas: se mira que su OK llega al juego, a su jugador, con su evento en marcha)
+    gotOk = both('(CoopNet.applied[2] & 16) === 16')
+    g2.ev('CoopNet.localKeys = 0')
+    tick(net, [host, g2], 10)
+    check("sessions: the dialog everybody sees is P2's and P2 has an event of their own going on: P2's keys reach the dialog",
+          gotOk == [True, True] and both(SESS) == ['2', '2'], [gotOk, both(SESS)])
+    # ...and while it is theirs, nothing of theirs starts apart
+    check("sessions: while the dialog everybody sees is P2's, no event of P2's starts apart", both('CoopNet.canStartSession(2)') == [False, False],
+          both('CoopNet.canStartSession(2)'))
+    for p_ in (host, g2):
+        p_.ev("var S = CoopNet.eventSessions(); if (S[2]) S[2].interp._waitCount = 0; $gameMessage.clear(); $gameMap._interpreter.clear()")
+    tick(net, [host, g2], 10)
     check('sessions: two players at two doors at the same time: they go through (no hang)',
           both(RUNNING) == [False, False] and both(SESS) == ['', ''] and both('$gamePlayer.isTransferring()') == [False, False],
           [both(RUNNING), both(SESS)])
