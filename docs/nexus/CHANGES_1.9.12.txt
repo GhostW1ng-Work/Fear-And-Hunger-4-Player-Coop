@@ -1,0 +1,7 @@
+Fear & Hunger Co-op v1.9.12 - what's new
+
+* Fixed (online): the game hung for good when two players used a door or a hatch at the same time, and the black screen for ever after "Sit down" with the mayor. Now everybody goes through.
+* Fixed (online): when two players looted or read at the same time, their windows (what they found, the choices) could be invisible. They worked, but you couldn't see them.
+* Fixed (online): nobody could answer the choices of a dialog everybody sees until the player whose dialog it was left the game. That player's keys always reach their dialog now.
+
+Update: unpack the new version over the old one. Online, every player needs the same version.

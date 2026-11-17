@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.9.12
 
 - **Fixed (online): the game hung for good when two players used a door / hatch at the same time**, and the black screen for ever after "Sit down" with the mayor. A transfer waited for the other players' events, and the other player's event waited for the transfer. Now a transfer only waits for players who are still reading their own things; everybody goes through, and the other door is simply not used.
 - **Fixed (online): two players looting / reading at the same time could not see their window** (what they found, the choices): the window of the other player, not drawn on this PC, still cut its place out of the screen. It worked, but invisibly.
