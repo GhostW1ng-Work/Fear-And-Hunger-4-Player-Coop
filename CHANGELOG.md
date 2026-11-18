@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- New cheat: **phase walk** (on / off) - every player walks through walls, to get out when somebody is stuck in one.
+
 ## v1.9.12
 
 - **Fixed (online): the game hung for good when two players used a door / hatch at the same time**, and the black screen for ever after "Sit down" with the mayor. A transfer waited for the other players' events, and the other player's event waited for the transfer. Now a transfer only waits for players who are still reading their own things; everybody goes through, and the other door is simply not used.

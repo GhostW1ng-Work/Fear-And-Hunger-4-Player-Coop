@@ -2575,6 +2575,12 @@ check('T31e update check saved with the config (on by default)', ConfigManager.m
     if (heroin > 0) $gameVariables.setValue(heroin, 4);
     CoopLocal.cureAll();
     check('T75 the cheat cures what is bad (poison, heroin addiction)', (poison < 0 || !a.isStateAffected(poison)) && (heroin < 0 || $gameVariables.value(heroin) === 0), [poison, heroin]);
+    var anEvent = $gameMap.events().filter(function(e) { return e; })[0];
+    $gameSystem._coopPhase = true;
+    var phased = $gamePlayer.isThrough() && $gamePlayer2.isThrough() && !(anEvent && anEvent.isThrough() && !anEvent._through);
+    $gameSystem._coopPhase = false;
+    check('T75f phase walk cheat: players walk through walls while it is on, events do not; off again afterwards',
+        phased && !$gamePlayer2.isThrough() && CoopLocal.phaseOn() === false);
     if (!termina) return;
     var keepParty = $gameParty._actors.slice();
     if (!$gamePlayer3) { $gameParty._actors = [1, 3, 4]; tap('KeyU', 85); for (k = 0; k < 5; k++) frame(); }

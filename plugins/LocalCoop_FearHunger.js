@@ -1274,6 +1274,29 @@
     });
     coop.cureAll = cureAll;                               // (para pruebas)
 
+    // "Desfase": los jugadores atraviesan paredes (para salir si alguien se queda atrapado en una).
+    // Va en la partida ($gameSystem): igual en todos los PC y en la partida guardada.
+    function phaseOn() {
+        return !!($gameSystem && $gameSystem._coopPhase);
+    }
+    coop.addAssignAction({
+        cheat: true,
+        name() {
+            return phaseOn() ? 'Cheat: phase walk through walls (ON)' : 'Cheat: phase walk through walls (OFF)';
+        },
+        run() {
+            $gameSystem._coopPhase = !phaseOn();
+            SoundManager.playOk();
+            coop.banner(phaseOn() ? 'Phase walk: ON' : 'Phase walk: OFF', phaseOn() ? 'Players walk through walls' : '', '#9fb6ff', 150);
+        }
+    });
+    const _Game_CharacterBase_isThrough_phase = Game_CharacterBase.prototype.isThrough;
+    Game_CharacterBase.prototype.isThrough = function() {
+        if (phaseOn() && (this instanceof Game_Player || this instanceof Game_Follower || this._coopIndex >= 2)) return true;
+        return _Game_CharacterBase_isThrough_phase.call(this);
+    };
+    coop.phaseOn = phaseOn;                               // (para pruebas)
+
     // ---- trucos para probar el final B de Termina (la torre) ----------------------------------
     // La puerta de la torre (Temple_site_2) solo se abre si en el grupo hay uno solo y quedan
     // vivos como mucho 1 concursante (CHARACTERS_LEFT; empieza en 14). Al morir un concursante el
