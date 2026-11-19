@@ -3,6 +3,9 @@
 ## Unreleased
 
 - New cheat: **phase walk** (on / off) - every player walks through walls, to get out when somebody is stuck in one.
+- **F6 / F7 (quick save / quick load) are installed by default** (they used to need `-QuickSave`; `-NoQuickSave` leaves them out now).
+- **Fixed (online): a story scene that starts by itself after a player's step was that player's own event** (Caligura attacking Levi: everybody had their own talk with him and he was killed twice). Only small things (a message, a change) stay the player's own now.
+- `coop_memory.log` also shows where the time goes each minute: game logic, drawing, map refreshes and the number of events of the map.
 
 ## v1.9.12
 

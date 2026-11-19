@@ -4,7 +4,7 @@
         .\install.ps1            (sin -GamePath: si esta dentro de la carpeta del juego, ese juego; si no,
                                   busca los juegos en Steam, GOG y carpetas comunes y pregunta)
   Copia los plugins, registra los plugins en js\plugins.js (con copia de seguridad) y listo.
-  -QuickSave instala tambien el plugin de pruebas F6/F7 (guardado rapido).
+  El guardado rapido (F6 / F7) se instala siempre; -NoQuickSave no lo instala.
   El juego en red (experimental) se instala siempre: sin usarlo no hace nada, se abre en
    Opciones > Co-op > Network game... -NoNet no lo instala (y lo quita si estaba).
   -Net host | -Net join -NetHost 192.168.1.20  deja elegidos el modo y la IP en ese menu
@@ -15,8 +15,9 @@ param(
     [switch]$Uninstall,
     # auto = detecta por el titulo del juego. lookoutside = solo el plugin base. fearhunger = base + plugin de Fear & Hunger (luz de P2, disparo previo al combate).
     [ValidateSet('auto', 'lookoutside', 'fearhunger', 'generic')][string]$Profile = 'auto',
-    # plugin de pruebas: F6 = guardado rapido, F7 = carga rapida
+    # guardado rapido: F6 = guardar, F7 = cargar (se instala siempre; -NoQuickSave no lo instala)
     [switch]$QuickSave,
+    [switch]$NoQuickSave,
     # juego en red: valores por defecto del menu (host = este PC es P1, join = se conecta a -NetHost)
     [ValidateSet('', 'host', 'join', 'menu')][string]$Net = '',
     [switch]$NoNet,
@@ -216,7 +217,7 @@ if ($Profile -eq 'auto') {
 }
 $names = @('LookOutsideOnline')
 if ($Profile -eq 'fearhunger') { $names += 'LocalCoop_FearHunger' }
-if ($QuickSave) { $names += 'LocalCoop_QuickSave' }
+if (-not $NoQuickSave) { $names += 'LocalCoop_QuickSave' }
 if (-not $NoNet) { $names += 'LocalCoop_Net' }
 $text = [IO.File]::ReadAllText($pluginsJs)
 if ($NoNet -and -not $Uninstall) {

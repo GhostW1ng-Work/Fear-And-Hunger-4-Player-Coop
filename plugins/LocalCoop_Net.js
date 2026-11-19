@@ -1409,6 +1409,48 @@
         return _SceneManager_requestUpdate_times.call(this);
     };
 
+    // (en que se va el tiempo: la logica - mapa, eventos, cuadros de red -, el dibujo y los refrescos del
+    // mapa, que con cientos de eventos recalculan todas sus paginas. Solo mide, para el diario)
+    const prof = { logic: 0, logicMax: 0, render: 0, renderMax: 0, n: 0, refresh: 0, refreshMs: 0, refreshMax: 0, frame0: 0 };
+    function timed(obj, name, total, max) {
+        const original = obj[name];
+        obj[name] = function() {
+            const t0 = performance.now();
+            try {
+                return original.apply(this, arguments);
+            } finally {
+                const dt = performance.now() - t0;
+                prof[total] += dt;
+                if (dt > prof[max]) prof[max] = dt;
+                if (total === 'logic') prof.n++;
+            }
+        };
+    }
+    timed(SceneManager, 'updateScene', 'logic', 'logicMax');
+    timed(SceneManager, 'renderScene', 'render', 'renderMax');
+    const _Game_Map_refresh_prof = Game_Map.prototype.refresh;
+    Game_Map.prototype.refresh = function() {
+        const t0 = performance.now();
+        try {
+            return _Game_Map_refresh_prof.apply(this, arguments);
+        } finally {
+            const dt = performance.now() - t0;
+            prof.refresh++;
+            prof.refreshMs += dt;
+            if (dt > prof.refreshMax) prof.refreshMax = dt;
+        }
+    };
+    function profLine() {
+        const n = Math.max(1, prof.n);
+        const r = Math.round;
+        const line = '  logic ' + r(prof.logic / n) + '/' + r(prof.logicMax) + ' ms  draw ' + r(prof.render / n) + '/' + r(prof.renderMax) +
+            ' ms  refreshes ' + prof.refresh + ' (' + r(prof.refreshMs) + ' ms, max ' + r(prof.refreshMax) + ')' +
+            (Net.active ? '  net frames ' + (Net.frame - prof.frame0) : '') +
+            '  events ' + (window.$gameMap && $gameMap._events ? $gameMap._events.length : 0);
+        Object.assign(prof, { logic: 0, logicMax: 0, render: 0, renderMax: 0, n: 0, refresh: 0, refreshMs: 0, refreshMax: 0, frame0: Net.frame });
+        return line;
+    }
+
     // el diario de la memoria: el juego es de 32 bits y se cierra solo si llega a unos 4 GB; una
     // linea por minuto dice cuando y con que crece (solo lee: nada de esto va a la partida)
     setInterval(() => {
@@ -1435,7 +1477,7 @@
                 ' MB  images ' + keys.length + ' (' + Math.round(pixels / 1e6) + ' Mpx)  textures ' +
                 (manager && manager._managedTextures ? manager._managedTextures.length : '-') +
                 '  map ' + (window.$gameMap ? $gameMap.mapId() : '-') + '  ' + (scene ? scene.constructor.name : '-') +
-                '  battles ' + battles.length + (Net.active ? '  frame ' + Net.frame : '') + '\n';
+                '  battles ' + battles.length + (Net.active ? '  frame ' + Net.frame : '') + profLine() + '\n';
             const file = path.join(baseDir, 'coop_memory.log');
             fs.stat(file, (err, st) => {
                 const write = () => fs.appendFile(file, line, () => {});
@@ -2194,6 +2236,10 @@
     let followUps = { frame: -10, switches: {} };
     function followUpOwner(ev) {
         if (Net.frame - followUps.frame > 120) return 0;
+        // (solo lo pequeno - un aviso, un cambio -; una escena de la historia - Caligura ataca a Levi:
+        // dialogos, combate - es de todos: si no, cada uno tenia la suya y le mataban dos veces)
+        const list = ev.list() || [];
+        if (list.length > 40 || list.some(cmd => cmd.code === 301 || isSceneCommand(cmd))) return 0;
         const c = ev.page().conditions;
         return (c.switch1Valid && followUps.switches[c.switch1Id]) || (c.switch2Valid && followUps.switches[c.switch2Id]) || 0;
     }
