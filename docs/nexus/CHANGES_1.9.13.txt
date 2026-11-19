@@ -1,0 +1,9 @@
+Fear & Hunger Co-op v1.9.13 - what's new
+
+* New cheat: phase walk (on / off) - every player walks through walls, to get out when somebody gets stuck in one.
+* F6 / F7 (quick save / quick load) are installed by default, and they work with the game in Russian too (they never did). When they can't be used, a message says why.
+* Fixed (online): a story scene that starts by itself after a player's step (Caligura attacking Levi) is for everybody again - each player had their own talk and he was killed twice.
+* Termina: only whoever climbs a ladder goes at ladder speed; the others no longer slow down.
+* coop_memory.log also shows where the time goes each minute (game logic, drawing, map refreshes, events on the map), to find the slowdowns on big maps.
+
+Update: run install.bat of the new version. Online, every player needs the same version.

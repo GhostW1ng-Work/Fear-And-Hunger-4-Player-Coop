@@ -16,7 +16,7 @@ Remove-Item $stage -Recurse -Force -ErrorAction SilentlyContinue
 $plugins = Join-Path $stage 'www\js\plugins'
 New-Item -ItemType Directory -Force $plugins, (Join-Path $stage 'docs') | Out-Null
 
-foreach ($f in @('LookOutsideOnline.js', 'LocalCoop_FearHunger.js', 'LocalCoop_Net.js')) {
+foreach ($f in @('LookOutsideOnline.js', 'LocalCoop_FearHunger.js', 'LocalCoop_Net.js', 'LocalCoop_QuickSave.js')) {
     Copy-Item (Join-Path $root ('plugins\' + $f)) $plugins
 }
 Copy-Item (Join-Path $root 'extras\coop_view.html') (Join-Path $stage 'www')

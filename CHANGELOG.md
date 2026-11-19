@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v1.9.13
 
 - New cheat: **phase walk** (on / off) - every player walks through walls, to get out when somebody is stuck in one.
 - **F6 / F7 (quick save / quick load) are installed by default** (they used to need `-QuickSave`; `-NoQuickSave` leaves them out now). **Fixed: with the game in Russian F6 / F7 never worked** - the translation's plugin list replaced the game's one and the quick save was not added back. When F6 / F7 can't be used, a message now says why.
