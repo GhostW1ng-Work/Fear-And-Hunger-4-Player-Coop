@@ -3526,6 +3526,26 @@
         }
     };
     coop.isClimbing = actorId => !!climbState()[actorId]; // (para pruebas)
+
+    // La velocidad de P2-P4 es la de P1 (lo que el juego le hace - piernas, cansancio - vale para
+    // todos). Pero subiendo una escalera el juego frena a P1 (velocidad 3): todos iban despacio. Ahora:
+    // quien escala va a velocidad de escalera; los demas, a la de P1 de antes de la escalera.
+    // (la de P1 en el suelo va en la partida: igual en todos los PC, tambien tras una instantanea)
+    const CLIMB_SPEED = 3;
+    if (window.Game_CoopPlayer) {
+        const _moveSpeed_climb = Game_CoopPlayer.prototype.moveSpeed;
+        Game_CoopPlayer.prototype.moveSpeed = function() {
+            const base = _moveSpeed_climb.call(this);
+            if (!climbOwnedHere()) return base;
+            const lead = $gameParty.leader();
+            const leaderClimbs = !!lead && !!climbState()[lead.actorId()];
+            if (!leaderClimbs) $gameSystem._coopGroundSpeed = $gamePlayer._moveSpeed;
+            const ground = leaderClimbs && $gameSystem._coopGroundSpeed ? $gameSystem._coopGroundSpeed : base;
+            const actor = this.actor ? this.actor() : null;
+            const climbs = !!actor && !!climbState()[actor.actorId()];
+            return climbs ? Math.min(ground, CLIMB_SPEED) : ground;
+        };
+    }
     coop.climbViewerOf = climbViewerOf;                   // (para pruebas)
 
     // Pisar un clavo y parecidos: el juego se lo hace al protagonista, porque es el unico que anda.

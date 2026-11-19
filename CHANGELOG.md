@@ -5,6 +5,7 @@
 - New cheat: **phase walk** (on / off) - every player walks through walls, to get out when somebody is stuck in one.
 - **F6 / F7 (quick save / quick load) are installed by default** (they used to need `-QuickSave`; `-NoQuickSave` leaves them out now).
 - **Fixed (online): a story scene that starts by itself after a player's step was that player's own event** (Caligura attacking Levi: everybody had their own talk with him and he was killed twice). Only small things (a message, a change) stay the player's own now.
+- **Termina: only whoever climbs a ladder goes at ladder speed.** P2-P4 take the protagonist's speed, so when the protagonist climbed everybody went slowly; now the others keep the protagonist's speed from before the ladder, and P2-P4 on a ladder go at ladder speed.
 - `coop_memory.log` also shows where the time goes each minute: game logic, drawing, map refreshes and the number of events of the map.
 
 ## v1.9.12
