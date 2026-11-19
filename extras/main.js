@@ -140,7 +140,8 @@
     });
 
     // ---- the co-op plugins, after the game's ones
-    var coop = ['LookOutsideOnline', 'LocalCoop_FearHunger', 'LocalCoop_Net'];
+    // (con la traduccion su lista de plugins sustituye a la del juego: tambien el guardado rapido F6 / F7)
+    var coop = ['LookOutsideOnline', 'LocalCoop_FearHunger', 'LocalCoop_Net', 'LocalCoop_QuickSave'];
     var pluginDir = fs ? path.join(base, 'js', 'plugins') : '';
     coop.forEach(function(name) {
         var listed = $plugins.some(function(p) { return p.name === name; });

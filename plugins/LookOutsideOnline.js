@@ -212,7 +212,7 @@
     if (typeof PluginManager === 'undefined' || typeof Input === 'undefined') return;
 
     const PLUGIN_NAME = 'LookOutsideOnline';
-    const COOP_VERSION = '1.9.13-test3';
+    const COOP_VERSION = '1.9.13-test4';
     const params = PluginManager.parameters(PLUGIN_NAME) || {};
     const IS_MZ = (typeof Utils !== 'undefined') && Utils.RPGMAKER_NAME === 'MZ';
 
@@ -437,7 +437,7 @@
         'LAN: tell them this IP. Internet: VPN IP or public IP (docs/NETPLAY.md).': 'LAN: скажите этот IP. Интернет: IP VPN или внешний IP (NETPLAY.ru.md).',
         'The host starts the game; you will see their world.': 'Игру начинает хост; вы увидите его мир.', 'Press "I\'m ready" - the game starts when everybody is.': 'Нажмите «Я готов» — игра начнётся, когда будут готовы все.',
         // carteles
-        'Cheats are off': 'Читы выключены', 'Options > Co-op > Co-op settings > Cheats': 'Опции > Кооп > Настройки кооператива > Читы', 'Only the host saves': 'Сохраняет только хост',
+        'Cheats are off': 'Читы выключены', 'Options > Co-op > Co-op settings > Cheats': 'Опции > Кооп > Настройки кооператива > Читы', 'Only the host saves': 'Сохраняет только хост', 'F6 / F7 are not installed': 'F6 / F7 не установлены', 'Run install.bat of the mod again': 'Запустите install.bat мода ещё раз', 'Not now': 'Не сейчас', 'Close the menu / finish the talk or scene first': 'Сначала закройте меню / закончите разговор или сцену',
         'Only the host loads': 'Загружает только хост', "F6 / F7 work on the host's PC": 'F6 / F7 работают на ПК хоста', 'No saving until the battle ends': 'Сохранение — после боя',
         'No quick save yet': 'Быстрого сохранения ещё нет', 'Press Shift+F6 first': 'Сначала нажмите Shift+F6', 'Quick save': 'Быстрое сохранение', 'Quick save failed': 'Быстрое сохранение не удалось',
         'The host is loading a save': 'Хост загружает сохранение', 'The game comes back by itself': 'Игра вернётся сама', 'P1 left': 'P1 вышел', 'The host plays the protagonist now': 'Теперь героем управляет хост',

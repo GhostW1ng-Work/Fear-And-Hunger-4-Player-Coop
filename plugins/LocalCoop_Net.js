@@ -589,7 +589,10 @@
     }
 
     function quickSaveKey(save, shift) {
-        if (!hasQuickSave()) return;
+        if (!hasQuickSave()) {
+            banner('F6 / F7 are not installed', 'Run install.bat of the mod again', '#ffaa44', 150);
+            return;
+        }
         if (coop.setting('cheats') === false) {
             banner('Cheats are off', 'Options > Co-op > Co-op settings > Cheats', '#ffaa44', 120);
             return;
@@ -605,6 +608,7 @@
         }
         if (!(SceneManager._scene instanceof Scene_Map) || $gameMap.isEventRunning() || subs[1] || sessions[1]) {
             SoundManager.playBuzzer();
+            banner('Not now', 'Close the menu / finish the talk or scene first', '#ffaa44', 120);
             return;
         }
         if (!save && shift && !DataManager.isThisGameFile(QUICK_SLOT)) {
